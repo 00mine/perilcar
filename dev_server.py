@@ -20,7 +20,7 @@ from flask_socketio import SocketIO
 
 app = Flask(__name__, template_folder="web/templates", static_folder="web/static")
 app.secret_key = "perilcar-dev-secret-2024"
-app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024
+app.config["MAX_CONTENT_LENGTH"] = 200 * 1024 * 1024
 
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
 
@@ -726,6 +726,165 @@ def api_import_excel():
     except Exception as e:
         log.error(f"Import lettura file: {e}")
         return jsonify({"ok": False, "msg": f"Errore lettura file: {e}"}), 500
+
+
+@app.route("/api/magazzino/import-excel-stream", methods=["POST"])
+@require_login  
+def api_import_excel_stream():
+    """Import Excel con salvataggio file temporaneo per evitare timeout."""
+    if "file" not in request.files:
+        return jsonify({"ok": False, "msg": "Nessun file"}), 400
+    f = request.files["file"]
+    if not f.filename.lower().endswith((".xlsx",".xls")):
+        return jsonify({"ok": False, "msg": "Solo .xlsx o .xls"}), 400
+
+    import openpyxl, tempfile, os as _os
+    u = cu()
+
+    # Salva file su disco temporaneo
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx')
+    f.save(tmp.name)
+    tmp.close()
+
+    try:
+        wb   = openpyxl.load_workbook(tmp.name, data_only=True, read_only=True)
+        ws   = wb.active
+        
+        # Leggi intestazioni
+        header_row = next(ws.iter_rows(min_row=1, max_row=1, values_only=True))
+        header = [str(h or "").strip().lower() for h in header_row]
+        col_map = {}
+        for i, h in enumerate(header):
+            field = DANEA_MAP.get(h, h.replace(" ","_").replace(".","").replace("'",""))
+            col_map[field] = i
+
+        def get(row, field, default=None):
+            idx = col_map.get(field)
+            if idx is None or idx >= len(row): return default
+            v = row[idx]
+            if v is None: return default
+            import datetime
+            if isinstance(v, (datetime.datetime, datetime.date)):
+                return str(v.year)
+            s = str(v).strip()
+            return s if s not in ("None","nan","") else default
+
+        def toint(row, field):
+            try: v = get(row, field, "0"); return int(float(v)) if v else 0
+            except: return 0
+
+        def tofloat(row, field):
+            try: v = get(row, field, "0"); return float(v) if v else 0.0
+            except: return 0.0
+
+        importati = 0; aggiornati = 0; saltati = 0; row_n = 1
+        BATCH = 500  # commit ogni 500 righe
+
+        with db._write_lock:
+            conn = db.get_connection()
+            try:
+                for row in ws.iter_rows(min_row=2, values_only=True):
+                    row_n += 1
+                    codice = get(row, "codice")
+                    nome   = get(row, "nome")
+                    if not codice or not nome:
+                        saltati += 1; continue
+
+                    scorta    = toint(row, "scorta_minima")
+                    esistenza = toint(row, "esistenza")
+
+                    campi = {
+                        "nome": nome,
+                        "tipologia":      get(row,"tipologia"),
+                        "categoria":      get(row,"categoria"),
+                        "sottocategoria": get(row,"sottocategoria"),
+                        "cod_udm":        get(row,"cod_udm"),
+                        "cod_iva":        get(row,"cod_iva"),
+                        "listino1":       tofloat(row,"listino1"),
+                        "listino2":       tofloat(row,"listino2"),
+                        "listino3":       tofloat(row,"listino3"),
+                        "note":           get(row,"nota"),
+                        "cod_barre":      get(row,"cod_barre"),
+                        "internet":       get(row,"internet"),
+                        "marca":          get(row,"marca"),
+                        "extra1":         get(row,"extra1"),
+                        "extra2":         get(row,"extra2"),
+                        "extra3":         get(row,"extra3"),
+                        "extra4":         get(row,"extra4"),
+                        "cod_fornitore":  get(row,"cod_fornitore"),
+                        "fornitore":      get(row,"fornitore"),
+                        "cod_prod_forn":  get(row,"cod_prod_forn"),
+                        "prezzo_forn":    tofloat(row,"prezzo_forn"),
+                        "note_fornitura": get(row,"note_fornitura"),
+                        "ord_multipli":   toint(row,"ord_multipli"),
+                        "gg_ordine":      toint(row,"gg_ordine"),
+                        "scorta_minima":  scorta,
+                        "ubicazione":     get(row,"ubicazione"),
+                        "stato_magazzino":get(row,"stato_magazzino"),
+                    }
+
+                    existing = conn.execute(
+                        "SELECT id FROM componenti WHERE codice=? AND eliminato=0",
+                        (codice,)).fetchone()
+
+                    if existing:
+                        comp_id = existing[0]
+                        sets = ", ".join(f"{k}=?" for k in campi)
+                        conn.execute(
+                            f"UPDATE componenti SET {sets}, modificato_il=datetime('now') WHERE id=?",
+                            list(campi.values()) + [comp_id])
+                        aggiornati += 1
+                    else:
+                        campi["codice"]     = codice
+                        campi["pubblicato"] = 0
+                        campi["creato_da"]  = u.get("id")
+                        cols_str     = ", ".join(campi.keys())
+                        placeholders = ", ".join(["?"] * len(campi))
+                        cur = conn.execute(
+                            f"INSERT INTO componenti ({cols_str}) VALUES ({placeholders})",
+                            list(campi.values()))
+                        comp_id = cur.lastrowid
+                        conn.execute(
+                            "INSERT OR IGNORE INTO magazzino(componente_id,scorta_minima) VALUES(?,?)",
+                            (comp_id, scorta))
+                        importati += 1
+
+                    if esistenza > 0:
+                        already = conn.execute(
+                            "SELECT id FROM movimenti_magazzino WHERE componente_id=? AND riferimento='Import Excel' LIMIT 1",
+                            (comp_id,)).fetchone()
+                        if not already:
+                            conn.execute(
+                                """INSERT INTO movimenti_magazzino
+                                   (componente_id,tipo,quantita,quantita_prima,quantita_dopo,riferimento,utente_id)
+                                   VALUES(?,?,?,?,?,?,?)""",
+                                (comp_id,"carico",esistenza,0,esistenza,"Import Excel",u.get("id")))
+
+                    # Commit a blocchi
+                    if row_n % BATCH == 0:
+                        conn.commit()
+                        socketio.emit("import_progress", {
+                            "processed": row_n-1,
+                            "importati": importati,
+                            "aggiornati": aggiornati
+                        })
+
+                conn.commit()
+                wb.close()
+            except Exception as e:
+                conn.rollback()
+                return jsonify({"ok": False, "msg": f"Errore riga {row_n}: {e}"}), 500
+            finally:
+                conn.close()
+
+    finally:
+        _os.unlink(tmp.name)
+
+    tot = importati + aggiornati
+    socketio.emit("import_done", {"importati": importati, "aggiornati": aggiornati, "saltati": saltati})
+    return jsonify({"ok": True,
+        "msg": f"✅ Import OK: {importati} nuovi, {aggiornati} aggiornati, {saltati} saltati su {tot} totali",
+        "importati": importati, "aggiornati": aggiornati, "saltati": saltati})
 
 
 @app.route("/api/backup", methods=["POST"])

@@ -840,31 +840,56 @@ async function showResoconto(){
 // EXPORT EXCEL
 function exportExcel(){window.location.href='/api/magazzino/export-excel';}
 
-// IMPORT EXCEL
+// IMPORT EXCEL con progress real-time
 async function importExcel(inp){
   if(!inp.files.length)return;
   const prog=document.getElementById('import-progress');
   const msg=document.getElementById('import-msg');
   const fill=document.getElementById('progress-fill');
+  const file=inp.files[0];
   prog.style.display='block';
-  msg.textContent=`⏳ Import di ${inp.files[0].name} in corso... (${Math.round(inp.files[0].size/1024)}KB)`;
-  fill.style.width='30%';
-  const fd=new FormData();fd.append('file',inp.files[0]);
+  msg.textContent=`⏳ Caricamento ${file.name} (${Math.round(file.size/1024/1024*10)/10}MB)...`;
+  fill.style.width='5%';
+
+  // Ascolta progresso via SocketIO
+  let processed=0;
+  const onProgress = (data) => {
+    processed=data.processed||0;
+    const pct=Math.min(95, Math.round(processed/220));
+    fill.style.width=pct+'%';
+    msg.textContent=`⏳ Importati: ${data.importati||0} nuovi, ${data.aggiornati||0} aggiornati... (riga ${processed})`;
+  };
+  const onDone = (data) => {
+    fill.style.width='100%';
+    msg.textContent=`✅ Completato! ${data.importati} nuovi, ${data.aggiornati} aggiornati`;
+  };
+  _sock.on('import_progress', onProgress);
+  _sock.on('import_done', onDone);
+
+  const fd=new FormData();fd.append('file',file);
   try{
-    fill.style.width='60%';
-    const r=await fetch('/api/magazzino/import-excel',{method:'POST',body:fd});
-    fill.style.width='90%';
+    fill.style.width='10%';
+    const r=await fetch('/api/magazzino/import-excel-stream',{method:'POST',body:fd});
     const res=await r.json();
     fill.style.width='100%';
-    setTimeout(()=>{prog.style.display='none';fill.style.width='0%';},2000);
-    toast(res.msg,res.ok);
-    if(res.ok)caricaDati(buildQ());
-    else msg.textContent='❌ '+res.msg;
+    if(res.ok){
+      msg.textContent=res.msg;
+      toast(res.msg,true);
+      caricaDati(buildQ());
+    }else{
+      msg.textContent='❌ '+res.msg;
+      toast(res.msg,false);
+    }
+    setTimeout(()=>{prog.style.display='none';fill.style.width='0%';},4000);
   }catch(e){
     prog.style.display='none';
-    toast('Errore di rete durante import',false);
+    msg.textContent='❌ Errore: '+e.message;
+    toast('Errore durante import: '+e.message,false);
+  }finally{
+    _sock.off('import_progress',onProgress);
+    _sock.off('import_done',onDone);
+    inp.value='';
   }
-  inp.value='';
 }
 
 // INVENTARIO
