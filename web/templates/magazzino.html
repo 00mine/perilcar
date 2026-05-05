@@ -297,6 +297,7 @@
       <button class="btn btn-ghost" onclick="exportExcel()">📤 Export</button>
       <button class="btn btn-ghost" style="color:var(--red)" onclick="clearAllFilters()">✕ Pulisci filtri</button>
       <button class="btn btn-ghost" onclick="openModal('modal-colonne')" title="Gestisci colonne">⚙ Colonne</button>
+      <button class="btn btn-ghost" onclick="stampaMagazzino()">🖨 Stampa</button>
     </div>
 
     <!-- Import progress -->
@@ -634,6 +635,819 @@ async function apiFetch(url, opts={}) {
   opts.headers = {'Content-Type':'application/json',...(opts.headers||{})};
   const r = await fetch(url, opts); return r.json();
 }
+function esc(s) {
+  return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function toast(msg, ok=true) {
+  document.querySelectorAll('.toast').forEach(e=>e.remove());
+  const d = document.createElement('div');
+  d.className = 'toast '+(ok?'toast-ok':'toast-err');
+  d.textContent = msg;
+  document.body.appendChild(d);
+  setTimeout(()=>d.remove(), 3500);
+}
+function fb(msg, ok=true) {
+  const el = document.getElementById('feedback');
+  el.textContent = msg; el.className = 'feedback '+(ok?'ok':'err');
+  setTimeout(()=>{ el.textContent=''; el.className='feedback'; }, 4000);
+}
+async function logout() { await apiFetch('/api/logout',{method:'POST'}); window.location.href='/login'; }
+function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+function openModal(id)  { document.getElementById(id).classList.remove('hidden'); }
+document.querySelectorAll('.overlay').forEach(o=>{
+  o.addEventListener('click', e=>{ if(e.target===o) o.classList.add('hidden'); });
+});
+
+// ── BUILD HEADER E FILTRI ────────────────────────────────────────────
+function buildHeaderAndFilters() {
+  const hdrRow = document.getElementById('hdr-row');
+  const fltRow = document.getElementById('flt-row');
+  hdrRow.innerHTML = '';
+  fltRow.innerHTML = '';
+
+  // Usa colonne visibili nell'ordine corrente
+  const visCols = getVisibleCols();
+  const totW = visCols.reduce((s,c)=>s+c.w, 0);
+
+  // Imposta larghezze colonne in tutte le tabelle
+  const tables = ['tbl-hdr-table','tbl-flt-table','tbl-data'];
+  tables.forEach(id => {
+    const t = document.getElementById(id);
+    if(!t) return;
+    let cg = t.querySelector('colgroup');
+    if(!cg) { cg = document.createElement('colgroup'); t.prepend(cg); }
+    cg.innerHTML = visCols.map(col=>`<col style="width:${col.w}px;min-width:${col.w}px">`).join('');
+  });
+
+  // Sync larghezza scroll x
+  document.getElementById('scroll-x-inner').style.width = totW + 'px';
+
+  visCols.forEach((col, ci) => {
+    const {key, label, w} = col;
+    // Header
+    const th = document.createElement('th');
+    th.className = 'col-hdr';
+    th.textContent = label;
+    th.title = label;
+    th.style.width = w+'px';
+    th.onclick = () => sortBy(key, ci);
+    th.id = `hdr-${key}`;
+    hdrRow.appendChild(th);
+
+    // Filtro
+    const tf = document.createElement('th');
+    tf.className = 'col-filter';
+    tf.style.width = w+'px';
+    const inp = document.createElement('input');
+    inp.type = 'text';
+    inp.placeholder = '…';
+    inp.id = `flt-${key}`;
+    inp.dataset.key = key;
+    // Ripristina valore filtro esistente
+    if(_colFilters[key]) inp.value = _colFilters[key];
+    // Placeholder speciale per colonne numeriche
+    if(NUM_FILTER_COLS && NUM_FILTER_COLS.has(key)) {
+      inp.placeholder = '>0 <5…';
+      inp.title = 'Esempi: >5  <3  >=2  <=10  =0';
+      inp.style.fontFamily = 'var(--mono)';
+    }
+    inp.addEventListener('input', () => {
+      const v = inp.value.trim();
+      if(v) _colFilters[key] = v;
+      else delete _colFilters[key];
+      applicaFiltri();
+    });
+    tf.appendChild(inp);
+    fltRow.appendChild(tf);
+  });
+
+  // Sync scroll orizzontale
+  const scrollX = document.getElementById('scroll-x');
+  scrollX.addEventListener('scroll', () => {
+    document.getElementById('tbl-header').scrollLeft = scrollX.scrollLeft;
+    document.getElementById('tbl-filters').scrollLeft = scrollX.scrollLeft;
+    document.getElementById('tbl-body').scrollLeft = scrollX.scrollLeft;
+  });
+  document.getElementById('tbl-body').addEventListener('scroll', () => {
+    scrollX.scrollLeft = document.getElementById('tbl-body').scrollLeft;
+    document.getElementById('tbl-header').scrollLeft = document.getElementById('tbl-body').scrollLeft;
+    document.getElementById('tbl-filters').scrollLeft = document.getElementById('tbl-body').scrollLeft;
+  });
+}
+
+// ── CARICA DATI ──────────────────────────────────────────────────────
+async function caricaDati() {
+  document.getElementById('s-tot').textContent = 'Caricamento...';
+  _tutti = await apiFetch('/api/magazzino/componenti');
+  applicaFiltri();
+}
+
+// ── FILTRI COLONNA ────────────────────────────────────────────────────
+// Colonne numeriche che supportano operatori <, >, <=, >=, =
+const NUM_FILTER_COLS = new Set(['esistenza','scorta','listino1','listino2','listino3',
+  'prezzo_forn','ord_multipli','gg_ordine','anno_da','anno_a']);
+
+function parseNumericFilter(expr, val) {
+  // Supporta: <3  >2  <=5  >=1  =0  3 (uguale esatto)
+  expr = expr.trim();
+  const m = expr.match(/^(<=|>=|<|>|=)?\s*(-?[\d.]+)$/);
+  if(!m) return String(val??'').toLowerCase().includes(expr.toLowerCase());
+  const op  = m[1] || '=';
+  const num = parseFloat(m[2]);
+  const v   = parseFloat(val??0);
+  if(isNaN(num)||isNaN(v)) return false;
+  switch(op) {
+    case '<':  return v <  num;
+    case '>':  return v >  num;
+    case '<=': return v <= num;
+    case '>=': return v >= num;
+    case '=':  return v === num;
+    default:   return v === num;
+  }
+}
+
+function applicaFiltri() {
+  const keys = Object.keys(_colFilters);
+  if(!keys.length) {
+    _filt = _tutti;
+  } else {
+    _filt = _tutti.filter(r => {
+      return keys.every(k => {
+        const expr = _colFilters[k];
+        if(NUM_FILTER_COLS.has(k)) {
+          return parseNumericFilter(expr, r[k]);
+        }
+        const v = String(r[k] ?? '').toLowerCase();
+        return v.includes(expr);
+      });
+    });
+  }
+
+  // Applica sort
+  if(_sortCol) {
+    _filt = [..._filt].sort((a,b) => {
+      const va = a[_sortCol]??'', vb = b[_sortCol]??'';
+      return (va<vb?-1:va>vb?1:0) * _sortDir;
+    });
+  }
+
+  updateStatus();
+  resetVirtual();
+  renderVirtual();
+}
+
+function clearAllFilters() {
+  _colFilters = {};
+  document.querySelectorAll('[id^="flt-"]').forEach(inp => inp.value = '');
+  applicaFiltri();
+}
+
+// ── SORT ─────────────────────────────────────────────────────────────
+function sortBy(key, ci) {
+  _sortDir = _sortCol===key ? _sortDir*-1 : 1;
+  _sortCol = key;
+  document.querySelectorAll('th.col-hdr').forEach(th => {
+    th.classList.remove('sort-asc','sort-desc');
+  });
+  const hdr = document.getElementById(`hdr-${key}`);
+  if(hdr) hdr.classList.add(_sortDir===1?'sort-asc':'sort-desc');
+  applicaFiltri();
+}
+
+// ── SCROLL VIRTUALE ───────────────────────────────────────────────────
+function resetVirtual() {
+  _scrollTop = 0;
+  const body = document.getElementById('tbl-body');
+  body.scrollTop = 0;
+}
+
+function onBodyScroll() {
+  _scrollTop = document.getElementById('tbl-body').scrollTop;
+  renderVirtual();
+}
+
+function renderVirtual() {
+  _bodyH = document.getElementById('tbl-body').clientHeight;
+  const total = _filt.length;
+  const totalH = total * ROW_H;
+
+  // Calcola righe visibili
+  const startRow = Math.max(0, Math.floor(_scrollTop / ROW_H) - OVERSCAN);
+  const endRow   = Math.min(total, Math.ceil((_scrollTop + _bodyH) / ROW_H) + OVERSCAN);
+
+  _visStart = startRow;
+  _visEnd   = endRow;
+
+  // Spaziatori
+  document.getElementById('spacer-top').style.height = (startRow * ROW_H) + 'px';
+  document.getElementById('spacer-bot').style.height = ((total - endRow) * ROW_H) + 'px';
+
+  // Renderizza solo le righe visibili
+  const tbody = document.getElementById('tbl-tbody');
+  const slice = _filt.slice(startRow, endRow);
+  const visCols = getVisibleCols(); // Calcolato UNA volta fuori dal loop
+
+  tbody.innerHTML = slice.map((r, i) => {
+    const ri = startRow + i;
+    const es  = r.esistenza ?? 0;
+    const sc  = r.scorta    ?? 0;
+    const bad = sc>0 && es<=sc;
+    const sel = _selId===r.componente_id ? ' selected':'';
+    const scar= bad ? ' scarso':'';
+
+    const cells = visCols.map(({key}) => {
+      const tipo = COL_TIPO[key] || 'str';
+      const v = r[key] ?? '';
+      if(tipo==='cmp')   return `<td><span class="cmp-chip">${esc(v)}</span></td>`;
+      if(tipo==='files') {
+        const cnt = v ? String(v).split('|').filter(Boolean).length : 0;
+        return `<td class="num">${cnt>0?'📎'+cnt:''}</td>`;
+      }
+      if(tipo==='num') {
+        if(key==='esistenza') {
+          const cl = bad ? 'val-bad':'val-ok';
+          return `<td class="num ${cl}">${v}</td>`;
+        }
+        return `<td class="num">${v||''}</td>`;
+      }
+      return `<td title="${esc(String(v))}">${esc(String(v))}</td>`;
+    }).join(''); // fine visCols.map
+
+    return `<tr class="${sel}${scar}" data-id="${r.componente_id}"
+              style="height:${ROW_H}px">${cells}</tr>`;
+  }).join('');
+
+  // Event delegation per click
+  tbody.onclick = (e) => {
+    const tr = e.target.closest('tr[data-id]');
+    if(!tr) return;
+    selectRow(parseInt(tr.dataset.id), tr);
+  };
+  tbody.ondblclick = (e) => {
+    const tr = e.target.closest('tr[data-id]');
+    if(!tr) return;
+    goStoricoComp(parseInt(tr.dataset.id));
+  };
+}
+
+function updateStatus() {
+  const total = _tutti.length;
+  const vis   = _filt.length;
+  const sc    = _filt.filter(r=>(r.scorta||0)>0&&(r.esistenza||0)<=(r.scorta||0)).length;
+  const nFlt  = Object.keys(_colFilters).length;
+
+  document.getElementById('s-tot').textContent = `${total.toLocaleString()} componenti`;
+  document.getElementById('s-vis').textContent  = vis<total ? `— ${vis.toLocaleString()} filtrati` : '';
+  document.getElementById('s-sc').textContent   = sc ? `${sc} sotto scorta` : '';
+  document.getElementById('s-filtri').textContent = nFlt ? `(${nFlt} filtri attivi)` : '';
+}
+
+// ── SELEZIONE ────────────────────────────────────────────────────────
+async function selectRow(id, el) {
+  _selId = id;
+  // Deseleziona tutte le tr visibili
+  document.querySelectorAll('#tbl-tbody tr').forEach(r=>r.classList.remove('selected'));
+  if(el) el.classList.add('selected');
+
+  const r = _tutti.find(x=>x.componente_id===id);
+  if(!r) return;
+
+  document.getElementById('pan-cmp').value       = r.cmp||'';
+  document.getElementById('pan-nome').value      = r.articolo||'';
+  document.getElementById('pan-note').value      = r.nota||'';
+  document.getElementById('pan-ubicazione').value = r.ubicazione||'—';
+  renderFiles(r.files_path);
+
+  const info = await apiFetch(`/api/magazzino/info-movimenti/${id}`);
+  document.getElementById('cnt-carichi').textContent  = info.carichi;
+  document.getElementById('cnt-scarichi').textContent = info.scarichi;
+  document.getElementById('dt-carico').textContent  = info.ultima_data_carico  ? '↑ '+info.ultima_data_carico.slice(0,16)  : '—';
+  document.getElementById('dt-scarico').textContent = info.ultima_data_scarico ? '↓ '+info.ultima_data_scarico.slice(0,16) : '—';
+}
+
+// ── FILES ────────────────────────────────────────────────────────────
+function renderFiles(files_path) {
+  const list  = document.getElementById('files-list');
+  const files = (files_path||'').split('|').filter(Boolean);
+  if(!files.length){ list.innerHTML=''; return; }
+  const IMG = new Set(['png','jpg','jpeg','gif','webp']);
+  list.innerHTML = files.map(url => {
+    const fname = url.split('/').pop();
+    const ext   = fname.split('.').pop().toLowerCase();
+    const prev  = IMG.has(ext)
+      ? `<img src="${url}" alt="">`
+      : `<span style="font-size:16px">${ext==='pdf'?'📄':ext==='xlsx'||ext==='xls'?'📊':'📎'}</span>`;
+    return `<div class="file-item">${prev}
+      <span class="fname" title="${fname}">${fname}</span>
+      <a href="${url}" target="_blank" style="color:var(--blue);font-size:11px;text-decoration:none">↗</a>
+      <button class="fdel" onclick="deleteFile('${url}')">×</button>
+    </div>`;
+  }).join('');
+}
+
+async function uploadFiles(inp) {
+  if(!_selId){ toast('Seleziona prima un componente',false); inp.value=''; return; }
+  for(const file of Array.from(inp.files)) {
+    const fd = new FormData(); fd.append('file', file);
+    const r  = await fetch(`/api/magazzino/upload-file/${_selId}`,{method:'POST',body:fd});
+    const res = await r.json();
+    if(res.ok) {
+      renderFiles(res.files.join('|'));
+      const row = _tutti.find(x=>x.componente_id===_selId);
+      if(row) row.files_path = res.files.join('|');
+    } else toast(res.msg,false);
+  }
+  inp.value='';
+}
+
+async function deleteFile(url) {
+  if(!_selId) return;
+  const res = await apiFetch(`/api/magazzino/delete-file/${_selId}`,
+    {method:'POST',body:JSON.stringify({url})});
+  if(res.ok) {
+    const row = _tutti.find(x=>x.componente_id===_selId);
+    if(row) { row.files_path=(row.files_path||'').split('|').filter(f=>f&&f!==url).join('|'); renderFiles(row.files_path); }
+  } else toast(res.msg,false);
+}
+
+// ── CARICO/SCARICO ───────────────────────────────────────────────────
+function setModo(m) {
+  _modo = m;
+  document.getElementById('btn-cl').classList.toggle('active', m==='carico');
+  document.getElementById('btn-sl').classList.toggle('active', m==='scarico');
+}
+
+async function conferma() {
+  if(!_selId){ fb('Seleziona un componente',false); return; }
+  if(!_modo) { fb('Scegli Carico o Scarico',false); return; }
+  const q = parseInt(_modo==='carico'
+    ? document.getElementById('inp-qc').value
+    : document.getElementById('inp-qs').value);
+  if(!q||q<=0){ fb('Inserisci quantità valida',false); return; }
+
+  const res = await apiFetch('/api/magazzino/movimento',{method:'POST',body:JSON.stringify({
+    componente_id:_selId, tipo:_modo, quantita:q,
+    riferimento:document.getElementById('inp-rif').value.trim()||null,
+    note:document.getElementById('pan-note').value.trim()||null
+  })});
+  fb(res.msg, res.ok);
+  if(res.ok) {
+    document.getElementById('inp-qc').value='';
+    document.getElementById('inp-qs').value='';
+    document.getElementById('inp-rif').value='';
+    _modo=null;
+    document.getElementById('btn-cl').classList.remove('active');
+    document.getElementById('btn-sl').classList.remove('active');
+    // Aggiorna solo la riga interessata (non ricaricare tutto)
+    const comp = await apiFetch(`/api/magazzino/componenti?q=${encodeURIComponent(document.getElementById('pan-cmp').value)}`);
+    const updated = comp.find(x=>x.componente_id===_selId);
+    if(updated) {
+      const idx = _tutti.findIndex(x=>x.componente_id===_selId);
+      if(idx>=0) _tutti[idx] = updated;
+      applicaFiltri();
+    }
+    const info = await apiFetch(`/api/magazzino/info-movimenti/${_selId}`);
+    document.getElementById('cnt-carichi').textContent  = info.carichi;
+    document.getElementById('cnt-scarichi').textContent = info.scarichi;
+    document.getElementById('dt-carico').textContent  = info.ultima_data_carico?.slice(0,16)||'—';
+    document.getElementById('dt-scarico').textContent = info.ultima_data_scarico?.slice(0,16)||'—';
+  }
+}
+
+// ── UBICAZIONE ───────────────────────────────────────────────────────
+async function salvaUbicazione() {
+  if(!_selId){ fb('Seleziona un componente',false); return; }
+  const ubicazione = document.getElementById('pan-ubicazione').value.trim();
+  const res = await apiFetch(`/api/magazzino/componenti/${_selId}`,
+    {method:'PUT', body:JSON.stringify({ubicazione})});
+  fb(res.ok ? '✅ Ubicazione salvata' : res.msg, res.ok);
+  if(res.ok) {
+    const row = _tutti.find(x=>x.componente_id===_selId);
+    if(row) row.ubicazione = ubicazione;
+    renderVirtual();
+  }
+}
+
+// ── NOTA ─────────────────────────────────────────────────────────────
+async function salvaNota() {
+  if(!_selId){ fb('Seleziona un componente',false); return; }
+  const note = document.getElementById('pan-note').value.trim();
+  const res  = await apiFetch(`/api/magazzino/componenti/${_selId}`,
+    {method:'PUT',body:JSON.stringify({note})});
+  fb(res.msg, res.ok);
+  if(res.ok) { const row=_tutti.find(x=>x.componente_id===_selId); if(row) row.nota=note; }
+}
+
+// ── FORM ─────────────────────────────────────────────────────────────
+const FORM_CAMPI = ['codice','nome','tipologia','categoria','sottocategoria',
+  'cod_udm','cod_iva','listino1','listino2','listino3','note','cod_barre',
+  'internet','marca','extra1','extra2','extra3','extra4','cod_fornitore',
+  'fornitore','prezzo_forn','note_fornitura','scorta_minima','ubicazione',
+  'stato_magazzino','modello','colore','cilindrata','carburante',
+  'anno_da','anno_a','intervallo'];
+
+async function openFormNuovo() {
+  _modifica = false;
+  document.getElementById('form-title').textContent = '＋ Nuovo Componente';
+  FORM_CAMPI.forEach(k=>{ const el=document.getElementById('f-'+k); if(el)el.value=''; });
+  ['f-scorta_minima','f-listino1','f-listino2','f-listino3','f-prezzo_forn']
+    .forEach(id=>{ const el=document.getElementById(id); if(el)el.value='0'; });
+  document.getElementById('f-codice').removeAttribute('readonly');
+  document.getElementById('f-codice').style.opacity='1';
+  const res = await apiFetch('/api/magazzino/prossimo-codice');
+  if(res.codice) document.getElementById('f-codice').value = res.codice;
+  openModal('modal-form');
+}
+
+function openFormModifica() {
+  if(!_selId){ fb('Seleziona un componente',false); return; }
+  const r = _tutti.find(x=>x.componente_id===_selId); if(!r) return;
+  _modifica = true;
+  document.getElementById('form-title').textContent = '✏ Modifica Componente';
+  const map = {
+    codice:r.cmp, nome:r.articolo, tipologia:r.tipologia, categoria:r.categoria,
+    sottocategoria:r.sottocategoria, cod_udm:r.cod_udm, cod_iva:r.cod_iva,
+    listino1:r.listino1, listino2:r.listino2, listino3:r.listino3,
+    note:r.nota, cod_barre:r.cod_barre, internet:r.internet, marca:r.marca,
+    extra1:r.extra1, extra2:r.extra2, extra3:r.extra3, extra4:r.extra4,
+    cod_fornitore:r.cod_fornitore, fornitore:r.fornitore,
+    prezzo_forn:r.prezzo_forn, note_fornitura:r.note_fornitura,
+    scorta_minima:r.scorta, ubicazione:r.ubicazione,
+    stato_magazzino:r.stato_magazzino, modello:r.modello, colore:r.colore,
+    cilindrata:r.cilindrata, carburante:r.carburante,
+    anno_da:r.anno_da, anno_a:r.anno_a, intervallo:r.intervallo
+  };
+  FORM_CAMPI.forEach(k=>{ const el=document.getElementById('f-'+k); if(el)el.value=map[k]??''; });
+  const cod=document.getElementById('f-codice');
+  cod.setAttribute('readonly',''); cod.style.opacity='.5';
+  openModal('modal-form');
+}
+
+async function salvaForm() {
+  const dati = {};
+  FORM_CAMPI.forEach(k=>{ const el=document.getElementById('f-'+k); dati[k]=el?el.value.trim():''; });
+  const res = _modifica
+    ? await apiFetch(`/api/magazzino/componenti/${_selId}`,{method:'PUT',body:JSON.stringify(dati)})
+    : await apiFetch('/api/magazzino/componenti',{method:'POST',body:JSON.stringify(dati)});
+  if(res.ok){ closeModal('modal-form'); await caricaDati(); toast(res.msg); }
+  else toast(res.msg,false);
+}
+
+// ── ELIMINA ───────────────────────────────────────────────────────────
+async function eliminaSelected() {
+  if(!_selId){ fb('Seleziona un componente',false); return; }
+  const r = _tutti.find(x=>x.componente_id===_selId);
+  if(!confirm(`Eliminare "${r?.articolo||_selId}"?`)) return;
+  const res = await apiFetch(`/api/magazzino/componenti/${_selId}`,{method:'DELETE'});
+  fb(res.msg,res.ok);
+  if(res.ok){ _selId=null; await caricaDati(); }
+}
+
+// ── IMPORT EXCEL ──────────────────────────────────────────────────────
+async function importExcel(inp) {
+  if(!inp.files.length) return;
+  const bar  = document.getElementById('import-bar');
+  const msg  = document.getElementById('import-msg');
+  const fill = document.getElementById('import-fill');
+  const file = inp.files[0];
+  bar.style.display='block';
+  msg.textContent=`⏳ Caricamento ${file.name} (${Math.round(file.size/1024)}KB)...`;
+  fill.style.width='5%';
+
+  _sock.on('import_progress', d=>{
+    const pct=Math.min(90,Math.round((d.processed||0)/230));
+    fill.style.width=pct+'%';
+    msg.textContent=`⏳ ${d.importati||0} nuovi, ${d.aggiornati||0} aggiornati... (riga ${d.processed||0})`;
+  });
+
+  const fd = new FormData(); fd.append('file', file);
+  try {
+    fill.style.width='15%';
+    const r   = await fetch('/api/magazzino/import-excel-stream',{method:'POST',body:fd});
+    const res = await r.json();
+    fill.style.width='100%';
+    msg.textContent = res.ok ? res.msg : '❌ '+res.msg;
+    toast(res.msg, res.ok);
+    if(res.ok) await caricaDati();
+    setTimeout(()=>{ bar.style.display='none'; fill.style.width='0%'; }, 4000);
+  } catch(e) {
+    bar.style.display='none';
+    toast('Errore import: usa import_excel.bat per file grandi',false);
+  }
+  inp.value='';
+}
+
+// ── EXPORT EXCEL ──────────────────────────────────────────────────────
+function exportExcel(){ window.location.href='/api/magazzino/export-excel'; }
+
+// ── RESOCONTO ─────────────────────────────────────────────────────────
+async function showResoconto() {
+  const s = await apiFetch('/api/magazzino/stats');
+  alert(`📊 Resoconto Magazzino\n\nComponenti: ${s.totale_componenti}\nSotto scorta: ${s.sotto_scorta}\nUltimo movimento: ${s.ultimo_movimento}`);
+}
+
+// ── STORICO ───────────────────────────────────────────────────────────
+function goStorico()       { window.location.href='/storico'; }
+function goStoricoComp(id) { window.location.href='/storico?comp='+id; }
+
+// ── BACKUP ────────────────────────────────────────────────────────────
+async function doBackup() {
+  const res = await apiFetch('/api/backup',{method:'POST'});
+  toast(res.ok?'✅ Backup completato':'❌ Backup fallito',res.ok);
+}
+
+// ── INVENTARIO ────────────────────────────────────────────────────────
+async function openInventario() {
+  const rows = await apiFetch('/api/magazzino/inventario');
+  const body = document.getElementById('inventario-body');
+  const hdrs = ['Cod.','Descrizione','Q.tà','Scorta','Produttore','Categoria','Ubicazione','Stato'];
+  const keys = ['cmp','articolo','esistenza','scorta','marca','categoria','ubicazione','stato_magazzino'];
+  let html=`<div style="padding:0 16px 4px"><p style="font-size:11px;color:var(--text3);padding:8px 0">${rows.length.toLocaleString()} articoli · ${new Date().toLocaleString('it-IT')}</p></div>
+    <div style="overflow:auto;max-height:55vh">
+    <table style="width:100%;border-collapse:collapse;font-size:11px">
+    <thead><tr style="background:var(--surface);position:sticky;top:0">
+    ${hdrs.map(h=>`<th style="padding:7px 8px;font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--text2);border-bottom:1px solid var(--border)">${h}</th>`).join('')}
+    </tr></thead><tbody>`;
+  rows.forEach((r,i)=>{
+    const bad=(r.scorta||0)>0&&(r.esistenza||0)<=(r.scorta||0);
+    const bg=bad?'#fff5f5':(i%2?'#fafafa':'#fff');
+    html+=`<tr style="background:${bg};border-bottom:1px solid #f3f4f6">
+      ${keys.map((k,ki)=>{
+        if(k==='cmp') return `<td style="padding:5px 8px;font-family:var(--mono);font-size:10px;color:var(--orange)">${esc(r[k]||'')}</td>`;
+        if(k==='esistenza') return `<td style="padding:5px 8px;text-align:center;font-weight:700;color:${bad?'var(--red)':'var(--green)'}">${r[k]??0}</td>`;
+        if(k==='scorta') return `<td style="padding:5px 8px;text-align:center;color:var(--text3)">${r[k]??0}</td>`;
+        return `<td style="padding:5px 8px">${esc(String(r[k]||''))}</td>`;
+      }).join('')}
+    </tr>`;
+  });
+  html+='</tbody></table></div>';
+  body.innerHTML=html;
+  openModal('modal-inventario');
+}
+
+function stampaInventario(){
+  const content=document.getElementById('inventario-body').innerHTML;
+  const w=window.open('','_blank');
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Inventario PerilCar</title>
+    <style>body{font-family:Arial,sans-serif;font-size:10px;margin:15px}h2{color:#e94c00;margin-bottom:6px}
+    table{width:100%;border-collapse:collapse}th{background:#e94c00;color:white;padding:5px 7px;text-align:left;font-size:9px}
+    td{padding:4px 7px;border-bottom:1px solid #eee}tr:nth-child(even){background:#fafafa}
+    @media print{@page{margin:.8cm;size:landscape}}</style></head><body>
+    <h2>📦 Inventario Magazzino — PerilCar</h2>
+    <p style="color:#888;font-size:10px;margin-bottom:10px">Generato il ${new Date().toLocaleString('it-IT')}</p>
+    ${content}<script>window.onload=()=>window.print()<\/script></body></html>`);
+  w.document.close();
+}
+
+// ── LISTA ACQUISTI ────────────────────────────────────────────────────
+function openListaAcquisti(){ openModal('modal-acquisti'); }
+
+async function cercaAcquisti(){
+  const marca=document.getElementById('acq-marca').value.trim();
+  const modello=document.getElementById('acq-modello').value.trim();
+  const soglia=document.getElementById('acq-soglia').value||1;
+  const p=new URLSearchParams({soglia});
+  if(marca) p.set('marca',marca); if(modello) p.set('modello',modello);
+  _acqData=await apiFetch('/api/magazzino/lista-acquisti?'+p.toString());
+  const div=document.getElementById('acquisti-result');
+  document.getElementById('btn-stampa-acq').disabled=!_acqData.length;
+  if(!_acqData.length){
+    div.innerHTML=`<p style="color:var(--text3);text-align:center;padding:20px">Nessun pezzo trovato sotto soglia ${soglia}</p>`;
+    return;
+  }
+  let html=`<p style="font-size:11px;color:var(--text3);margin-bottom:6px">${_acqData.length} pezzi da ordinare</p>
+    <div style="overflow:auto;max-height:45vh"><table style="width:100%;border-collapse:collapse;font-size:11px">
+    <thead><tr style="background:var(--surface)">
+    ${['Cod.','Descrizione','ES','Scorta','Produttore','Modello','Ubicazione']
+      .map(h=>`<th style="padding:6px 8px;font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text2);border-bottom:1px solid var(--border)">${h}</th>`).join('')}
+    </tr></thead><tbody>`;
+  _acqData.forEach((r,i)=>{
+    html+=`<tr style="background:${i%2?'#fafafa':'#fff'};border-bottom:1px solid #f3f4f6">
+      <td style="padding:5px 8px;font-family:var(--mono);font-size:10px;color:var(--orange)">${esc(r.cmp)}</td>
+      <td style="padding:5px 8px;font-weight:500">${esc(r.articolo)}</td>
+      <td style="padding:5px 8px;text-align:center;font-weight:700;color:var(--red)">${r.esistenza??0}</td>
+      <td style="padding:5px 8px;text-align:center;color:var(--text3)">${r.scorta??0}</td>
+      <td style="padding:5px 8px">${esc(r.marca||'')}</td>
+      <td style="padding:5px 8px">${esc(r.modello||'')}</td>
+      <td style="padding:5px 8px">${esc(r.ubicazione||'')}</td>
+    </tr>`;
+  });
+  html+='</tbody></table></div>';
+  div.innerHTML=html;
+}
+
+function stampaAcquisti(){
+  const marca=document.getElementById('acq-marca').value.trim();
+  const modello=document.getElementById('acq-modello').value.trim();
+  const soglia=document.getElementById('acq-soglia').value;
+  const w=window.open('','_blank');
+  const rows=_acqData.map(r=>`<tr><td>${esc(r.cmp)}</td><td>${esc(r.articolo)}</td>
+    <td style="text-align:center">${r.esistenza??0}</td><td style="text-align:center">${r.scorta??0}</td>
+    <td>${esc(r.marca||'')}</td><td>${esc(r.modello||'')}</td><td>${esc(r.ubicazione||'')}</td></tr>`).join('');
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Lista Acquisti</title>
+    <style>body{font-family:Arial,sans-serif;font-size:10px;margin:15px}h2{color:#e94c00}
+    table{width:100%;border-collapse:collapse;margin-top:10px}
+    th{background:#e94c00;color:white;padding:5px 7px;text-align:left;font-size:9px}
+    td{padding:4px 7px;border-bottom:1px solid #eee}tr:nth-child(even){background:#fafafa}
+    @media print{@page{margin:.8cm;size:landscape}}</style></head><body>
+    <h2>🔍 Lista Ricambi — PerilCar</h2>
+    <p style="color:#888;font-size:10px">Auto: <b>${esc(marca)||'Tutte'}</b> · Modello: <b>${esc(modello)||'Tutti'}</b> · Soglia: <b>${soglia}</b></p>
+    <table><thead><tr><th>Cod.</th><th>Descrizione</th><th>ES</th><th>Scorta</th>
+    <th>Produttore</th><th>Modello</th><th>Ubicazione</th></tr></thead>
+    <tbody>${rows}</tbody></table>
+    <script>window.onload=()=>window.print()<\/script></body></html>`);
+  w.document.close();
+}
+
+// ── GESTIONE COLONNE ─────────────────────────────────────────────────
+// Stato colonne: array di {key, label, w, visible} nell'ordine corrente
+let _colState = null;  // null = usa COLS default
+
+function getColState() {
+  if(_colState) return _colState;
+  // Prima volta: carica da localStorage o usa default
+  try {
+    const saved = localStorage.getItem('perilcar_cols');
+    if(saved) { _colState = JSON.parse(saved); return _colState; }
+  } catch(e) {}
+  _colState = COLS.map(([key, label, w, tipo]) => ({key, label, w, tipo: tipo||'str', visible: true}));
+  return _colState;
+}
+
+function saveColState() {
+  try { localStorage.setItem('perilcar_cols', JSON.stringify(_colState)); } catch(e) {}
+}
+
+function getVisibleCols() {
+  return getColState().filter(c => c.visible).map(c => ({
+    ...c,
+    tipo: c.tipo || COL_TIPO[c.key] || 'str'  // fallback sicuro
+  }));
+}
+
+// Aggiorna COLS globale con lo stato corrente (visibile e ordinato)
+function applyCols() {
+  const state = getColState();
+  // Rebuilda header e filtri con le colonne correnti
+  buildHeaderAndFilters();
+  applicaFiltri();
+}
+
+// Apri modal e popola lista
+function openColonneModal() {
+  const state = getColState();
+  const list  = document.getElementById('colonne-list');
+  list.innerHTML = '';
+
+  state.forEach((col, idx) => {
+    const item = document.createElement('div');
+    item.className = 'col-item';
+    item.draggable = true;
+    item.dataset.idx = idx;
+    item.innerHTML = `
+      <span class="drag-handle">⠿</span>
+      <input type="checkbox" ${col.visible?'checked':''} onchange="colToggle(${idx},this.checked)">
+      <span class="col-label">${col.label}</span>
+      <input type="number" class="col-w" value="${col.w}" min="40" max="500"
+             title="Larghezza px" onchange="colWidth(${idx},this.value)">
+      <span style="font-size:10px;color:var(--text3)">px</span>
+    `;
+
+    // Drag & Drop
+    item.addEventListener('dragstart', e => {
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', idx);
+      setTimeout(() => item.classList.add('dragging'), 0);
+    });
+    item.addEventListener('dragend', () => item.classList.remove('dragging'));
+    item.addEventListener('dragover', e => { e.preventDefault(); item.classList.add('drag-over'); });
+    item.addEventListener('dragleave', () => item.classList.remove('drag-over'));
+    item.addEventListener('drop', e => {
+      e.preventDefault();
+      item.classList.remove('drag-over');
+      const fromIdx = parseInt(e.dataTransfer.getData('text/plain'));
+      const toIdx   = parseInt(item.dataset.idx);
+      if(fromIdx === toIdx) return;
+      // Sposta elemento
+      const moved = _colState.splice(fromIdx, 1)[0];
+      _colState.splice(toIdx, 0, moved);
+      openColonneModal(); // Ridisegna
+    });
+
+    list.appendChild(item);
+  });
+
+  openModal('modal-colonne');
+}
+
+function colToggle(idx, visible) {
+  _colState[idx].visible = visible;
+}
+
+function colWidth(idx, val) {
+  const w = Math.max(40, Math.min(500, parseInt(val)||80));
+  _colState[idx].w = w;
+}
+
+function colonneShowAll() {
+  getColState().forEach(c => c.visible = true);
+  openColonneModal();
+}
+
+function colonneReset() {
+  _colState = COLS.map(([key, label, w, tipo]) => ({key, label, w, tipo: tipo||'str', visible: true}));
+  saveColState();
+  openColonneModal();
+}
+
+function colonneApplica() {
+  saveColState();
+  closeModal('modal-colonne');
+  applyCols();
+}
+
+// Override buildHeaderAndFilters per usare colonne visibili
+const _origBuildHeader = buildHeaderAndFilters;
+
+// ── STAMPA MAGAZZINO ─────────────────────────────────────────────────
+function stampaMagazzino() {
+  const nFlt   = Object.keys(_colFilters).length;
+  const totale = _tutti.length;
+  const visib  = _filt.length;
+  const sc     = _filt.filter(r=>(r.scorta||0)>0&&(r.esistenza||0)<=(r.scorta||0)).length;
+
+  let filtriInfo = '';
+  if(nFlt > 0) {
+    const fList = Object.entries(_colFilters)
+      .map(([k,v]) => '<b>'+k+'</b>: '+v).join(' &nbsp;|&nbsp; ');
+    filtriInfo = '<p style="margin:4px 0;color:#666;font-size:10px">Filtri attivi: '+fList+'</p>';
+  }
+
+  const rows = _filt.map(function(r, i) {
+    const bad = (r.scorta||0)>0 && (r.esistenza||0)<=(r.scorta||0);
+    const bg  = bad ? '#fff0f0' : (i%2===0 ? '#fff' : '#f9f9f9');
+    return '<tr style="background:'+bg+'">'
+      + '<td>'+esc(r.cmp||'')+'</td>'
+      + '<td>'+esc(r.articolo||'')+'</td>'
+      + '<td>'+esc(r.marca||'')+'</td>'
+      + '<td>'+esc(r.categoria||'')+'</td>'
+      + '<td>'+esc(r.extra2||'')+'</td>'
+      + '<td>'+esc(r.extra3||'')+'</td>'
+      + '<td>'+esc(r.extra4||'')+'</td>'
+      + '<td style="text-align:center">'+(r.scorta||0)+'</td>'
+      + '<td style="text-align:center;font-weight:700;color:'+(bad?'#dc2626':'#16a34a')+'">'+(r.esistenza||0)+'</td>'
+      + '<td>'+esc(r.ubicazione||'')+'</td>'
+      + '<td>'+esc(r.stato_magazzino||'')+'</td>'
+      + '</tr>';
+  }).join('');
+
+  const html = '<!DOCTYPE html><html><head>'
+    + '<meta charset="UTF-8"><title>Magazzino PerilCar</title>'
+    + '<style>'
+    + '*{box-sizing:border-box;margin:0;padding:0}'
+    + 'body{font-family:Arial,sans-serif;font-size:10px;margin:12px;color:#111}'
+    + 'h2{color:#e94c00;font-size:16px;margin-bottom:4px}'
+    + '.meta p{font-size:10px;color:#555;margin:2px 0}'
+    + '.stat-row{display:flex;gap:20px;margin:6px 0 10px}'
+    + '.stat{background:#f7f8fa;border:1px solid #dde;border-radius:6px;padding:5px 12px;font-size:10px}'
+    + '.stat b{font-size:13px;display:block;color:#e94c00}'
+    + 'table{width:100%;border-collapse:collapse;font-size:9.5px}'
+    + 'thead th{background:#e94c00;color:white;padding:5px 6px;text-align:left;font-size:9px;text-transform:uppercase;white-space:nowrap}'
+    + 'tbody td{padding:4px 6px;border-bottom:1px solid #eee;white-space:nowrap}'
+    + '.footer{margin-top:12px;font-size:9px;color:#aaa;border-top:1px solid #eee;padding-top:6px;display:flex;justify-content:space-between}'
+    + '@media print{@page{margin:1cm;size:landscape}body{margin:0}.no-print{display:none}}'
+    + '</style></head><body>'
+    + '<div class="no-print" style="margin-bottom:14px">'
+    + '<button onclick="window.print()" style="background:#e94c00;color:#fff;border:none;padding:8px 20px;border-radius:6px;font-size:13px;cursor:pointer;font-weight:700">🖨 Stampa / Salva PDF</button>'
+    + '<button onclick="window.close()" style="margin-left:10px;background:#f0f0f0;border:1px solid #ccc;padding:8px 16px;border-radius:6px;font-size:13px;cursor:pointer">✕ Chiudi</button>'
+    + '</div>'
+    + '<h2>📦 Magazzino — PerilCar</h2>'
+    + '<div class="meta"><p>Generato il '+new Date().toLocaleString('it-IT')+' · Ing. Carmine Perillo</p>'
+    + filtriInfo+'</div>'
+    + '<div class="stat-row">'
+    + '<div class="stat"><b>'+visib.toLocaleString()+'</b>componenti stampati</div>'
+    + '<div class="stat"><b>'+totale.toLocaleString()+'</b>totale magazzino</div>'
+    + '<div class="stat"><b style="color:#dc2626">'+sc+'</b>sotto scorta</div>'
+    + '</div>'
+    + '<table><thead><tr>'
+    + '<th>Cod.</th><th>Descrizione</th><th>Produttore</th><th>Categoria</th>'
+    + '<th>Extra 2</th><th>Extra 3</th><th>Extra 4</th>'
+    + '<th>Scorta min.</th><th>Q.tà giacenza</th><th>Ubicazione</th><th>Stato</th>'
+    + '</tr></thead><tbody>'+rows+'</tbody></table>'
+    + '<div class="footer">'
+    + '<span>PerilCar ERP — Magazzino</span>'
+    + '<span>'+visib+' righe · '+new Date().toLocaleDateString('it-IT')+'</span>'
+    + '</div>'
+    + '<scr'+'ipt>window.onload=function(){window.print()}<'+'/scr'+'ipt>'
+    + '</body></html>';
+
+  const w = window.open('', '_blank');
+  w.document.write(html);
+  w.document.close();
+}
+
+
 function esc(s) {
   return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;')
     .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
