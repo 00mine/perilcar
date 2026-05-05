@@ -263,18 +263,30 @@ def api_elimina_componente(cid):
 @app.route("/api/magazzino/prossimo-codice")
 @require_login
 def api_prossimo_codice():
-    row = db.fetchone("SELECT codice FROM componenti WHERE eliminato=0 ORDER BY id DESC LIMIT 1")
-    if not row or not row.get("codice"):
-        return jsonify({"codice": ""})
     import re
-    ultimo = row["codice"]
-    m = re.search(r'(\d+)$', ultimo)
-    if m:
-        num = int(m.group(1)) + 1
-        nuovo = ultimo[:m.start()] + str(num).zfill(len(m.group(1)))
-    else:
-        nuovo = ""
-    return jsonify({"codice": nuovo, "ultimo": ultimo})
+    # Legge TUTTI i codici e trova il massimo numerico
+    rows = db.fetchall("SELECT codice FROM componenti WHERE eliminato=0")
+    max_num = 0
+    prefisso = ""
+    lunghezza = 0
+
+    for row in rows:
+        cod = row.get("codice","") or ""
+        m = re.search(r'(\d+)$', cod)
+        if m:
+            n = int(m.group(1))
+            if n > max_num:
+                max_num   = n
+                prefisso  = cod[:m.start()]
+                lunghezza = len(m.group(1))
+
+    if max_num == 0:
+        return jsonify({"codice": ""})
+
+    nuovo_num = max_num + 1
+    # Mantieni la stessa lunghezza minima del numero (es. 18725 → 18726)
+    nuovo = prefisso + str(nuovo_num).zfill(max(lunghezza, len(str(nuovo_num))))
+    return jsonify({"codice": nuovo, "ultimo": f"{prefisso}{max_num}"})
 
 # ── Info movimenti per pannello laterale ─────────────────────────────────────
 @app.route("/api/magazzino/info-movimenti/<int:cid>")
