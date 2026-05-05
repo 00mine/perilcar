@@ -10,13 +10,11 @@
   <style>
     *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
     :root{
-      --bg:#ffffff;--surface:#f7f8fa;--surface2:#eef0f4;--border:#dde1e8;
+      --bg:#fff;--surface:#f7f8fa;--surface2:#eef0f4;--border:#dde1e8;
       --orange:#e94c00;--orange2:#ff6b35;--blue:#3a5bd9;--blue2:#5a7bf0;
       --green:#16a34a;--green2:#22c55e;--purple:#7c3aed;--red:#dc2626;
-      --cyan:#0ea5e9;--yellow:#ca8a04;
-      --text:#111827;--text2:#4b5563;--text3:#9ca3af;
+      --cyan:#0ea5e9;--text:#111827;--text2:#4b5563;--text3:#9ca3af;
       --radius:8px;--font:'DM Sans',system-ui,sans-serif;--mono:'DM Mono',monospace;
-      --shadow:0 1px 4px rgba(0,0,0,.08),0 4px 16px rgba(0,0,0,.06);
     }
     body{font-family:var(--font);background:var(--bg);color:var(--text);
          font-size:13px;height:100vh;overflow:hidden;display:flex;flex-direction:column}
@@ -32,28 +30,28 @@
     .topbar-right{margin-left:auto;display:flex;align-items:center;gap:10px}
     .user-chip{font-size:12px;color:var(--text2);background:var(--surface);
                border:1px solid var(--border);padding:4px 10px;border-radius:20px}
-    .btn-logout{font-size:12px;padding:5px 12px;border-radius:6px;border:1px solid var(--border);
-                background:#fff;color:var(--text2);cursor:pointer;font-family:var(--font);transition:.15s}
+    .btn-logout{font-size:12px;padding:5px 12px;border-radius:6px;
+                border:1px solid var(--border);background:#fff;color:var(--text2);
+                cursor:pointer;font-family:var(--font);transition:.15s}
     .btn-logout:hover{background:#fee2e2;color:var(--red)}
 
     /* LAYOUT */
-    .layout{display:grid;grid-template-columns:1fr 310px;flex:1;overflow:hidden}
+    .layout{display:grid;grid-template-columns:1fr 300px;flex:1;overflow:hidden}
 
     /* SINISTRA */
-    .left{display:flex;flex-direction:column;overflow:hidden;padding:12px 12px 8px 16px;gap:8px}
+    .left{display:flex;flex-direction:column;overflow:hidden;padding:10px 10px 8px 14px;gap:7px}
     .title-row{display:flex;align-items:center;gap:10px}
-    .btn-back{width:34px;height:34px;border-radius:8px;border:1px solid var(--border);
+    .btn-back{width:32px;height:32px;border-radius:8px;border:1px solid var(--border);
               background:#fff;font-size:16px;font-weight:700;cursor:pointer;
               display:flex;align-items:center;justify-content:center;
               text-decoration:none;color:var(--text);transition:.15s;flex-shrink:0}
     .btn-back:hover{background:var(--surface2)}
-    .page-title{font-size:22px;font-weight:700;letter-spacing:-.5px}
+    .page-title{font-size:20px;font-weight:700;letter-spacing:-.5px}
 
     .actions{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
-    .btn{display:inline-flex;align-items:center;gap:5px;padding:6px 12px;
-         border-radius:var(--radius);font-size:12px;font-weight:600;cursor:pointer;
+    .btn{display:inline-flex;align-items:center;gap:4px;padding:5px 11px;
+         border-radius:var(--radius);font-size:11.5px;font-weight:600;cursor:pointer;
          border:none;font-family:var(--font);transition:.15s;white-space:nowrap}
-    .btn:disabled{opacity:.4;cursor:not-allowed}
     .btn-primary{background:var(--orange);color:#fff}.btn-primary:hover{background:var(--orange2)}
     .btn-blue{background:var(--blue);color:#fff}.btn-blue:hover{background:var(--blue2)}
     .btn-ghost{background:#fff;color:var(--text2);border:1px solid var(--border)}
@@ -65,40 +63,86 @@
     .btn-yellow{background:#fef3c7;color:#92400e;border:1px solid #fde68a}
     .btn-yellow:hover{background:#fde68a}
 
-    .searchbox{display:flex;align-items:center;gap:6px;background:#fff;
-               border:1px solid var(--border);border-radius:var(--radius);
-               padding:0 10px;margin-left:auto}
-    .searchbox input{border:none;background:transparent;outline:none;
-                     font-family:var(--font);font-size:13px;color:var(--text);
-                     width:190px;padding:6px 0}
-    .searchbox input::placeholder{color:var(--text3)}
+    /* STATO FILTRI */
+    .filter-status{font-size:11px;color:var(--text3);display:flex;align-items:center;gap:8px}
+    .filter-badge{background:var(--orange);color:#fff;border-radius:10px;
+                  padding:1px 8px;font-size:10px;font-weight:700}
+    .btn-clear-filters{background:none;border:none;color:var(--text3);cursor:pointer;
+                       font-size:11px;text-decoration:underline;font-family:var(--font)}
+    .btn-clear-filters:hover{color:var(--red)}
 
-    /* TABELLA */
-    .table-wrap{flex:1;overflow:auto;border:1px solid var(--border);border-radius:10px;
-                background:#fff;box-shadow:var(--shadow)}
-    table{width:100%;border-collapse:collapse;min-width:1800px}
-    thead th{position:sticky;top:0;z-index:5;background:var(--surface);color:var(--text2);
-             font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;
-             padding:8px 8px;text-align:left;border-bottom:1px solid var(--border);
-             white-space:nowrap;cursor:pointer;user-select:none}
-    thead th:hover{color:var(--text);background:var(--surface2)}
-    thead th.sort-asc::after{content:' ↑';color:var(--orange)}
-    thead th.sort-desc::after{content:' ↓';color:var(--orange)}
-    tbody tr{border-bottom:1px solid #f3f4f6;cursor:pointer;transition:background .1s}
+    /* TABELLA VIRTUALE */
+    .table-container{flex:1;overflow:hidden;border:1px solid var(--border);
+                     border-radius:10px;background:#fff;
+                     box-shadow:0 1px 4px rgba(0,0,0,.06);
+                     display:flex;flex-direction:column}
+
+    /* Header fisso */
+    .table-header{flex-shrink:0;overflow:hidden;background:var(--surface);
+                  border-bottom:2px solid var(--border)}
+    .table-header table{width:100%;border-collapse:collapse;table-layout:fixed}
+
+    /* Filtri fissi */
+    .table-filters{flex-shrink:0;overflow:hidden;background:#fff;
+                   border-bottom:1px solid var(--border)}
+    .table-filters table{width:100%;border-collapse:collapse;table-layout:fixed}
+
+    /* Body scrollabile - VIRTUALE */
+    .table-body{flex:1;overflow-y:auto;overflow-x:hidden;position:relative}
+    .table-body table{width:100%;border-collapse:collapse;table-layout:fixed}
+
+    /* Sincronizza scroll orizzontale */
+    .table-scroll-x{overflow-x:auto;overflow-y:hidden}
+    .table-scroll-x::-webkit-scrollbar{height:8px}
+    .table-scroll-x::-webkit-scrollbar-track{background:var(--surface)}
+    .table-scroll-x::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
+
+    /* Header colonne */
+    th.col-hdr{padding:7px 6px;font-size:9.5px;font-weight:700;text-transform:uppercase;
+               letter-spacing:.4px;color:var(--text2);text-align:left;
+               white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+               cursor:pointer;user-select:none;background:var(--surface)}
+    th.col-hdr:hover{color:var(--text);background:var(--surface2)}
+    th.col-hdr.sort-asc::after{content:' ↑';color:var(--orange)}
+    th.col-hdr.sort-desc::after{content:' ↓';color:var(--orange)}
+
+    /* Input filtri colonna */
+    th.col-filter{padding:3px 4px;background:#fff}
+    th.col-filter input{width:100%;padding:3px 6px;font-size:11px;
+                        font-family:var(--mono);background:var(--surface);
+                        border:1px solid var(--border);border-radius:4px;
+                        color:var(--text);outline:none}
+    th.col-filter input:focus{border-color:var(--blue);background:#fff}
+    th.col-filter input::placeholder{color:var(--text3);font-size:10px}
+
+    /* Righe */
+    tbody tr{border-bottom:1px solid #f3f4f6;cursor:pointer;transition:background .08s}
     tbody tr:hover{background:#fafafa}
-    tbody tr.selected{background:#fff7f4!important;border-left:3px solid var(--orange)}
+    tbody tr.selected{background:#fff7f4!important;
+                      outline:2px solid var(--orange);outline-offset:-1px}
     tbody tr.scarso{background:#fff5f5}
-    tbody td{padding:6px 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-             max-width:140px;font-size:12px}
-    td.num{text-align:center;font-family:var(--mono);font-size:11.5px}
+    tbody td{padding:5px 6px;white-space:nowrap;overflow:hidden;
+             text-overflow:ellipsis;font-size:11.5px}
+    td.num{text-align:center;font-family:var(--mono);font-size:11px}
     td.val-ok{color:var(--green);font-weight:700}
     td.val-bad{color:var(--red);font-weight:700}
-    td.val-na{color:var(--orange);font-weight:700}
+    td.val-na{color:var(--orange);font-weight:600}
     .cmp-chip{display:inline-block;font-family:var(--mono);font-size:10px;
               background:#fff3ee;color:var(--orange);border:1px solid #ffd0b5;
-              padding:1px 6px;border-radius:4px}
+              padding:1px 5px;border-radius:3px}
 
-    .status-bar{font-size:11px;color:var(--text3);display:flex;gap:16px;padding:2px}
+    /* Spaziatore virtuale */
+    .virtual-spacer-top{background:transparent}
+    .virtual-spacer-bot{background:transparent}
+
+    .status-bar{font-size:11px;color:var(--text3);display:flex;gap:12px;padding:2px 2px;flex-shrink:0}
+
+    /* Import progress */
+    .import-bar{display:none;padding:4px 2px}
+    .import-bar-inner{height:5px;background:var(--surface2);border-radius:3px;overflow:hidden}
+    .import-fill{height:100%;background:var(--orange);border-radius:3px;
+                 transition:width .3s;width:0%}
+    .import-msg{font-size:11px;color:var(--text2);margin-bottom:3px}
 
     /* DESTRA */
     .right{background:var(--surface);border-left:1px solid var(--border);
@@ -106,7 +150,6 @@
     .panel-section{display:flex;flex-direction:column;gap:5px}
     .panel-lbl{font-size:10px;font-weight:700;color:var(--text3);
                text-transform:uppercase;letter-spacing:.8px}
-
     .counter-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
     .counter-box{background:#fff;border:1px solid var(--border);border-radius:var(--radius);
                  padding:8px 10px;display:flex;flex-direction:column;gap:1px}
@@ -118,10 +161,9 @@
 
     textarea{font-family:var(--font);font-size:12px;background:#fff;
              border:1px solid var(--border);border-radius:var(--radius);
-             padding:7px 10px;color:var(--text);resize:vertical;outline:none;
+             padding:6px 10px;color:var(--text);resize:vertical;outline:none;
              transition:border-color .15s;width:100%}
     textarea:focus{border-color:var(--blue)}
-
     .art-row{display:flex;gap:5px}
     input[type="text"],input[type="number"]{
       font-family:var(--font);font-size:12px;background:#fff;
@@ -149,29 +191,25 @@
              font-family:var(--font);cursor:pointer;transition:.15s}
     .big-btn.orange{background:var(--orange);color:#fff}.big-btn.orange:hover{background:var(--orange2)}
     .big-btn.green{background:var(--green);color:#fff}.big-btn.green:hover{background:var(--green2)}
-
-    .btn-conferma{width:100%;height:40px;border-radius:20px;border:none;background:var(--cyan);
-                  color:#fff;font-size:14px;font-weight:700;font-family:var(--font);
-                  cursor:pointer;transition:.15s}
+    .btn-conferma{width:100%;height:40px;border-radius:20px;border:none;
+                  background:var(--cyan);color:#fff;font-size:14px;font-weight:700;
+                  font-family:var(--font);cursor:pointer;transition:.15s}
     .btn-conferma:hover{background:#38bdf8}
-
     .feedback{font-size:11px;min-height:16px;text-align:center;font-weight:500;padding:2px 0}
     .feedback.ok{color:var(--green)}.feedback.err{color:var(--red)}
     .edit-row{display:grid;grid-template-columns:1fr 1fr;gap:5px}
     .divider{border:none;border-top:1px solid var(--border)}
 
-    /* Upload files */
     .files-list{display:flex;flex-direction:column;gap:4px}
     .file-item{display:flex;align-items:center;gap:6px;background:#fff;
-               border:1px solid var(--border);border-radius:6px;padding:5px 8px;
-               font-size:11px}
-    .file-item img{width:32px;height:32px;object-fit:cover;border-radius:4px;flex-shrink:0}
+               border:1px solid var(--border);border-radius:6px;padding:4px 8px;font-size:11px}
+    .file-item img{width:28px;height:28px;object-fit:cover;border-radius:3px;flex-shrink:0}
     .file-item .fname{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text2)}
     .file-item .fdel{background:none;border:none;color:var(--text3);cursor:pointer;
-                     font-size:14px;flex-shrink:0;padding:0 2px}
+                     font-size:14px;padding:0 2px}
     .file-item .fdel:hover{color:var(--red)}
     .upload-area{border:2px dashed var(--border);border-radius:var(--radius);
-                 padding:10px;text-align:center;cursor:pointer;transition:border-color .15s;
+                 padding:8px;text-align:center;cursor:pointer;transition:border-color .15s;
                  background:#fff;font-size:11px;color:var(--text3)}
     .upload-area:hover{border-color:var(--orange);color:var(--orange)}
     .upload-area input{display:none}
@@ -183,35 +221,30 @@
     .modal{background:#fff;border-radius:14px;width:100%;max-width:700px;
            max-height:92vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.2)}
     .modal-hdr{display:flex;align-items:center;justify-content:space-between;
-               padding:14px 20px;border-bottom:1px solid var(--border);
+               padding:13px 18px;border-bottom:1px solid var(--border);
                position:sticky;top:0;background:#fff;z-index:10}
-    .modal-hdr h3{font-size:15px;font-weight:700}
+    .modal-hdr h3{font-size:14px;font-weight:700}
     .modal-close{background:none;border:none;font-size:22px;cursor:pointer;
                  color:var(--text3);line-height:1;padding:0 4px}
     .modal-close:hover{color:var(--text)}
-    .modal-body{padding:18px}
-    .modal-ftr{display:flex;justify-content:flex-end;gap:8px;padding:12px 20px;
+    .modal-body{padding:16px}
+    .modal-ftr{display:flex;justify-content:flex-end;gap:8px;padding:12px 18px;
                border-top:1px solid var(--border);position:sticky;bottom:0;background:#fff}
     .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
     .form-grid .full{grid-column:1/-1}
     .field{display:flex;flex-direction:column;gap:3px}
 
     /* TOAST */
-    .toast{position:fixed;bottom:20px;right:20px;z-index:9999;padding:10px 18px;
-           border-radius:10px;font-size:13px;font-weight:600;box-shadow:var(--shadow);
-           animation:toastIn .2s ease}
+    .toast{position:fixed;bottom:18px;right:18px;z-index:9999;padding:9px 16px;
+           border-radius:10px;font-size:12.5px;font-weight:600;
+           box-shadow:0 4px 20px rgba(0,0,0,.12);animation:toastIn .2s ease}
     .toast-ok{background:#fff;color:var(--green);border:1px solid #bbf7d0}
     .toast-err{background:#fff;color:var(--red);border:1px solid #fca5a5}
-    @keyframes toastIn{from{transform:translateY(10px);opacity:0}to{opacity:1}}
+    @keyframes toastIn{from{transform:translateY(8px);opacity:0}to{opacity:1}}
 
-    #reload-badge{position:fixed;bottom:14px;left:14px;z-index:9999;
-                  background:var(--green);color:#fff;padding:5px 12px;border-radius:20px;
-                  font-size:11px;font-weight:600;opacity:0;transition:opacity .3s;pointer-events:none}
-
-    /* Import progress */
-    .progress-bar{height:6px;background:var(--surface2);border-radius:3px;overflow:hidden;margin-top:4px}
-    .progress-fill{height:100%;background:var(--orange);border-radius:3px;
-                   transition:width .3s;width:0%}
+    #reload-badge{position:fixed;bottom:12px;left:12px;z-index:9999;
+                  background:var(--green);color:#fff;padding:4px 10px;border-radius:20px;
+                  font-size:10px;font-weight:600;opacity:0;transition:opacity .3s;pointer-events:none}
   </style>
 </head>
 <body>
@@ -231,8 +264,9 @@
 
 <div class="layout">
 
-  <!-- SINISTRA -->
+  <!-- ══ SINISTRA ══ -->
   <div class="left">
+
     <div class="title-row">
       <a href="/dashboard" class="btn-back">‹</a>
       <span class="page-title">MAGAZZINO</span>
@@ -240,88 +274,72 @@
 
     <div class="actions">
       <button class="btn btn-blue"    onclick="showResoconto()">📊 Resoconto</button>
-      <button class="btn btn-blue"    onclick="pubblicaSelected()">🌐 Pubblica</button>
       <button class="btn btn-primary" onclick="openFormNuovo()">＋ Nuovo</button>
       <button class="btn btn-ghost"   onclick="goStorico()">📋 Storico</button>
       <button class="btn btn-yellow"  onclick="openInventario()">📄 Inventario</button>
       <button class="btn btn-purple"  onclick="openListaAcquisti()">🔍 Lista acquisti</button>
-      <label class="btn btn-green" style="cursor:pointer" title="Importa Excel dal tuo gestionale">
+      <label class="btn btn-green" style="cursor:pointer">
         📥 Import Excel
         <input type="file" accept=".xlsx,.xls" id="inp-excel-import"
                style="display:none" onchange="importExcel(this)">
       </label>
-      <button class="btn btn-ghost" onclick="exportExcel()">📤 Export Excel</button>
-      <div class="searchbox">
-        <span style="color:var(--text3)">🔍</span>
-        <input type="text" id="inp-cerca" placeholder="Cerca..." oninput="filtra()">
-      </div>
+      <button class="btn btn-ghost" onclick="exportExcel()">📤 Export</button>
+      <button class="btn btn-ghost" style="color:var(--red)" onclick="clearAllFilters()">✕ Pulisci filtri</button>
     </div>
 
-    <!-- Barra import progress -->
-    <div id="import-progress" style="display:none">
-      <div style="font-size:11px;color:var(--text2)" id="import-msg">Import in corso...</div>
-      <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+    <!-- Import progress -->
+    <div class="import-bar" id="import-bar">
+      <div class="import-msg" id="import-msg">Import in corso...</div>
+      <div class="import-bar-inner"><div class="import-fill" id="import-fill"></div></div>
     </div>
 
-    <!-- TABELLA con colonne Danea -->
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th onclick="sortBy('cmp')">Cod.</th>
-            <th onclick="sortBy('articolo')">Descrizione</th>
-            <th onclick="sortBy('tipologia')">Tipologia</th>
-            <th onclick="sortBy('categoria')">Categoria</th>
-            <th onclick="sortBy('sottocategoria')">Sottocategoria</th>
-            <th>Cod. Udm</th>
-            <th>Cod. Iva</th>
-            <th class="num">Listino 1</th>
-            <th class="num">Listino 2</th>
-            <th class="num">Listino 3</th>
-            <th>Note</th>
-            <th>Cod. a barre</th>
-            <th>Internet</th>
-            <th onclick="sortBy('marca')">Produttore</th>
-            <th>Extra 1</th>
-            <th>Extra 2</th>
-            <th>Extra 3</th>
-            <th>Extra 4</th>
-            <th>Cod. fornitore</th>
-            <th>Fornitore</th>
-            <th>Cod. prod. forn.</th>
-            <th class="num">Prezzo forn.</th>
-            <th>Note fornitura</th>
-            <th class="num">Ord. multipli</th>
-            <th class="num">Gg. ordine</th>
-            <th onclick="sortBy('scorta')" class="num">Scorta min.</th>
-            <th>Ubicazione</th>
-            <th onclick="sortBy('esistenza')" class="num">Q.tà giacenza</th>
-            <th>Stato magazzino</th>
-            <th onclick="sortBy('modello')">Modello</th>
-            <th>Colore</th>
-            <th>Cilindrata</th>
-            <th>Carburante</th>
-            <th>Versione</th>
-            <th class="num">Anno da</th>
-            <th class="num">Anno a</th>
-            <th>Intervallo</th>
-            <th class="num">File/Img</th>
-          </tr>
-        </thead>
-        <tbody id="tbody"></tbody>
-      </table>
-    </div>
-
+    <!-- Status -->
     <div class="status-bar">
-      <span id="s-tot">— componenti</span>
-      <span id="s-sc" style="color:var(--red)">— sotto scorta</span>
+      <span id="s-tot">Caricamento...</span>
+      <span id="s-vis" style="color:var(--blue)"></span>
+      <span id="s-sc"  style="color:var(--red)"></span>
+      <span id="s-filtri"></span>
     </div>
-  </div>
 
-  <!-- DESTRA -->
+    <!-- TABELLA VIRTUALE -->
+    <div class="table-container" id="table-container">
+
+      <!-- Scroll orizzontale condiviso -->
+      <div class="table-scroll-x" id="scroll-x"
+           style="overflow-x:auto;overflow-y:hidden;flex-shrink:0">
+        <div id="scroll-x-inner" style="height:1px"></div>
+      </div>
+
+      <!-- Header intestazioni -->
+      <div class="table-header" id="tbl-header">
+        <table id="tbl-hdr-table"><thead><tr id="hdr-row"></tr></thead></table>
+      </div>
+
+      <!-- Riga filtri -->
+      <div class="table-filters" id="tbl-filters">
+        <table id="tbl-flt-table"><thead><tr id="flt-row"></tr></thead></table>
+      </div>
+
+      <!-- Body virtuale -->
+      <div class="table-body" id="tbl-body" onscroll="onBodyScroll()">
+        <table id="tbl-data">
+          <tbody id="spacer-top-row">
+            <tr class="virtual-spacer-top" id="spacer-top"><td colspan="99"></td></tr>
+          </tbody>
+          <tbody id="tbl-tbody"></tbody>
+          <tbody>
+            <tr class="virtual-spacer-bot" id="spacer-bot"><td colspan="99"></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+
+  </div><!-- /left -->
+
+  <!-- ══ DESTRA ══ -->
   <div class="right">
 
-    <!-- Contatori movimenti -->
     <div class="panel-section">
       <span class="panel-lbl">Movimenti</span>
       <div class="counter-grid">
@@ -340,7 +358,6 @@
 
     <hr class="divider">
 
-    <!-- Note -->
     <div class="panel-section">
       <span class="panel-lbl">Note</span>
       <textarea id="pan-note" rows="3" placeholder="Note sul pezzo..."></textarea>
@@ -350,7 +367,6 @@
 
     <hr class="divider">
 
-    <!-- Articolo selezionato -->
     <div class="panel-section">
       <span class="panel-lbl">Articolo selezionato</span>
       <div class="art-row">
@@ -359,20 +375,18 @@
       </div>
     </div>
 
-    <!-- File / Immagini -->
     <div class="panel-section">
       <span class="panel-lbl">File e Immagini</span>
       <div class="files-list" id="files-list"></div>
       <div class="upload-area" onclick="document.getElementById('inp-file').click()">
         <input type="file" id="inp-file" accept="image/*,.pdf,.xlsx,.xls,.docx,.zip"
                multiple onchange="uploadFiles(this)">
-        📎 Clicca per allegare file o immagini
+        📎 Allega file o immagini
       </div>
     </div>
 
     <hr class="divider">
 
-    <!-- Carico / Scarico -->
     <div class="cs-row">
       <button class="cs-lbl orange" id="btn-cl" onclick="setModo('carico')">Carico</button>
       <input type="number" id="inp-qc" placeholder="Quantità" min="1">
@@ -400,7 +414,6 @@
       <button class="btn btn-ghost" onclick="openFormModifica()">✏ Modifica</button>
       <button class="btn btn-danger" onclick="eliminaSelected()">🗑 Elimina</button>
     </div>
-
     <button class="btn btn-ghost" style="font-size:11px;color:var(--text3)"
             onclick="doBackup()">💾 Backup DB</button>
   </div>
@@ -422,30 +435,31 @@
         <div class="field"><label>Sottocategoria</label><input type="text" id="f-sottocategoria"></div>
         <div class="field"><label>Cod. Udm</label><input type="text" id="f-cod_udm"></div>
         <div class="field"><label>Cod. Iva</label><input type="text" id="f-cod_iva"></div>
-        <div class="field"><label>Listino 1</label><input type="number" id="f-listino1" step="0.01"></div>
-        <div class="field"><label>Listino 2</label><input type="number" id="f-listino2" step="0.01"></div>
-        <div class="field"><label>Listino 3</label><input type="number" id="f-listino3" step="0.01"></div>
+        <div class="field"><label>Listino 1</label><input type="number" id="f-listino1" step="0.01" value="0"></div>
+        <div class="field"><label>Listino 2</label><input type="number" id="f-listino2" step="0.01" value="0"></div>
+        <div class="field"><label>Listino 3</label><input type="number" id="f-listino3" step="0.01" value="0"></div>
+        <div class="field full"><label>Note</label><textarea id="f-note" rows="2"></textarea></div>
+        <div class="field"><label>Cod. a barre</label><input type="text" id="f-cod_barre"></div>
+        <div class="field"><label>Internet</label><input type="text" id="f-internet"></div>
         <div class="field"><label>Produttore</label><input type="text" id="f-marca"></div>
-        <div class="field"><label>Modello</label><input type="text" id="f-modello"></div>
         <div class="field"><label>Extra 1</label><input type="text" id="f-extra1"></div>
         <div class="field"><label>Extra 2</label><input type="text" id="f-extra2"></div>
         <div class="field"><label>Extra 3</label><input type="text" id="f-extra3"></div>
         <div class="field"><label>Extra 4</label><input type="text" id="f-extra4"></div>
         <div class="field"><label>Cod. fornitore</label><input type="text" id="f-cod_fornitore"></div>
         <div class="field"><label>Fornitore</label><input type="text" id="f-fornitore"></div>
-        <div class="field"><label>Prezzo forn.</label><input type="number" id="f-prezzo_forn" step="0.01"></div>
+        <div class="field"><label>Prezzo forn.</label><input type="number" id="f-prezzo_forn" step="0.01" value="0"></div>
+        <div class="field full"><label>Note fornitura</label><textarea id="f-note_fornitura" rows="2"></textarea></div>
         <div class="field"><label>Scorta min.</label><input type="number" id="f-scorta_minima" value="0" min="0"></div>
         <div class="field"><label>Ubicazione</label><input type="text" id="f-ubicazione"></div>
         <div class="field"><label>Stato magazzino</label><input type="text" id="f-stato_magazzino"></div>
+        <div class="field"><label>Modello</label><input type="text" id="f-modello"></div>
         <div class="field"><label>Colore</label><input type="text" id="f-colore"></div>
         <div class="field"><label>Cilindrata</label><input type="text" id="f-cilindrata"></div>
         <div class="field"><label>Carburante</label><input type="text" id="f-carburante"></div>
-        <div class="field"><label>Versione</label><input type="text" id="f-versione"></div>
         <div class="field"><label>Anno da</label><input type="number" id="f-anno_da"></div>
         <div class="field"><label>Anno a</label><input type="number" id="f-anno_a"></div>
-        <div class="field"><label>Intervallo</label><input type="text" id="f-intervallo"></div>
-        <div class="field full"><label>Note</label><textarea id="f-note" rows="2"></textarea></div>
-        <div class="field full"><label>Note fornitura</label><textarea id="f-note_fornitura" rows="2"></textarea></div>
+        <div class="field full"><label>Intervallo</label><input type="text" id="f-intervallo"></div>
       </div>
     </div>
     <div class="modal-ftr">
@@ -492,159 +506,353 @@
     </div>
     <div class="modal-ftr">
       <button class="btn btn-ghost" onclick="closeModal('modal-acquisti')">Chiudi</button>
-      <button class="btn btn-blue" id="btn-stampa-acq" onclick="stampaAcquisti()" disabled>🖨 Stampa lista</button>
+      <button class="btn btn-blue" id="btn-stampa-acq" onclick="stampaAcquisti()" disabled>🖨 Stampa</button>
     </div>
   </div>
 </div>
 
-<div id="reload-badge">🔄 Hot reload</div>
+<div id="reload-badge">🔄</div>
 
 <script>
-// HOT RELOAD
-io().on('reload', d => {
+// ── HOT RELOAD ────────────────────────────────────────────────────────
+const _sock = io();
+_sock.on('reload', d => {
   const b = document.getElementById('reload-badge');
-  b.style.opacity='1'; b.textContent='🔄 '+(d.file||'');
+  b.style.opacity='1';
   setTimeout(()=>window.location.reload(), 500);
 });
 
-// STATO
-let _dati=[], _selId=null, _modo=null, _modifica=false, _sortCol=null, _sortDir=1;
-let _acqData=[];
-
-// COLONNE tabella → chiavi dati
+// ── COLONNE — ordine identico a Danea ────────────────────────────────
+// [chiave_dati, label, larghezza_px, tipo]
+// tipo: 'str'|'num'|'cmp'|'files'
 const COLS = [
-  ['cmp','Cod.'],['articolo','Descrizione'],['tipologia','Tipologia'],
-  ['categoria','Categoria'],['sottocategoria','Sottocategoria'],
-  ['cod_udm','Cod. Udm'],['cod_iva','Cod. Iva'],
-  ['listino1','L1'],['listino2','L2'],['listino3','L3'],
-  ['nota','Note'],['cod_barre','Cod. barre'],['internet','Internet'],
-  ['marca','Produttore'],['extra1','Extra 1'],['extra2','Extra 2'],
-  ['extra3','Extra 3'],['extra4','Extra 4'],
-  ['cod_fornitore','Cod. forn.'],['fornitore','Fornitore'],
-  ['cod_prod_forn','Cod. prod. forn.'],['prezzo_forn','Prezzo forn.'],
-  ['note_fornitura','Note forn.'],['ord_multipli','Ord. multipli'],
-  ['gg_ordine','Gg. ordine'],['scorta','Scorta min.'],
-  ['ubicazione','Ubicazione'],['esistenza','Q.tà'],
-  ['stato_magazzino','Stato'],['modello','Modello'],
-  ['colore','Colore'],['cilindrata','Cilindrata'],
-  ['carburante','Carburante'],['versione','Versione'],
-  ['anno_da','Anno da'],['anno_a','Anno a'],
-  ['intervallo','Intervallo'],['files_path','File/Img']
+  ['cmp',            'Cod.',            80,  'cmp'],
+  ['articolo',       'Descrizione',     220, 'str'],
+  ['tipologia',      'Tipologia',       110, 'str'],
+  ['categoria',      'Categoria',       100, 'str'],
+  ['sottocategoria', 'Sottocategoria',  110, 'str'],
+  ['cod_udm',        'Cod. Udm',         70, 'str'],
+  ['cod_iva',        'Cod. Iva',         70, 'str'],
+  ['listino1',       'Listino 1',        80, 'num'],
+  ['listino2',       'Listino 2',        80, 'num'],
+  ['listino3',       'Listino 3',        80, 'num'],
+  ['nota',           'Note',            140, 'str'],
+  ['cod_barre',      'Cod. a barre',    110, 'str'],
+  ['internet',       'Internet',         80, 'str'],
+  ['marca',          'Produttore',      110, 'str'],
+  ['extra1',         'Extra 1',          90, 'str'],
+  ['extra2',         'Extra 2',          90, 'str'],
+  ['extra3',         'Extra 3',          90, 'str'],
+  ['extra4',         'Extra 4',          90, 'str'],
+  ['cod_fornitore',  'Cod. fornitore',  100, 'str'],
+  ['fornitore',      'Fornitore',       120, 'str'],
+  ['cod_prod_forn',  'Cod. prod. forn.',110, 'str'],
+  ['prezzo_forn',    'Prezzo forn.',     80, 'num'],
+  ['note_fornitura', 'Note fornitura',  130, 'str'],
+  ['ord_multipli',   'Ord. multipli',    80, 'num'],
+  ['gg_ordine',      'Gg. ordine',       70, 'num'],
+  ['scorta',         'Scorta min.',       75, 'num'],
+  ['ubicazione',     'Ubicazione',      120, 'str'],
+  ['esistenza',      'Q.tà giacenza',    80, 'num'],
+  ['stato_magazzino','Stato mag.',       90, 'str'],
+  ['modello',        'Modello',         100, 'str'],
+  ['colore',         'Colore',           80, 'str'],
+  ['cilindrata',     'Cilindrata',       80, 'str'],
+  ['carburante',     'Carburante',       80, 'str'],
+  ['versione',       'Versione',         80, 'str'],
+  ['anno_da',        'Anno da',          70, 'num'],
+  ['anno_a',         'Anno a',           70, 'num'],
+  ['intervallo',     'Intervallo',       90, 'str'],
+  ['files_path',     'File/Img',         60, 'files'],
 ];
 
-const NUM_KEYS = new Set(['listino1','listino2','listino3','prezzo_forn',
-  'ord_multipli','gg_ordine','scorta','esistenza','anno_da','anno_a']);
+const TOT_W = COLS.reduce((s,[,,w])=>s+w, 0);
 
-async function apiFetch(url,opts={}){
-  opts.headers={'Content-Type':'application/json',...(opts.headers||{})};
-  const r=await fetch(url,opts); return r.json();
+// ── STATO ────────────────────────────────────────────────────────────
+let _tutti = [];       // tutti i dati dal server
+let _filt  = [];       // dopo filtri colonna
+let _selId = null;
+let _modo  = null;
+let _modifica = false;
+let _sortCol  = null;
+let _sortDir  = 1;
+let _colFilters = {}; // {chiave: valore_filtro}
+let _acqData = [];
+
+// Scroll virtuale
+const ROW_H   = 28;    // px per riga
+const OVERSCAN = 15;   // righe extra sopra/sotto
+let _scrollTop = 0;
+let _bodyH     = 0;
+let _visStart  = 0;
+let _visEnd    = 0;
+
+// ── UTILS ────────────────────────────────────────────────────────────
+async function apiFetch(url, opts={}) {
+  opts.headers = {'Content-Type':'application/json',...(opts.headers||{})};
+  const r = await fetch(url, opts); return r.json();
 }
-function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
-function toast(msg,ok=true){
+function esc(s) {
+  return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function toast(msg, ok=true) {
   document.querySelectorAll('.toast').forEach(e=>e.remove());
-  const d=document.createElement('div');
-  d.className='toast '+(ok?'toast-ok':'toast-err');d.textContent=msg;
-  document.body.appendChild(d);setTimeout(()=>d.remove(),3500);
+  const d = document.createElement('div');
+  d.className = 'toast '+(ok?'toast-ok':'toast-err');
+  d.textContent = msg;
+  document.body.appendChild(d);
+  setTimeout(()=>d.remove(), 3500);
 }
-function fb(msg,ok=true){
-  const el=document.getElementById('feedback');
-  el.textContent=msg;el.className='feedback '+(ok?'ok':'err');
-  setTimeout(()=>{el.textContent='';el.className='feedback';},4000);
+function fb(msg, ok=true) {
+  const el = document.getElementById('feedback');
+  el.textContent = msg; el.className = 'feedback '+(ok?'ok':'err');
+  setTimeout(()=>{ el.textContent=''; el.className='feedback'; }, 4000);
 }
-async function logout(){await apiFetch('/api/logout',{method:'POST'});window.location.href='/login';}
-function closeModal(id){document.getElementById(id).classList.add('hidden')}
-function openModal(id){document.getElementById(id).classList.remove('hidden')}
+async function logout() { await apiFetch('/api/logout',{method:'POST'}); window.location.href='/login'; }
+function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+function openModal(id)  { document.getElementById(id).classList.remove('hidden'); }
 document.querySelectorAll('.overlay').forEach(o=>{
-  o.addEventListener('click',e=>{if(e.target===o)o.classList.add('hidden')});
+  o.addEventListener('click', e=>{ if(e.target===o) o.classList.add('hidden'); });
 });
 
-// CARICA DATI
-caricaDati();
-async function caricaDati(params=''){
-  const data=await apiFetch('/api/magazzino/componenti'+(params?'?'+params:''));
-  _dati=data; renderTabella(data);
-}
-function filtra(){
-  const q=document.getElementById('inp-cerca').value.trim();
-  caricaDati(q?'q='+encodeURIComponent(q):'');
-}
-function buildQ(){
-  const q=document.getElementById('inp-cerca').value.trim();
-  return q?'q='+encodeURIComponent(q):'';
+// ── BUILD HEADER E FILTRI ────────────────────────────────────────────
+function buildHeaderAndFilters() {
+  const hdrRow = document.getElementById('hdr-row');
+  const fltRow = document.getElementById('flt-row');
+  hdrRow.innerHTML = '';
+  fltRow.innerHTML = '';
+
+  // Imposta larghezze colonne in tutte le tabelle
+  const tables = ['tbl-hdr-table','tbl-flt-table','tbl-data'];
+  tables.forEach(id => {
+    const t = document.getElementById(id);
+    if(!t) return;
+    let cg = t.querySelector('colgroup');
+    if(!cg) { cg = document.createElement('colgroup'); t.prepend(cg); }
+    cg.innerHTML = COLS.map(([,,w])=>`<col style="width:${w}px;min-width:${w}px">`).join('');
+  });
+
+  // Sync larghezza scroll x
+  document.getElementById('scroll-x-inner').style.width = TOT_W + 'px';
+
+  COLS.forEach(([key, label, w], ci) => {
+    // Header
+    const th = document.createElement('th');
+    th.className = 'col-hdr';
+    th.textContent = label;
+    th.title = label;
+    th.style.width = w+'px';
+    th.onclick = () => sortBy(key, ci);
+    th.id = `hdr-${key}`;
+    hdrRow.appendChild(th);
+
+    // Filtro
+    const tf = document.createElement('th');
+    tf.className = 'col-filter';
+    tf.style.width = w+'px';
+    const inp = document.createElement('input');
+    inp.type = 'text';
+    inp.placeholder = '…';
+    inp.id = `flt-${key}`;
+    inp.dataset.key = key;
+    inp.addEventListener('input', () => {
+      const v = inp.value.trim().toLowerCase();
+      if(v) _colFilters[key] = v;
+      else delete _colFilters[key];
+      applicaFiltri();
+    });
+    tf.appendChild(inp);
+    fltRow.appendChild(tf);
+  });
+
+  // Sync scroll orizzontale
+  const scrollX = document.getElementById('scroll-x');
+  scrollX.addEventListener('scroll', () => {
+    document.getElementById('tbl-header').scrollLeft = scrollX.scrollLeft;
+    document.getElementById('tbl-filters').scrollLeft = scrollX.scrollLeft;
+    document.getElementById('tbl-body').scrollLeft = scrollX.scrollLeft;
+  });
+  document.getElementById('tbl-body').addEventListener('scroll', () => {
+    scrollX.scrollLeft = document.getElementById('tbl-body').scrollLeft;
+    document.getElementById('tbl-header').scrollLeft = document.getElementById('tbl-body').scrollLeft;
+    document.getElementById('tbl-filters').scrollLeft = document.getElementById('tbl-body').scrollLeft;
+  });
 }
 
-// RENDER TABELLA
-function renderTabella(data){
-  const tbody=document.getElementById('tbody');
-  if(!data.length){
-    tbody.innerHTML=`<tr><td colspan="${COLS.length}" style="text-align:center;padding:40px;color:var(--text3)">Nessun componente trovato</td></tr>`;
-    updateStatus(0,0);return;
+// ── CARICA DATI ──────────────────────────────────────────────────────
+async function caricaDati() {
+  document.getElementById('s-tot').textContent = 'Caricamento...';
+  _tutti = await apiFetch('/api/magazzino/componenti');
+  applicaFiltri();
+}
+
+// ── FILTRI COLONNA ────────────────────────────────────────────────────
+function applicaFiltri() {
+  const keys = Object.keys(_colFilters);
+  if(!keys.length) {
+    _filt = _tutti;
+  } else {
+    _filt = _tutti.filter(r => {
+      return keys.every(k => {
+        const v = String(r[k] ?? '').toLowerCase();
+        return v.includes(_colFilters[k]);
+      });
+    });
   }
-  let sc=0;
-  tbody.innerHTML=data.map(r=>{
-    const es=r.esistenza??0, sco=r.scorta??0;
-    const na=Math.max(0,sco-es);
-    const bad=sco>0&&es<=sco; if(bad)sc++;
-    const sel=_selId===r.componente_id?' selected':'';
-    const scarso=bad?' scarso':'';
-    const cells=COLS.map(([key])=>{
-      let v=r[key]??'';
-      if(key==='cmp') return `<td><span class="cmp-chip">${esc(v)}</span></td>`;
-      if(key==='esistenza'){
-        const cl=bad?'val-bad':'val-ok';
-        return `<td class="num ${cl}">${v}</td>`;
+
+  // Applica sort
+  if(_sortCol) {
+    _filt = [..._filt].sort((a,b) => {
+      const va = a[_sortCol]??'', vb = b[_sortCol]??'';
+      return (va<vb?-1:va>vb?1:0) * _sortDir;
+    });
+  }
+
+  updateStatus();
+  resetVirtual();
+  renderVirtual();
+}
+
+function clearAllFilters() {
+  _colFilters = {};
+  document.querySelectorAll('[id^="flt-"]').forEach(inp => inp.value = '');
+  applicaFiltri();
+}
+
+// ── SORT ─────────────────────────────────────────────────────────────
+function sortBy(key, ci) {
+  _sortDir = _sortCol===key ? _sortDir*-1 : 1;
+  _sortCol = key;
+  document.querySelectorAll('th.col-hdr').forEach(th => {
+    th.classList.remove('sort-asc','sort-desc');
+  });
+  const hdr = document.getElementById(`hdr-${key}`);
+  if(hdr) hdr.classList.add(_sortDir===1?'sort-asc':'sort-desc');
+  applicaFiltri();
+}
+
+// ── SCROLL VIRTUALE ───────────────────────────────────────────────────
+function resetVirtual() {
+  _scrollTop = 0;
+  const body = document.getElementById('tbl-body');
+  body.scrollTop = 0;
+}
+
+function onBodyScroll() {
+  _scrollTop = document.getElementById('tbl-body').scrollTop;
+  renderVirtual();
+}
+
+function renderVirtual() {
+  _bodyH = document.getElementById('tbl-body').clientHeight;
+  const total = _filt.length;
+  const totalH = total * ROW_H;
+
+  // Calcola righe visibili
+  const startRow = Math.max(0, Math.floor(_scrollTop / ROW_H) - OVERSCAN);
+  const endRow   = Math.min(total, Math.ceil((_scrollTop + _bodyH) / ROW_H) + OVERSCAN);
+
+  _visStart = startRow;
+  _visEnd   = endRow;
+
+  // Spaziatori
+  document.getElementById('spacer-top').style.height = (startRow * ROW_H) + 'px';
+  document.getElementById('spacer-bot').style.height = ((total - endRow) * ROW_H) + 'px';
+
+  // Renderizza solo le righe visibili
+  const tbody = document.getElementById('tbl-tbody');
+  const slice = _filt.slice(startRow, endRow);
+
+  tbody.innerHTML = slice.map((r, i) => {
+    const ri = startRow + i;
+    const es  = r.esistenza ?? 0;
+    const sc  = r.scorta    ?? 0;
+    const bad = sc>0 && es<=sc;
+    const sel = _selId===r.componente_id ? ' selected':'';
+    const scar= bad ? ' scarso':'';
+
+    const cells = COLS.map(([key,,, tipo]) => {
+      const v = r[key] ?? '';
+      if(tipo==='cmp')   return `<td><span class="cmp-chip">${esc(v)}</span></td>`;
+      if(tipo==='files') {
+        const cnt = v ? String(v).split('|').filter(Boolean).length : 0;
+        return `<td class="num">${cnt>0?'📎'+cnt:''}</td>`;
       }
-      if(key==='files_path'){
-        const count=v?v.split('|').filter(Boolean).length:0;
-        return `<td class="num">${count>0?'📎 '+count:''}</td>`;
+      if(tipo==='num') {
+        if(key==='esistenza') {
+          const cl = bad ? 'val-bad':'val-ok';
+          return `<td class="num ${cl}">${v}</td>`;
+        }
+        return `<td class="num">${v||''}</td>`;
       }
-      if(NUM_KEYS.has(key)) return `<td class="num">${v||''}</td>`;
       return `<td title="${esc(String(v))}">${esc(String(v))}</td>`;
     }).join('');
-    return `<tr class="${sel}${scarso}" onclick="selectRow(${r.componente_id},this)"
-                ondblclick="goStoricoComp(${r.componente_id})">${cells}</tr>`;
+
+    return `<tr class="${sel}${scar}" data-id="${r.componente_id}"
+              style="height:${ROW_H}px">${cells}</tr>`;
   }).join('');
-  updateStatus(data.length,sc);
-}
-function updateStatus(tot,sc){
-  document.getElementById('s-tot').textContent=`${tot} componenti`;
-  document.getElementById('s-sc').textContent=`${sc} sotto scorta`;
+
+  // Event delegation per click
+  tbody.onclick = (e) => {
+    const tr = e.target.closest('tr[data-id]');
+    if(!tr) return;
+    selectRow(parseInt(tr.dataset.id), tr);
+  };
+  tbody.ondblclick = (e) => {
+    const tr = e.target.closest('tr[data-id]');
+    if(!tr) return;
+    goStoricoComp(parseInt(tr.dataset.id));
+  };
 }
 
-// SELEZIONE
-async function selectRow(id,el){
-  _selId=id;
-  document.querySelectorAll('#tbody tr').forEach(r=>r.classList.remove('selected'));
-  if(el)el.classList.add('selected');
-  const r=_dati.find(x=>x.componente_id===id);
-  if(!r)return;
-  document.getElementById('pan-cmp').value=r.cmp||'';
-  document.getElementById('pan-nome').value=r.articolo||'';
-  document.getElementById('pan-note').value=r.nota||'';
-  // Files
+function updateStatus() {
+  const total = _tutti.length;
+  const vis   = _filt.length;
+  const sc    = _filt.filter(r=>(r.scorta||0)>0&&(r.esistenza||0)<=(r.scorta||0)).length;
+  const nFlt  = Object.keys(_colFilters).length;
+
+  document.getElementById('s-tot').textContent = `${total.toLocaleString()} componenti`;
+  document.getElementById('s-vis').textContent  = vis<total ? `— ${vis.toLocaleString()} filtrati` : '';
+  document.getElementById('s-sc').textContent   = sc ? `${sc} sotto scorta` : '';
+  document.getElementById('s-filtri').textContent = nFlt ? `(${nFlt} filtri attivi)` : '';
+}
+
+// ── SELEZIONE ────────────────────────────────────────────────────────
+async function selectRow(id, el) {
+  _selId = id;
+  // Deseleziona tutte le tr visibili
+  document.querySelectorAll('#tbl-tbody tr').forEach(r=>r.classList.remove('selected'));
+  if(el) el.classList.add('selected');
+
+  const r = _tutti.find(x=>x.componente_id===id);
+  if(!r) return;
+
+  document.getElementById('pan-cmp').value  = r.cmp||'';
+  document.getElementById('pan-nome').value = r.articolo||'';
+  document.getElementById('pan-note').value = r.nota||'';
   renderFiles(r.files_path);
-  // Contatori
-  const info=await apiFetch(`/api/magazzino/info-movimenti/${id}`);
-  document.getElementById('cnt-carichi').textContent=info.carichi;
-  document.getElementById('cnt-scarichi').textContent=info.scarichi;
-  document.getElementById('dt-carico').textContent=info.ultima_data_carico?'↑ '+info.ultima_data_carico.slice(0,16):'—';
-  document.getElementById('dt-scarico').textContent=info.ultima_data_scarico?'↓ '+info.ultima_data_scarico.slice(0,16):'—';
+
+  const info = await apiFetch(`/api/magazzino/info-movimenti/${id}`);
+  document.getElementById('cnt-carichi').textContent  = info.carichi;
+  document.getElementById('cnt-scarichi').textContent = info.scarichi;
+  document.getElementById('dt-carico').textContent  = info.ultima_data_carico  ? '↑ '+info.ultima_data_carico.slice(0,16)  : '—';
+  document.getElementById('dt-scarico').textContent = info.ultima_data_scarico ? '↓ '+info.ultima_data_scarico.slice(0,16) : '—';
 }
 
-// RENDER FILES
-function renderFiles(files_path){
-  const list=document.getElementById('files-list');
-  const files=(files_path||'').split('|').filter(Boolean);
-  if(!files.length){list.innerHTML='';return;}
-  const IMG_EXT=new Set(['png','jpg','jpeg','gif','webp']);
-  list.innerHTML=files.map(url=>{
-    const fname=url.split('/').pop();
-    const ext=fname.split('.').pop().toLowerCase();
-    const isImg=IMG_EXT.has(ext);
-    const preview=isImg?`<img src="${url}" alt="">`:
-      `<span style="font-size:18px">${ext==='pdf'?'📄':ext==='xlsx'||ext==='xls'?'📊':'📎'}</span>`;
-    return `<div class="file-item">
-      ${preview}
+// ── FILES ────────────────────────────────────────────────────────────
+function renderFiles(files_path) {
+  const list  = document.getElementById('files-list');
+  const files = (files_path||'').split('|').filter(Boolean);
+  if(!files.length){ list.innerHTML=''; return; }
+  const IMG = new Set(['png','jpg','jpeg','gif','webp']);
+  list.innerHTML = files.map(url => {
+    const fname = url.split('/').pop();
+    const ext   = fname.split('.').pop().toLowerCase();
+    const prev  = IMG.has(ext)
+      ? `<img src="${url}" alt="">`
+      : `<span style="font-size:16px">${ext==='pdf'?'📄':ext==='xlsx'||ext==='xls'?'📊':'📎'}</span>`;
+    return `<div class="file-item">${prev}
       <span class="fname" title="${fname}">${fname}</span>
       <a href="${url}" target="_blank" style="color:var(--blue);font-size:11px;text-decoration:none">↗</a>
       <button class="fdel" onclick="deleteFile('${url}')">×</button>
@@ -652,275 +860,218 @@ function renderFiles(files_path){
   }).join('');
 }
 
-// UPLOAD FILES
-async function uploadFiles(inp){
-  if(!_selId){toast('Seleziona prima un componente',false);inp.value='';return;}
-  const files=Array.from(inp.files);
-  for(const file of files){
-    const fd=new FormData();fd.append('file',file);
-    const r=await fetch(`/api/magazzino/upload-file/${_selId}`,{method:'POST',body:fd});
-    const res=await r.json();
-    if(res.ok){
+async function uploadFiles(inp) {
+  if(!_selId){ toast('Seleziona prima un componente',false); inp.value=''; return; }
+  for(const file of Array.from(inp.files)) {
+    const fd = new FormData(); fd.append('file', file);
+    const r  = await fetch(`/api/magazzino/upload-file/${_selId}`,{method:'POST',body:fd});
+    const res = await r.json();
+    if(res.ok) {
       renderFiles(res.files.join('|'));
-      // Aggiorna dati locali
-      const row=_dati.find(x=>x.componente_id===_selId);
-      if(row)row.files_path=res.files.join('|');
-    }else toast(res.msg,false);
+      const row = _tutti.find(x=>x.componente_id===_selId);
+      if(row) row.files_path = res.files.join('|');
+    } else toast(res.msg,false);
   }
   inp.value='';
-  renderTabella(_dati);
 }
 
-// DELETE FILE
-async function deleteFile(url){
-  if(!_selId)return;
-  const res=await apiFetch(`/api/magazzino/delete-file/${_selId}`,
+async function deleteFile(url) {
+  if(!_selId) return;
+  const res = await apiFetch(`/api/magazzino/delete-file/${_selId}`,
     {method:'POST',body:JSON.stringify({url})});
-  if(res.ok){
-    const row=_dati.find(x=>x.componente_id===_selId);
-    if(row){
-      row.files_path=(row.files_path||'').split('|').filter(f=>f&&f!==url).join('|');
-      renderFiles(row.files_path);
-    }
-    renderTabella(_dati);
-  }else toast(res.msg,false);
+  if(res.ok) {
+    const row = _tutti.find(x=>x.componente_id===_selId);
+    if(row) { row.files_path=(row.files_path||'').split('|').filter(f=>f&&f!==url).join('|'); renderFiles(row.files_path); }
+  } else toast(res.msg,false);
 }
 
-// MODO CARICO/SCARICO
-function setModo(m){
-  _modo=m;
-  document.getElementById('btn-cl').classList.toggle('active',m==='carico');
-  document.getElementById('btn-sl').classList.toggle('active',m==='scarico');
+// ── CARICO/SCARICO ───────────────────────────────────────────────────
+function setModo(m) {
+  _modo = m;
+  document.getElementById('btn-cl').classList.toggle('active', m==='carico');
+  document.getElementById('btn-sl').classList.toggle('active', m==='scarico');
 }
 
-async function conferma(){
-  if(!_selId){fb('Seleziona un componente',false);return;}
-  if(!_modo){fb('Scegli Carico o Scarico',false);return;}
-  const q=parseInt(_modo==='carico'
-    ?document.getElementById('inp-qc').value
-    :document.getElementById('inp-qs').value);
-  if(!q||q<=0){fb('Inserisci quantità valida',false);return;}
-  const res=await apiFetch('/api/magazzino/movimento',{method:'POST',body:JSON.stringify({
-    componente_id:_selId,tipo:_modo,quantita:q,
+async function conferma() {
+  if(!_selId){ fb('Seleziona un componente',false); return; }
+  if(!_modo) { fb('Scegli Carico o Scarico',false); return; }
+  const q = parseInt(_modo==='carico'
+    ? document.getElementById('inp-qc').value
+    : document.getElementById('inp-qs').value);
+  if(!q||q<=0){ fb('Inserisci quantità valida',false); return; }
+
+  const res = await apiFetch('/api/magazzino/movimento',{method:'POST',body:JSON.stringify({
+    componente_id:_selId, tipo:_modo, quantita:q,
     riferimento:document.getElementById('inp-rif').value.trim()||null,
     note:document.getElementById('pan-note').value.trim()||null
   })});
-  fb(res.msg,res.ok);
-  if(res.ok){
+  fb(res.msg, res.ok);
+  if(res.ok) {
     document.getElementById('inp-qc').value='';
     document.getElementById('inp-qs').value='';
     document.getElementById('inp-rif').value='';
     _modo=null;
     document.getElementById('btn-cl').classList.remove('active');
     document.getElementById('btn-sl').classList.remove('active');
-    await caricaDati(buildQ());
-    const info=await apiFetch(`/api/magazzino/info-movimenti/${_selId}`);
-    document.getElementById('cnt-carichi').textContent=info.carichi;
-    document.getElementById('cnt-scarichi').textContent=info.scarichi;
-    document.getElementById('dt-carico').textContent=info.ultima_data_carico?.slice(0,16)||'—';
-    document.getElementById('dt-scarico').textContent=info.ultima_data_scarico?.slice(0,16)||'—';
+    // Aggiorna solo la riga interessata (non ricaricare tutto)
+    const comp = await apiFetch(`/api/magazzino/componenti?q=${encodeURIComponent(document.getElementById('pan-cmp').value)}`);
+    const updated = comp.find(x=>x.componente_id===_selId);
+    if(updated) {
+      const idx = _tutti.findIndex(x=>x.componente_id===_selId);
+      if(idx>=0) _tutti[idx] = updated;
+      applicaFiltri();
+    }
+    const info = await apiFetch(`/api/magazzino/info-movimenti/${_selId}`);
+    document.getElementById('cnt-carichi').textContent  = info.carichi;
+    document.getElementById('cnt-scarichi').textContent = info.scarichi;
+    document.getElementById('dt-carico').textContent  = info.ultima_data_carico?.slice(0,16)||'—';
+    document.getElementById('dt-scarico').textContent = info.ultima_data_scarico?.slice(0,16)||'—';
   }
 }
 
-// NOTA
-async function salvaNota(){
-  if(!_selId){fb('Seleziona un componente',false);return;}
-  const note=document.getElementById('pan-note').value.trim();
-  const res=await apiFetch(`/api/magazzino/componenti/${_selId}`,{method:'PUT',body:JSON.stringify({note})});
-  fb(res.msg,res.ok);if(res.ok)caricaDati(buildQ());
+// ── NOTA ─────────────────────────────────────────────────────────────
+async function salvaNota() {
+  if(!_selId){ fb('Seleziona un componente',false); return; }
+  const note = document.getElementById('pan-note').value.trim();
+  const res  = await apiFetch(`/api/magazzino/componenti/${_selId}`,
+    {method:'PUT',body:JSON.stringify({note})});
+  fb(res.msg, res.ok);
+  if(res.ok) { const row=_tutti.find(x=>x.componente_id===_selId); if(row) row.nota=note; }
 }
 
-// FORM COMPONENTE
-const FORM_CAMPI=['codice','nome','tipologia','categoria','sottocategoria',
-  'cod_udm','cod_iva','listino1','listino2','listino3','marca','modello',
-  'extra1','extra2','extra3','extra4','cod_fornitore','fornitore',
-  'prezzo_forn','scorta_minima','ubicazione','stato_magazzino',
-  'colore','cilindrata','carburante','versione','anno_da','anno_a',
-  'intervallo','note','note_fornitura'];
+// ── FORM ─────────────────────────────────────────────────────────────
+const FORM_CAMPI = ['codice','nome','tipologia','categoria','sottocategoria',
+  'cod_udm','cod_iva','listino1','listino2','listino3','note','cod_barre',
+  'internet','marca','extra1','extra2','extra3','extra4','cod_fornitore',
+  'fornitore','prezzo_forn','note_fornitura','scorta_minima','ubicazione',
+  'stato_magazzino','modello','colore','cilindrata','carburante',
+  'anno_da','anno_a','intervallo'];
 
-async function openFormNuovo(){
-  _modifica=false;
-  document.getElementById('form-title').textContent='＋ Nuovo Componente';
-  FORM_CAMPI.forEach(k=>{
-    const el=document.getElementById('f-'+k);
-    if(el)el.value='';
-  });
-  document.getElementById('f-scorta_minima').value='0';
+async function openFormNuovo() {
+  _modifica = false;
+  document.getElementById('form-title').textContent = '＋ Nuovo Componente';
+  FORM_CAMPI.forEach(k=>{ const el=document.getElementById('f-'+k); if(el)el.value=''; });
+  ['f-scorta_minima','f-listino1','f-listino2','f-listino3','f-prezzo_forn']
+    .forEach(id=>{ const el=document.getElementById(id); if(el)el.value='0'; });
   document.getElementById('f-codice').removeAttribute('readonly');
   document.getElementById('f-codice').style.opacity='1';
-  const res=await apiFetch('/api/magazzino/prossimo-codice');
-  if(res.codice)document.getElementById('f-codice').value=res.codice;
+  const res = await apiFetch('/api/magazzino/prossimo-codice');
+  if(res.codice) document.getElementById('f-codice').value = res.codice;
   openModal('modal-form');
 }
 
-function openFormModifica(){
-  if(!_selId){fb('Seleziona un componente',false);return;}
-  const r=_dati.find(x=>x.componente_id===_selId);if(!r)return;
-  _modifica=true;
-  document.getElementById('form-title').textContent='✏ Modifica Componente';
-  const map={
-    codice:r.cmp,nome:r.articolo,tipologia:r.tipologia,categoria:r.categoria,
-    sottocategoria:r.sottocategoria,cod_udm:r.cod_udm,cod_iva:r.cod_iva,
-    listino1:r.listino1,listino2:r.listino2,listino3:r.listino3,
-    marca:r.marca,modello:r.modello,extra1:r.extra1,extra2:r.extra2,
-    extra3:r.extra3,extra4:r.extra4,cod_fornitore:r.cod_fornitore,
-    fornitore:r.fornitore,prezzo_forn:r.prezzo_forn,
-    scorta_minima:r.scorta,ubicazione:r.ubicazione,
-    stato_magazzino:r.stato_magazzino,colore:r.colore,
-    cilindrata:r.cilindrata,carburante:r.carburante,
-    versione:r.versione,anno_da:r.anno_da,anno_a:r.anno_a,
-    intervallo:r.intervallo,note:r.nota,note_fornitura:r.note_fornitura
+function openFormModifica() {
+  if(!_selId){ fb('Seleziona un componente',false); return; }
+  const r = _tutti.find(x=>x.componente_id===_selId); if(!r) return;
+  _modifica = true;
+  document.getElementById('form-title').textContent = '✏ Modifica Componente';
+  const map = {
+    codice:r.cmp, nome:r.articolo, tipologia:r.tipologia, categoria:r.categoria,
+    sottocategoria:r.sottocategoria, cod_udm:r.cod_udm, cod_iva:r.cod_iva,
+    listino1:r.listino1, listino2:r.listino2, listino3:r.listino3,
+    note:r.nota, cod_barre:r.cod_barre, internet:r.internet, marca:r.marca,
+    extra1:r.extra1, extra2:r.extra2, extra3:r.extra3, extra4:r.extra4,
+    cod_fornitore:r.cod_fornitore, fornitore:r.fornitore,
+    prezzo_forn:r.prezzo_forn, note_fornitura:r.note_fornitura,
+    scorta_minima:r.scorta, ubicazione:r.ubicazione,
+    stato_magazzino:r.stato_magazzino, modello:r.modello, colore:r.colore,
+    cilindrata:r.cilindrata, carburante:r.carburante,
+    anno_da:r.anno_da, anno_a:r.anno_a, intervallo:r.intervallo
   };
-  FORM_CAMPI.forEach(k=>{
-    const el=document.getElementById('f-'+k);
-    if(el)el.value=map[k]??'';
-  });
+  FORM_CAMPI.forEach(k=>{ const el=document.getElementById('f-'+k); if(el)el.value=map[k]??''; });
   const cod=document.getElementById('f-codice');
-  cod.setAttribute('readonly','');cod.style.opacity='.5';
+  cod.setAttribute('readonly',''); cod.style.opacity='.5';
   openModal('modal-form');
 }
 
-async function salvaForm(){
-  const dati={};
-  FORM_CAMPI.forEach(k=>{
-    const el=document.getElementById('f-'+k);
-    dati[k]=el?el.value.trim():'';
-  });
-  let res;
-  if(_modifica){
-    res=await apiFetch(`/api/magazzino/componenti/${_selId}`,{method:'PUT',body:JSON.stringify(dati)});
-  }else{
-    res=await apiFetch('/api/magazzino/componenti',{method:'POST',body:JSON.stringify(dati)});
-  }
-  if(res.ok){closeModal('modal-form');caricaDati(buildQ());toast(res.msg);}
+async function salvaForm() {
+  const dati = {};
+  FORM_CAMPI.forEach(k=>{ const el=document.getElementById('f-'+k); dati[k]=el?el.value.trim():''; });
+  const res = _modifica
+    ? await apiFetch(`/api/magazzino/componenti/${_selId}`,{method:'PUT',body:JSON.stringify(dati)})
+    : await apiFetch('/api/magazzino/componenti',{method:'POST',body:JSON.stringify(dati)});
+  if(res.ok){ closeModal('modal-form'); await caricaDati(); toast(res.msg); }
   else toast(res.msg,false);
 }
 
-// ELIMINA
-async function eliminaSelected(){
-  if(!_selId){fb('Seleziona un componente',false);return;}
-  const r=_dati.find(x=>x.componente_id===_selId);
-  if(!confirm(`Eliminare "${r?.articolo||_selId}"?`))return;
-  const res=await apiFetch(`/api/magazzino/componenti/${_selId}`,{method:'DELETE'});
-  fb(res.msg,res.ok);if(res.ok){_selId=null;caricaDati(buildQ());}
+// ── ELIMINA ───────────────────────────────────────────────────────────
+async function eliminaSelected() {
+  if(!_selId){ fb('Seleziona un componente',false); return; }
+  const r = _tutti.find(x=>x.componente_id===_selId);
+  if(!confirm(`Eliminare "${r?.articolo||_selId}"?`)) return;
+  const res = await apiFetch(`/api/magazzino/componenti/${_selId}`,{method:'DELETE'});
+  fb(res.msg,res.ok);
+  if(res.ok){ _selId=null; await caricaDati(); }
 }
 
-// PUBBLICA
-async function pubblicaSelected(){
-  if(!_selId){fb('Seleziona un componente',false);return;}
-  const r=_dati.find(x=>x.componente_id===_selId);
-  const res=await apiFetch(`/api/magazzino/componenti/${_selId}`,
-    {method:'PUT',body:JSON.stringify({pubblicato:r?.pubblicato?0:1})});
-  fb(res.msg,res.ok);if(res.ok)caricaDati(buildQ());
+// ── IMPORT EXCEL ──────────────────────────────────────────────────────
+async function importExcel(inp) {
+  if(!inp.files.length) return;
+  const bar  = document.getElementById('import-bar');
+  const msg  = document.getElementById('import-msg');
+  const fill = document.getElementById('import-fill');
+  const file = inp.files[0];
+  bar.style.display='block';
+  msg.textContent=`⏳ Caricamento ${file.name} (${Math.round(file.size/1024)}KB)...`;
+  fill.style.width='5%';
+
+  _sock.on('import_progress', d=>{
+    const pct=Math.min(90,Math.round((d.processed||0)/230));
+    fill.style.width=pct+'%';
+    msg.textContent=`⏳ ${d.importati||0} nuovi, ${d.aggiornati||0} aggiornati... (riga ${d.processed||0})`;
+  });
+
+  const fd = new FormData(); fd.append('file', file);
+  try {
+    fill.style.width='15%';
+    const r   = await fetch('/api/magazzino/import-excel-stream',{method:'POST',body:fd});
+    const res = await r.json();
+    fill.style.width='100%';
+    msg.textContent = res.ok ? res.msg : '❌ '+res.msg;
+    toast(res.msg, res.ok);
+    if(res.ok) await caricaDati();
+    setTimeout(()=>{ bar.style.display='none'; fill.style.width='0%'; }, 4000);
+  } catch(e) {
+    bar.style.display='none';
+    toast('Errore import: usa import_excel.bat per file grandi',false);
+  }
+  inp.value='';
 }
 
-// SORT
-function sortBy(col){
-  _sortDir=_sortCol===col?_sortDir*-1:1;_sortCol=col;
-  _dati.sort((a,b)=>{const va=a[col]??'',vb=b[col]??'';return(va<vb?-1:va>vb?1:0)*_sortDir;});
-  renderTabella(_dati);
-}
+// ── EXPORT EXCEL ──────────────────────────────────────────────────────
+function exportExcel(){ window.location.href='/api/magazzino/export-excel'; }
 
-// STORICO
-function goStorico(){window.location.href='/storico';}
-function goStoricoComp(id){window.location.href='/storico?comp='+id;}
-
-// BACKUP
-async function doBackup(){
-  const res=await apiFetch('/api/backup',{method:'POST'});
-  toast(res.ok?'✅ Backup completato':'❌ Backup fallito',res.ok);
-}
-
-// RESOCONTO
-async function showResoconto(){
-  const s=await apiFetch('/api/magazzino/stats');
+// ── RESOCONTO ─────────────────────────────────────────────────────────
+async function showResoconto() {
+  const s = await apiFetch('/api/magazzino/stats');
   alert(`📊 Resoconto Magazzino\n\nComponenti: ${s.totale_componenti}\nSotto scorta: ${s.sotto_scorta}\nUltimo movimento: ${s.ultimo_movimento}`);
 }
 
-// EXPORT EXCEL
-function exportExcel(){window.location.href='/api/magazzino/export-excel';}
+// ── STORICO ───────────────────────────────────────────────────────────
+function goStorico()       { window.location.href='/storico'; }
+function goStoricoComp(id) { window.location.href='/storico?comp='+id; }
 
-// IMPORT EXCEL con progress real-time
-async function importExcel(inp){
-  if(!inp.files.length)return;
-  const prog=document.getElementById('import-progress');
-  const msg=document.getElementById('import-msg');
-  const fill=document.getElementById('progress-fill');
-  const file=inp.files[0];
-  prog.style.display='block';
-  msg.textContent=`⏳ Caricamento ${file.name} (${Math.round(file.size/1024/1024*10)/10}MB)...`;
-  fill.style.width='5%';
-
-  // Ascolta progresso via SocketIO
-  let processed=0;
-  const onProgress = (data) => {
-    processed=data.processed||0;
-    const pct=Math.min(95, Math.round(processed/220));
-    fill.style.width=pct+'%';
-    msg.textContent=`⏳ Importati: ${data.importati||0} nuovi, ${data.aggiornati||0} aggiornati... (riga ${processed})`;
-  };
-  const onDone = (data) => {
-    fill.style.width='100%';
-    msg.textContent=`✅ Completato! ${data.importati} nuovi, ${data.aggiornati} aggiornati`;
-  };
-  _sock.on('import_progress', onProgress);
-  _sock.on('import_done', onDone);
-
-  const fd=new FormData();fd.append('file',file);
-  try{
-    fill.style.width='10%';
-    // Timeout lungo per file grandi (5 minuti)
-    const controller = new AbortController();
-    const timeout = setTimeout(()=>controller.abort(), 300000);
-    const r=await fetch('/api/magazzino/import-excel-stream',{
-      method:'POST', body:fd, signal:controller.signal
-    });
-    clearTimeout(timeout);
-    const res=await r.json();
-    fill.style.width='100%';
-    if(res.ok){
-      msg.textContent=res.msg;
-      toast(res.msg,true);
-      caricaDati(buildQ());
-    }else{
-      msg.textContent='❌ '+res.msg;
-      toast(res.msg,false);
-    }
-    setTimeout(()=>{prog.style.display='none';fill.style.width='0%';},4000);
-  }catch(e){
-    prog.style.display='none';
-    msg.textContent='❌ Errore: '+e.message;
-    if(e.name==='AbortError'){
-      toast('⏱ Timeout - il file è troppo grande. Contatta il supporto.',false);
-    }else{
-      toast('Errore durante import: '+e.message,false);
-    }
-  }finally{
-    _sock.off('import_progress',onProgress);
-    _sock.off('import_done',onDone);
-    inp.value='';
-  }
+// ── BACKUP ────────────────────────────────────────────────────────────
+async function doBackup() {
+  const res = await apiFetch('/api/backup',{method:'POST'});
+  toast(res.ok?'✅ Backup completato':'❌ Backup fallito',res.ok);
 }
 
-// INVENTARIO
-async function openInventario(){
-  const rows=await apiFetch('/api/magazzino/inventario');
-  const body=document.getElementById('inventario-body');
-  const headers=['Cod.','Descrizione','ES','Scorta','Produttore','Modello','Categoria',
-    'Colore','Cilindrata','Carburante','Ubicazione','Stato','Note'];
-  const keys=['cmp','articolo','esistenza','scorta','marca','modello','categoria',
-    'colore','cilindrata','carburante','ubicazione','stato_magazzino','nota'];
-  let html=`<div style="padding:0 16px 4px"><p style="font-size:11px;color:var(--text3);padding:8px 0">
-    ${rows.length} articoli · ${new Date().toLocaleString('it-IT')}</p></div>
+// ── INVENTARIO ────────────────────────────────────────────────────────
+async function openInventario() {
+  const rows = await apiFetch('/api/magazzino/inventario');
+  const body = document.getElementById('inventario-body');
+  const hdrs = ['Cod.','Descrizione','Q.tà','Scorta','Produttore','Categoria','Ubicazione','Stato'];
+  const keys = ['cmp','articolo','esistenza','scorta','marca','categoria','ubicazione','stato_magazzino'];
+  let html=`<div style="padding:0 16px 4px"><p style="font-size:11px;color:var(--text3);padding:8px 0">${rows.length.toLocaleString()} articoli · ${new Date().toLocaleString('it-IT')}</p></div>
     <div style="overflow:auto;max-height:55vh">
     <table style="width:100%;border-collapse:collapse;font-size:11px">
     <thead><tr style="background:var(--surface);position:sticky;top:0">
-    ${headers.map(h=>`<th style="padding:7px 8px;font-weight:700;font-size:10px;text-transform:uppercase;
-      letter-spacing:.5px;color:var(--text2);border-bottom:1px solid var(--border);white-space:nowrap">${h}</th>`).join('')}
+    ${hdrs.map(h=>`<th style="padding:7px 8px;font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--text2);border-bottom:1px solid var(--border)">${h}</th>`).join('')}
     </tr></thead><tbody>`;
   rows.forEach((r,i)=>{
     const bad=(r.scorta||0)>0&&(r.esistenza||0)<=(r.scorta||0);
-    const bg=bad?'#fff5f5':(i%2===0?'#fff':'#fafafa');
+    const bg=bad?'#fff5f5':(i%2?'#fafafa':'#fff');
     html+=`<tr style="background:${bg};border-bottom:1px solid #f3f4f6">
       ${keys.map((k,ki)=>{
         if(k==='cmp') return `<td style="padding:5px 8px;font-family:var(--mono);font-size:10px;color:var(--orange)">${esc(r[k]||'')}</td>`;
@@ -939,9 +1090,8 @@ function stampaInventario(){
   const content=document.getElementById('inventario-body').innerHTML;
   const w=window.open('','_blank');
   w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Inventario PerilCar</title>
-    <style>body{font-family:Arial,sans-serif;font-size:10px;margin:15px}
-    h2{color:#e94c00;margin-bottom:6px}table{width:100%;border-collapse:collapse}
-    th{background:#e94c00;color:white;padding:5px 7px;text-align:left;font-size:9px}
+    <style>body{font-family:Arial,sans-serif;font-size:10px;margin:15px}h2{color:#e94c00;margin-bottom:6px}
+    table{width:100%;border-collapse:collapse}th{background:#e94c00;color:white;padding:5px 7px;text-align:left;font-size:9px}
     td{padding:4px 7px;border-bottom:1px solid #eee}tr:nth-child(even){background:#fafafa}
     @media print{@page{margin:.8cm;size:landscape}}</style></head><body>
     <h2>📦 Inventario Magazzino — PerilCar</h2>
@@ -950,25 +1100,27 @@ function stampaInventario(){
   w.document.close();
 }
 
-// LISTA ACQUISTI
-function openListaAcquisti(){openModal('modal-acquisti');}
+// ── LISTA ACQUISTI ────────────────────────────────────────────────────
+function openListaAcquisti(){ openModal('modal-acquisti'); }
+
 async function cercaAcquisti(){
   const marca=document.getElementById('acq-marca').value.trim();
   const modello=document.getElementById('acq-modello').value.trim();
   const soglia=document.getElementById('acq-soglia').value||1;
   const p=new URLSearchParams({soglia});
-  if(marca)p.set('marca',marca);if(modello)p.set('modello',modello);
+  if(marca) p.set('marca',marca); if(modello) p.set('modello',modello);
   _acqData=await apiFetch('/api/magazzino/lista-acquisti?'+p.toString());
   const div=document.getElementById('acquisti-result');
   document.getElementById('btn-stampa-acq').disabled=!_acqData.length;
-  if(!_acqData.length){div.innerHTML=`<p style="color:var(--text3);text-align:center;padding:20px">Nessun pezzo trovato sotto soglia ${soglia}</p>`;return;}
+  if(!_acqData.length){
+    div.innerHTML=`<p style="color:var(--text3);text-align:center;padding:20px">Nessun pezzo trovato sotto soglia ${soglia}</p>`;
+    return;
+  }
   let html=`<p style="font-size:11px;color:var(--text3);margin-bottom:6px">${_acqData.length} pezzi da ordinare</p>
-    <div style="overflow:auto;max-height:45vh">
-    <table style="width:100%;border-collapse:collapse;font-size:11px">
+    <div style="overflow:auto;max-height:45vh"><table style="width:100%;border-collapse:collapse;font-size:11px">
     <thead><tr style="background:var(--surface)">
-    ${['Cod.','Descrizione','ES','Scorta','Produttore','Modello','Colore','Carburante','Ubicazione']
-      .map(h=>`<th style="padding:6px 8px;font-size:10px;font-weight:700;text-transform:uppercase;
-        color:var(--text2);border-bottom:1px solid var(--border)">${h}</th>`).join('')}
+    ${['Cod.','Descrizione','ES','Scorta','Produttore','Modello','Ubicazione']
+      .map(h=>`<th style="padding:6px 8px;font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text2);border-bottom:1px solid var(--border)">${h}</th>`).join('')}
     </tr></thead><tbody>`;
   _acqData.forEach((r,i)=>{
     html+=`<tr style="background:${i%2?'#fafafa':'#fff'};border-bottom:1px solid #f3f4f6">
@@ -978,8 +1130,6 @@ async function cercaAcquisti(){
       <td style="padding:5px 8px;text-align:center;color:var(--text3)">${r.scorta??0}</td>
       <td style="padding:5px 8px">${esc(r.marca||'')}</td>
       <td style="padding:5px 8px">${esc(r.modello||'')}</td>
-      <td style="padding:5px 8px">${esc(r.colore||'')}</td>
-      <td style="padding:5px 8px">${esc(r.carburante||'')}</td>
       <td style="padding:5px 8px">${esc(r.ubicazione||'')}</td>
     </tr>`;
   });
@@ -992,26 +1142,32 @@ function stampaAcquisti(){
   const modello=document.getElementById('acq-modello').value.trim();
   const soglia=document.getElementById('acq-soglia').value;
   const w=window.open('','_blank');
-  const rows=_acqData.map(r=>`<tr>
-    <td>${esc(r.cmp)}</td><td>${esc(r.articolo)}</td>
-    <td style="text-align:center">${r.esistenza??0}</td>
-    <td style="text-align:center">${r.scorta??0}</td>
-    <td>${esc(r.marca||'')}</td><td>${esc(r.modello||'')}</td>
-    <td>${esc(r.ubicazione||'')}</td>
-  </tr>`).join('');
-  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Lista Acquisti PerilCar</title>
-    <style>body{font-family:Arial,sans-serif;font-size:10px;margin:15px}
-    h2{color:#e94c00}table{width:100%;border-collapse:collapse;margin-top:10px}
+  const rows=_acqData.map(r=>`<tr><td>${esc(r.cmp)}</td><td>${esc(r.articolo)}</td>
+    <td style="text-align:center">${r.esistenza??0}</td><td style="text-align:center">${r.scorta??0}</td>
+    <td>${esc(r.marca||'')}</td><td>${esc(r.modello||'')}</td><td>${esc(r.ubicazione||'')}</td></tr>`).join('');
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Lista Acquisti</title>
+    <style>body{font-family:Arial,sans-serif;font-size:10px;margin:15px}h2{color:#e94c00}
+    table{width:100%;border-collapse:collapse;margin-top:10px}
     th{background:#e94c00;color:white;padding:5px 7px;text-align:left;font-size:9px}
     td{padding:4px 7px;border-bottom:1px solid #eee}tr:nth-child(even){background:#fafafa}
     @media print{@page{margin:.8cm;size:landscape}}</style></head><body>
-    <h2>🔍 Lista Ricambi da Acquistare — PerilCar</h2>
-    <p style="color:#888;font-size:10px">Auto: <b>${esc(marca)||'Tutte'}</b> · Modello: <b>${esc(modello)||'Tutti'}</b> · Soglia: <b>${soglia}</b> · ${new Date().toLocaleString('it-IT')}</p>
-    <table><thead><tr><th>Cod.</th><th>Descrizione</th><th>ES</th><th>Scorta</th><th>Produttore</th><th>Modello</th><th>Ubicazione</th></tr></thead>
+    <h2>🔍 Lista Ricambi — PerilCar</h2>
+    <p style="color:#888;font-size:10px">Auto: <b>${esc(marca)||'Tutte'}</b> · Modello: <b>${esc(modello)||'Tutti'}</b> · Soglia: <b>${soglia}</b></p>
+    <table><thead><tr><th>Cod.</th><th>Descrizione</th><th>ES</th><th>Scorta</th>
+    <th>Produttore</th><th>Modello</th><th>Ubicazione</th></tr></thead>
     <tbody>${rows}</tbody></table>
     <script>window.onload=()=>window.print()<\/script></body></html>`);
   w.document.close();
 }
+
+// ── INIT ─────────────────────────────────────────────────────────────
+buildHeaderAndFilters();
+
+// Aggiorna altezza body virtuale al resize
+const resizeObs = new ResizeObserver(()=>{ _bodyH=document.getElementById('tbl-body').clientHeight; renderVirtual(); });
+resizeObs.observe(document.getElementById('tbl-body'));
+
+caricaDati();
 </script>
 </body>
 </html>
