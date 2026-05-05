@@ -386,6 +386,9 @@
         <input type="text" id="pan-cmp" placeholder="Cod." readonly style="width:80px;flex-shrink:0">
         <input type="text" id="pan-nome" placeholder="Descrizione" readonly>
       </div>
+      <span class="panel-lbl" style="margin-top:6px">Ubicazione</span>
+      <input type="text" id="pan-ubicazione" placeholder="—" readonly
+             style="background:var(--surface2);font-weight:600;color:var(--blue)">
     </div>
 
     <div class="panel-section">
@@ -873,9 +876,10 @@ async function selectRow(id, el) {
   const r = _tutti.find(x=>x.componente_id===id);
   if(!r) return;
 
-  document.getElementById('pan-cmp').value  = r.cmp||'';
-  document.getElementById('pan-nome').value = r.articolo||'';
-  document.getElementById('pan-note').value = r.nota||'';
+  document.getElementById('pan-cmp').value       = r.cmp||'';
+  document.getElementById('pan-nome').value      = r.articolo||'';
+  document.getElementById('pan-note').value      = r.nota||'';
+  document.getElementById('pan-ubicazione').value = r.ubicazione||'—';
   renderFiles(r.files_path);
 
   const info = await apiFetch(`/api/magazzino/info-movimenti/${id}`);
