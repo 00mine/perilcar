@@ -551,13 +551,16 @@ function stampa() {
       <td>${esc(m.creato_il||'')}</td>
       <td>${esc(m.cmp||'')}</td>
       <td>${esc(m.articolo||'')}</td>
+      <td>${esc(m.produttore||'')}</td>
+      <td>${esc(m.categoria||'')}</td>
+      <td>${esc(m.extra2||'')}</td>
+      <td>${esc(m.extra3||'')}</td>
+      <td>${esc(m.extra4||'')}</td>
       <td>${m.tipo||''}</td>
       <td style="text-align:center">${m.quantita||0}</td>
       <td style="text-align:center">${m.quantita_prima||0}</td>
       <td style="text-align:center">${m.quantita_dopo||0}</td>
       <td style="text-align:center;color:${delta>=0?'green':'red'}">${delta>=0?'+':''}${delta}</td>
-      <td>${esc(m.riferimento||'')}</td>
-      <td>${esc(m.username||'')}</td>
     </tr>`;
   }).join('');
   w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
@@ -571,9 +574,10 @@ function stampa() {
     <h2>📋 Storico Movimenti — PerilCar</h2>
     <p>${esc(periodo)} · ${_filt.length} movimenti · ${new Date().toLocaleString('it-IT')}</p>
     <table><thead><tr>
-      <th>Data/Ora</th><th>CMP</th><th>Descrizione</th><th>Tipo</th>
-      <th>Qtà</th><th>Prima</th><th>Dopo</th><th>Δ</th>
-      <th>Riferimento</th><th>Utente</th>
+      <th>Data/Ora</th><th>CMP</th><th>Descrizione</th>
+      <th>Produttore</th><th>Categoria</th>
+      <th>Extra 2</th><th>Extra 3</th><th>Extra 4</th>
+      <th>Tipo</th><th>Qtà</th><th>Prima</th><th>Dopo</th><th>Δ</th>
     </tr></thead><tbody>${rows}</tbody></table>
     <script>window.onload=()=>window.print()<\/script></body></html>`);
   w.document.close();
