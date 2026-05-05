@@ -242,7 +242,19 @@
     .toast-err{background:#fff;color:var(--red);border:1px solid #fca5a5}
     @keyframes toastIn{from{transform:translateY(8px);opacity:0}to{opacity:1}}
 
-    #reload-badge{position:fixed;bottom:12px;left:12px;z-index:9999;
+    .col-item{display:flex;align-items:center;gap:8px;padding:7px 10px;
+              background:#fff;border:1px solid var(--border);border-radius:6px;
+              cursor:grab;user-select:none;transition:background .1s}
+.col-item:active{cursor:grabbing}
+.col-item.dragging{opacity:.4;background:var(--surface2)}
+.col-item.drag-over{border-color:var(--orange);background:#fff8f5}
+.col-item input[type=checkbox]{width:16px;height:16px;accent-color:var(--orange);
+  flex-shrink:0;cursor:pointer}
+.col-item .drag-handle{color:var(--text3);font-size:14px;flex-shrink:0}
+.col-item .col-label{flex:1;font-size:12.5px;font-weight:500}
+.col-item .col-w{width:58px;padding:3px 6px;font-size:11px;text-align:center;
+  font-family:var(--mono);border:1px solid var(--border);border-radius:4px;background:var(--surface)}
+#reload-badge{position:fixed;bottom:12px;left:12px;z-index:9999;
                   background:var(--green);color:#fff;padding:4px 10px;border-radius:20px;
                   font-size:10px;font-weight:600;opacity:0;transition:opacity .3s;pointer-events:none}
   </style>
@@ -285,6 +297,7 @@
       </label>
       <button class="btn btn-ghost" onclick="exportExcel()">📤 Export</button>
       <button class="btn btn-ghost" style="color:var(--red)" onclick="clearAllFilters()">✕ Pulisci filtri</button>
+      <button class="btn btn-ghost" onclick="openModal('modal-colonne')" title="Gestisci colonne">⚙ Colonne</button>
     </div>
 
     <!-- Import progress -->
@@ -511,6 +524,30 @@
   </div>
 </div>
 
+
+<!-- MODAL GESTIONE COLONNE -->
+<div class="overlay hidden" id="modal-colonne">
+  <div class="modal" style="max-width:520px">
+    <div class="modal-hdr">
+      <h3>⚙ Gestisci Colonne</h3>
+      <button class="modal-close" onclick="closeModal('modal-colonne')">×</button>
+    </div>
+    <div class="modal-body" style="padding:12px 16px">
+      <p style="font-size:11px;color:var(--text3);margin-bottom:10px">
+        Trascina per riordinare · Spunta per mostrare/nascondere · Modifica larghezza
+      </p>
+      <div style="display:flex;gap:8px;margin-bottom:10px">
+        <button class="btn btn-ghost" style="font-size:11px" onclick="colonneShowAll()">✅ Mostra tutte</button>
+        <button class="btn btn-ghost" style="font-size:11px" onclick="colonneReset()">↺ Ripristina default</button>
+        <button class="btn btn-green"  style="font-size:11px;margin-left:auto" onclick="colonneApplica()">Applica</button>
+      </div>
+      <div id="colonne-list"
+           style="max-height:60vh;overflow-y:auto;display:flex;flex-direction:column;gap:2px">
+      </div>
+    </div>
+  </div>
+</div>
+
 <div id="reload-badge">🔄</div>
 
 <script>
@@ -623,6 +660,10 @@ function buildHeaderAndFilters() {
   hdrRow.innerHTML = '';
   fltRow.innerHTML = '';
 
+  // Usa colonne visibili nell'ordine corrente
+  const visCols = getVisibleCols();
+  const totW = visCols.reduce((s,c)=>s+c.w, 0);
+
   // Imposta larghezze colonne in tutte le tabelle
   const tables = ['tbl-hdr-table','tbl-flt-table','tbl-data'];
   tables.forEach(id => {
@@ -630,13 +671,14 @@ function buildHeaderAndFilters() {
     if(!t) return;
     let cg = t.querySelector('colgroup');
     if(!cg) { cg = document.createElement('colgroup'); t.prepend(cg); }
-    cg.innerHTML = COLS.map(([,,w])=>`<col style="width:${w}px;min-width:${w}px">`).join('');
+    cg.innerHTML = visCols.map(col=>`<col style="width:${col.w}px;min-width:${col.w}px">`).join('');
   });
 
   // Sync larghezza scroll x
-  document.getElementById('scroll-x-inner').style.width = TOT_W + 'px';
+  document.getElementById('scroll-x-inner').style.width = totW + 'px';
 
-  COLS.forEach(([key, label, w], ci) => {
+  visCols.forEach((col, ci) => {
+    const {key, label, w} = col;
     // Header
     const th = document.createElement('th');
     th.className = 'col-hdr';
@@ -656,6 +698,8 @@ function buildHeaderAndFilters() {
     inp.placeholder = '…';
     inp.id = `flt-${key}`;
     inp.dataset.key = key;
+    // Ripristina valore filtro esistente
+    if(_colFilters[key]) inp.value = _colFilters[key];
     inp.addEventListener('input', () => {
       const v = inp.value.trim().toLowerCase();
       if(v) _colFilters[key] = v;
@@ -772,7 +816,11 @@ function renderVirtual() {
     const sel = _selId===r.componente_id ? ' selected':'';
     const scar= bad ? ' scarso':'';
 
-    const cells = COLS.map(([key,,, tipo]) => {
+    const visCols = getVisibleCols();
+    const cells = visCols.map(({key, label, w}) => {
+      // Trova tipo dal COLS originale
+      const orig = COLS.find(([k])=>k===key);
+      const tipo = orig ? orig[3] : 'str';
       const v = r[key] ?? '';
       if(tipo==='cmp')   return `<td><span class="cmp-chip">${esc(v)}</span></td>`;
       if(tipo==='files') {
@@ -787,7 +835,7 @@ function renderVirtual() {
         return `<td class="num">${v||''}</td>`;
       }
       return `<td title="${esc(String(v))}">${esc(String(v))}</td>`;
-    }).join('');
+    }).join(''); // fine visCols.map
 
     return `<tr class="${sel}${scar}" data-id="${r.componente_id}"
               style="height:${ROW_H}px">${cells}</tr>`;
@@ -1160,7 +1208,121 @@ function stampaAcquisti(){
   w.document.close();
 }
 
+// ── GESTIONE COLONNE ─────────────────────────────────────────────────
+// Stato colonne: array di {key, label, w, visible} nell'ordine corrente
+let _colState = null;  // null = usa COLS default
+
+function getColState() {
+  if(_colState) return _colState;
+  // Prima volta: carica da localStorage o usa default
+  try {
+    const saved = localStorage.getItem('perilcar_cols');
+    if(saved) { _colState = JSON.parse(saved); return _colState; }
+  } catch(e) {}
+  _colState = COLS.map(([key, label, w]) => ({key, label, w, visible: true}));
+  return _colState;
+}
+
+function saveColState() {
+  try { localStorage.setItem('perilcar_cols', JSON.stringify(_colState)); } catch(e) {}
+}
+
+function getVisibleCols() {
+  return getColState().filter(c => c.visible);
+}
+
+// Aggiorna COLS globale con lo stato corrente (visibile e ordinato)
+function applyCols() {
+  const state = getColState();
+  // Rebuilda header e filtri con le colonne correnti
+  buildHeaderAndFilters();
+  applicaFiltri();
+}
+
+// Apri modal e popola lista
+function openColonneModal() {
+  const state = getColState();
+  const list  = document.getElementById('colonne-list');
+  list.innerHTML = '';
+
+  state.forEach((col, idx) => {
+    const item = document.createElement('div');
+    item.className = 'col-item';
+    item.draggable = true;
+    item.dataset.idx = idx;
+    item.innerHTML = `
+      <span class="drag-handle">⠿</span>
+      <input type="checkbox" ${col.visible?'checked':''} onchange="colToggle(${idx},this.checked)">
+      <span class="col-label">${col.label}</span>
+      <input type="number" class="col-w" value="${col.w}" min="40" max="500"
+             title="Larghezza px" onchange="colWidth(${idx},this.value)">
+      <span style="font-size:10px;color:var(--text3)">px</span>
+    `;
+
+    // Drag & Drop
+    item.addEventListener('dragstart', e => {
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', idx);
+      setTimeout(() => item.classList.add('dragging'), 0);
+    });
+    item.addEventListener('dragend', () => item.classList.remove('dragging'));
+    item.addEventListener('dragover', e => { e.preventDefault(); item.classList.add('drag-over'); });
+    item.addEventListener('dragleave', () => item.classList.remove('drag-over'));
+    item.addEventListener('drop', e => {
+      e.preventDefault();
+      item.classList.remove('drag-over');
+      const fromIdx = parseInt(e.dataTransfer.getData('text/plain'));
+      const toIdx   = parseInt(item.dataset.idx);
+      if(fromIdx === toIdx) return;
+      // Sposta elemento
+      const moved = _colState.splice(fromIdx, 1)[0];
+      _colState.splice(toIdx, 0, moved);
+      openColonneModal(); // Ridisegna
+    });
+
+    list.appendChild(item);
+  });
+
+  openModal('modal-colonne');
+}
+
+function colToggle(idx, visible) {
+  _colState[idx].visible = visible;
+}
+
+function colWidth(idx, val) {
+  const w = Math.max(40, Math.min(500, parseInt(val)||80));
+  _colState[idx].w = w;
+}
+
+function colonneShowAll() {
+  getColState().forEach(c => c.visible = true);
+  openColonneModal();
+}
+
+function colonneReset() {
+  _colState = COLS.map(([key, label, w]) => ({key, label, w, visible: true}));
+  saveColState();
+  openColonneModal();
+}
+
+function colonneApplica() {
+  saveColState();
+  closeModal('modal-colonne');
+  applyCols();
+}
+
+// Override buildHeaderAndFilters per usare colonne visibili
+const _origBuildHeader = buildHeaderAndFilters;
+
 // ── INIT ─────────────────────────────────────────────────────────────
+// Override modal-colonne button
+document.addEventListener('click', e => {
+  if(e.target.closest('button')?.textContent?.includes('⚙ Colonne')) {
+    e.stopPropagation();
+    openColonneModal();
+  }
+});
 buildHeaderAndFilters();
 
 // Aggiorna altezza body virtuale al resize
