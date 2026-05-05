@@ -1371,97 +1371,83 @@ function colonneApplica() {
 const _origBuildHeader = buildHeaderAndFilters;
 
 // ── STAMPA MAGAZZINO ─────────────────────────────────────────────────
-
-
 function stampaMagazzino() {
-  const visCols = getVisibleCols();
+  var nFlt   = Object.keys(_colFilters).length;
+  var totale = _tutti.length;
+  var visib  = _filt.length;
+  var sc     = _filt.filter(function(r){ return (r.scorta||0)>0 && (r.esistenza||0)<=(r.scorta||0); }).length;
 
-  const nFlt   = Object.keys(_colFilters).length;
-  const totale = _tutti.length;
-  const visib  = _filt.length;
-  const sc     = _filt.filter(r=>(r.scorta||0)>0&&(r.esistenza||0)<=(r.scorta||0)).length;
-
-  let filtriInfo = '';
+  var filtriInfo = '';
   if(nFlt > 0) {
-    const fList = Object.entries(_colFilters)
-      .map(([k,v]) => `<b>${k}</b>: ${v}`).join(' &nbsp;|&nbsp; ');
-    filtriInfo = `<p style="margin:4px 0;color:#666;font-size:10px">Filtri attivi: ${fList}</p>`;
+    var fList = Object.entries(_colFilters).map(function(kv){ return '<b>'+kv[0]+'</b>: '+kv[1]; }).join(' | ');
+    filtriInfo = '<p style="margin:4px 0;color:#666;font-size:10px">Filtri attivi: '+fList+'</p>';
   }
 
-  const rows = _filt.map((r, i) => {
-    const bad = (r.scorta||0)>0 && (r.esistenza||0)<=(r.scorta||0);
-    const bg  = bad ? '#fff0f0' : (i%2===0 ? '#fff' : '#f9f9f9');
-    return `<tr style="background:${bg}">
-      <td>${esc(r.cmp||'')}</td>
-      <td>${esc(r.articolo||'')}</td>
-      <td>${esc(r.marca||'')}</td>
-      <td>${esc(r.categoria||'')}</td>
-      <td>${esc(r.extra2||'')}</td>
-      <td>${esc(r.extra3||'')}</td>
-      <td>${esc(r.extra4||'')}</td>
-      <td style="text-align:center">${r.scorta||0}</td>
-      <td style="text-align:center;font-weight:700;color:${bad?'#dc2626':'#16a34a'}">${r.esistenza??0}</td>
-      <td>${esc(r.ubicazione||'')}</td>
-      <td>${esc(r.stato_magazzino||'')}</td>
-    </tr>`;
+  var rows = _filt.map(function(r, i) {
+    var bad = (r.scorta||0)>0 && (r.esistenza||0)<=(r.scorta||0);
+    var bg  = bad ? '#fff0f0' : (i%2===0 ? '#fff' : '#f9f9f9');
+    var eColor = bad ? '#dc2626' : '#16a34a';
+    return '<tr style="background:'+bg+'">'
+      +'<td>'+esc(r.cmp||'')+'</td>'
+      +'<td>'+esc(r.articolo||'')+'</td>'
+      +'<td>'+esc(r.marca||'')+'</td>'
+      +'<td>'+esc(r.categoria||'')+'</td>'
+      +'<td>'+esc(r.extra2||'')+'</td>'
+      +'<td>'+esc(r.extra3||'')+'</td>'
+      +'<td>'+esc(r.extra4||'')+'</td>'
+      +'<td style="text-align:center">'+(r.scorta||0)+'</td>'
+      +'<td style="text-align:center;font-weight:700;color:'+eColor+'">'+(r.esistenza||0)+'</td>'
+      +'<td>'+esc(r.ubicazione||'')+'</td>'
+      +'<td>'+esc(r.stato_magazzino||'')+'</td>'
+      +'</tr>';
   }).join('');
 
-  const w = window.open('', '_blank');
-  w.document.write(`<!DOCTYPE html><html><head>
-    <meta charset="UTF-8"><title>Magazzino PerilCar — Stampa</title>
-    <style>
-      *{box-sizing:border-box;margin:0;padding:0}
-      body{font-family:Arial,sans-serif;font-size:10px;margin:12px;color:#111}
-      h2{color:#e94c00;font-size:16px;margin-bottom:4px}
-      .meta p{font-size:10px;color:#555;margin:2px 0}
-      .stat-row{display:flex;gap:20px;margin:6px 0 10px}
-      .stat{background:#f7f8fa;border:1px solid #dde;border-radius:6px;padding:5px 12px;font-size:10px}
-      .stat b{font-size:13px;display:block;color:#e94c00}
-      table{width:100%;border-collapse:collapse;font-size:9.5px}
-      thead th{background:#e94c00;color:white;padding:5px 6px;text-align:left;
-               font-size:9px;text-transform:uppercase;letter-spacing:.3px;white-space:nowrap}
-      tbody td{padding:4px 6px;border-bottom:1px solid #eee;white-space:nowrap}
-      tbody tr:last-child td{border-bottom:none}
-      .footer{margin-top:12px;font-size:9px;color:#aaa;border-top:1px solid #eee;
-              padding-top:6px;display:flex;justify-content:space-between}
-      @media print{@page{margin:1cm;size:landscape}body{margin:0}.no-print{display:none}}
-    </style>
-  </head><body>
-    <div class="no-print" style="margin-bottom:14px">
-      <button onclick="window.print()"
-              style="background:#e94c00;color:#fff;border:none;padding:8px 20px;
-                     border-radius:6px;font-size:13px;cursor:pointer;font-weight:700">
-        🖨 Stampa / Salva PDF
-      </button>
-      <button onclick="window.close()"
-              style="margin-left:10px;background:#f0f0f0;border:1px solid #ccc;
-                     padding:8px 16px;border-radius:6px;font-size:13px;cursor:pointer">
-        ✕ Chiudi
-      </button>
-    </div>
-    <h2>📦 Magazzino — PerilCar</h2>
-    <div class="meta">
-      <p>Generato il ${new Date().toLocaleString('it-IT')} &nbsp;·&nbsp; Ing. Carmine Perillo</p>
-      ${filtriInfo}
-    </div>
-    <div class="stat-row">
-      <div class="stat"><b>${visib.toLocaleString()}</b>componenti stampati</div>
-      <div class="stat"><b>${totale.toLocaleString()}</b>totale magazzino</div>
-      <div class="stat"><b style="color:#dc2626">${sc}</b>sotto scorta</div>
-    </div>
-    <table><thead><tr>
-      <th>Cod.</th><th>Descrizione</th><th>Produttore</th><th>Categoria</th>
-      <th>Extra 2</th><th>Extra 3</th><th>Extra 4</th>
-      <th>Scorta min.</th><th>Q.tà giacenza</th><th>Ubicazione</th><th>Stato</th>
-    </tr></thead><tbody>${rows}</tbody></table>
-    <div class="footer">
-      <span>PerilCar ERP — Magazzino</span>
-      <span>${visib} righe · ${new Date().toLocaleDateString('it-IT')}</span>
-    </div>
-    <script>window.onload=()=>window.print()<\/script>
-  </body></html>\`);
+  var html = '<!DOCTYPE html><html><head>'
+    +'<meta charset="UTF-8"><title>Magazzino PerilCar</title>'
+    +'<style>'
+    +'*{box-sizing:border-box;margin:0;padding:0}'
+    +'body{font-family:Arial,sans-serif;font-size:10px;margin:12px;color:#111}'
+    +'h2{color:#e94c00;font-size:16px;margin-bottom:4px}'
+    +'.meta p{font-size:10px;color:#555;margin:2px 0}'
+    +'.stat-row{display:flex;gap:20px;margin:6px 0 10px}'
+    +'.stat{background:#f7f8fa;border:1px solid #dde;border-radius:6px;padding:5px 12px;font-size:10px}'
+    +'.stat b{font-size:13px;display:block;color:#e94c00}'
+    +'table{width:100%;border-collapse:collapse;font-size:9.5px}'
+    +'thead th{background:#e94c00;color:white;padding:5px 6px;text-align:left;font-size:9px;text-transform:uppercase;white-space:nowrap}'
+    +'tbody td{padding:4px 6px;border-bottom:1px solid #eee;white-space:nowrap}'
+    +'.footer{margin-top:12px;font-size:9px;color:#aaa;border-top:1px solid #eee;padding-top:6px;display:flex;justify-content:space-between}'
+    +'@media print{@page{margin:1cm;size:landscape}body{margin:0}.no-print{display:none}}'
+    +'</style></head><body>'
+    +'<div class="no-print" style="margin-bottom:14px">'
+    +'<button onclick="window.print()" style="background:#e94c00;color:#fff;border:none;padding:8px 20px;border-radius:6px;font-size:13px;cursor:pointer;font-weight:700">Stampa / Salva PDF</button>'
+    +'<button onclick="window.close()" style="margin-left:10px;background:#f0f0f0;border:1px solid #ccc;padding:8px 16px;border-radius:6px;font-size:13px;cursor:pointer">Chiudi</button>'
+    +'</div>'
+    +'<h2>Magazzino PerilCar</h2>'
+    +'<div class="meta"><p>Generato il '+new Date().toLocaleString('it-IT')+' - Ing. Carmine Perillo</p>'
+    +filtriInfo+'</div>'
+    +'<div class="stat-row">'
+    +'<div class="stat"><b>'+visib+'</b>stampati</div>'
+    +'<div class="stat"><b>'+totale+'</b>totale</div>'
+    +'<div class="stat"><b style="color:#dc2626">'+sc+'</b>sotto scorta</div>'
+    +'</div>'
+    +'<table><thead><tr>'
+    +'<th>Cod.</th><th>Descrizione</th><th>Produttore</th><th>Categoria</th>'
+    +'<th>Extra 2</th><th>Extra 3</th><th>Extra 4</th>'
+    +'<th>Scorta min.</th><th>Q.ta giacenza</th><th>Ubicazione</th><th>Stato</th>'
+    +'</tr></thead><tbody>'+rows+'</tbody></table>'
+    +'<div class="footer">'
+    +'<span>PerilCar ERP</span>'
+    +'<span>'+visib+' righe - '+new Date().toLocaleDateString('it-IT')+'</span>'
+    +'</div>'
+    +'</body></html>';
+
+  var w = window.open('', '_blank');
+  w.document.open();
+  w.document.write(html);
   w.document.close();
+  setTimeout(function(){ w.print(); }, 500);
 }
+
 
 // ── INIT ─────────────────────────────────────────────────────────────
 // Override modal-colonne button
