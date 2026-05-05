@@ -981,8 +981,7 @@ def api_assistente():
             if v: parts.append(str(v))
         righe.append(' '.join(parts))
 
-    magazzino_txt = '
-'.join(righe[:3000])  # max 3000 righe
+    magazzino_txt = "\n".join(righe[:3000])  # max 3000 righe
 
     system_prompt = f"""Sei un assistente esperto per un magazzino di autodemolizioni chiamato PerilCar.
 Hai accesso al magazzino completo. Rispondi SEMPRE in italiano, in modo conciso e diretto.
