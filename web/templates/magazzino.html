@@ -88,7 +88,7 @@
     .table-filters table{width:100%;border-collapse:collapse;table-layout:fixed}
 
     /* Body scrollabile - VIRTUALE */
-    .table-body{flex:1;overflow-y:auto;overflow-x:hidden;position:relative}
+    .table-body{flex:1;overflow-y:auto;overflow-x:auto;position:relative}
     .table-body table{width:100%;border-collapse:collapse;table-layout:fixed}
 
     /* Sincronizza scroll orizzontale */
@@ -121,8 +121,7 @@
     tbody tr.selected{background:#fff7f4!important;
                       outline:2px solid var(--orange);outline-offset:-1px}
     tbody tr.scarso{background:#fff5f5}
-    tbody td{padding:5px 6px;white-space:nowrap;overflow:hidden;
-             text-overflow:ellipsis;font-size:11.5px}
+    tbody td{padding:5px 8px;white-space:nowrap;font-size:12px}
     td.num{text-align:center;font-family:var(--mono);font-size:11px}
     td.val-ok{color:var(--green);font-weight:700}
     td.val-bad{color:var(--red);font-weight:700}
@@ -565,44 +564,44 @@ _sock.on('reload', d => {
 // [chiave_dati, label, larghezza_px, tipo]
 // tipo: 'str'|'num'|'cmp'|'files'
 const COLS = [
-  ['cmp',            'Cod.',            80,  'cmp'],
-  ['articolo',       'Descrizione',     220, 'str'],
-  ['tipologia',      'Tipologia',       110, 'str'],
-  ['categoria',      'Categoria',       100, 'str'],
-  ['sottocategoria', 'Sottocategoria',  110, 'str'],
-  ['cod_udm',        'Cod. Udm',         70, 'str'],
-  ['cod_iva',        'Cod. Iva',         70, 'str'],
-  ['listino1',       'Listino 1',        80, 'num'],
-  ['listino2',       'Listino 2',        80, 'num'],
-  ['listino3',       'Listino 3',        80, 'num'],
-  ['nota',           'Note',            140, 'str'],
-  ['cod_barre',      'Cod. a barre',    110, 'str'],
-  ['internet',       'Internet',         80, 'str'],
-  ['marca',          'Produttore',      110, 'str'],
-  ['extra1',         'Extra 1',          90, 'str'],
-  ['extra2',         'Extra 2',          90, 'str'],
-  ['extra3',         'Extra 3',          90, 'str'],
-  ['extra4',         'Extra 4',          90, 'str'],
-  ['cod_fornitore',  'Cod. fornitore',  100, 'str'],
-  ['fornitore',      'Fornitore',       120, 'str'],
-  ['cod_prod_forn',  'Cod. prod. forn.',110, 'str'],
-  ['prezzo_forn',    'Prezzo forn.',     80, 'num'],
-  ['note_fornitura', 'Note fornitura',  130, 'str'],
-  ['ord_multipli',   'Ord. multipli',    80, 'num'],
-  ['gg_ordine',      'Gg. ordine',       70, 'num'],
-  ['scorta',         'Scorta min.',       75, 'num'],
-  ['ubicazione',     'Ubicazione',      120, 'str'],
-  ['esistenza',      'Q.tà giacenza',    80, 'num'],
-  ['stato_magazzino','Stato mag.',       90, 'str'],
-  ['modello',        'Modello',         100, 'str'],
-  ['colore',         'Colore',           80, 'str'],
-  ['cilindrata',     'Cilindrata',       80, 'str'],
-  ['carburante',     'Carburante',       80, 'str'],
-  ['versione',       'Versione',         80, 'str'],
-  ['anno_da',        'Anno da',          70, 'num'],
-  ['anno_a',         'Anno a',           70, 'num'],
-  ['intervallo',     'Intervallo',       90, 'str'],
-  ['files_path',     'File/Img',         60, 'files'],
+  ['cmp',            'Cod.',            100, 'cmp'],
+  ['articolo',       'Descrizione',     280, 'str'],
+  ['tipologia',      'Tipologia',       150, 'str'],
+  ['categoria',      'Categoria',       140, 'str'],
+  ['sottocategoria', 'Sottocategoria',  150, 'str'],
+  ['cod_udm',        'Cod. Udm',         90, 'str'],
+  ['cod_iva',        'Cod. Iva',         90, 'str'],
+  ['listino1',       'Listino 1',       100, 'num'],
+  ['listino2',       'Listino 2',       100, 'num'],
+  ['listino3',       'Listino 3',       100, 'num'],
+  ['nota',           'Note',            180, 'str'],
+  ['cod_barre',      'Cod. a barre',    130, 'str'],
+  ['internet',       'Internet',        100, 'str'],
+  ['marca',          'Produttore',      150, 'str'],
+  ['extra1',         'Extra 1',         140, 'str'],
+  ['extra2',         'Extra 2',         140, 'str'],
+  ['extra3',         'Extra 3',         140, 'str'],
+  ['extra4',         'Extra 4',         140, 'str'],
+  ['cod_fornitore',  'Cod. fornitore',  130, 'str'],
+  ['fornitore',      'Fornitore',       160, 'str'],
+  ['cod_prod_forn',  'Cod. prod. forn.',140, 'str'],
+  ['prezzo_forn',    'Prezzo forn.',    110, 'num'],
+  ['note_fornitura', 'Note fornitura',  180, 'str'],
+  ['ord_multipli',   'Ord. multipli',   100, 'num'],
+  ['gg_ordine',      'Gg. ordine',       90, 'num'],
+  ['scorta',         'Scorta min.',      90, 'num'],
+  ['ubicazione',     'Ubicazione',      160, 'str'],
+  ['esistenza',      'Q.tà giacenza',   100, 'num'],
+  ['stato_magazzino','Stato mag.',      120, 'str'],
+  ['modello',        'Modello',         130, 'str'],
+  ['colore',         'Colore',          100, 'str'],
+  ['cilindrata',     'Cilindrata',      100, 'str'],
+  ['carburante',     'Carburante',      100, 'str'],
+  ['versione',       'Versione',        100, 'str'],
+  ['anno_da',        'Anno da',          90, 'num'],
+  ['anno_a',         'Anno a',           90, 'num'],
+  ['intervallo',     'Intervallo',      120, 'str'],
+  ['files_path',     'File/Img',         80, 'files'],
 ];
 
 const TOT_W = COLS.reduce((s,[,,w])=>s+w, 0);
