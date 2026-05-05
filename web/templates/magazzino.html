@@ -604,6 +604,9 @@ const COLS = [
 ];
 
 const TOT_W = COLS.reduce((s,[,,w])=>s+w, 0);
+// Mappa key → tipo (usata in renderVirtual)
+const COL_TIPO = {};
+COLS.forEach(([key,,,tipo]) => { COL_TIPO[key] = tipo || 'str'; });
 
 // ── STATO ────────────────────────────────────────────────────────────
 let _tutti = [];       // tutti i dati dal server
@@ -807,6 +810,7 @@ function renderVirtual() {
   // Renderizza solo le righe visibili
   const tbody = document.getElementById('tbl-tbody');
   const slice = _filt.slice(startRow, endRow);
+  const visCols = getVisibleCols(); // Calcolato UNA volta fuori dal loop
 
   tbody.innerHTML = slice.map((r, i) => {
     const ri = startRow + i;
@@ -816,11 +820,8 @@ function renderVirtual() {
     const sel = _selId===r.componente_id ? ' selected':'';
     const scar= bad ? ' scarso':'';
 
-    const visCols = getVisibleCols();
-    const cells = visCols.map(({key, label, w}) => {
-      // Trova tipo dal COLS originale
-      const orig = COLS.find(([k])=>k===key);
-      const tipo = orig ? orig[3] : 'str';
+    const cells = visCols.map(({key}) => {
+      const tipo = COL_TIPO[key] || 'str';
       const v = r[key] ?? '';
       if(tipo==='cmp')   return `<td><span class="cmp-chip">${esc(v)}</span></td>`;
       if(tipo==='files') {
@@ -1219,7 +1220,7 @@ function getColState() {
     const saved = localStorage.getItem('perilcar_cols');
     if(saved) { _colState = JSON.parse(saved); return _colState; }
   } catch(e) {}
-  _colState = COLS.map(([key, label, w]) => ({key, label, w, visible: true}));
+  _colState = COLS.map(([key, label, w, tipo]) => ({key, label, w, tipo: tipo||'str', visible: true}));
   return _colState;
 }
 
@@ -1228,7 +1229,10 @@ function saveColState() {
 }
 
 function getVisibleCols() {
-  return getColState().filter(c => c.visible);
+  return getColState().filter(c => c.visible).map(c => ({
+    ...c,
+    tipo: c.tipo || COL_TIPO[c.key] || 'str'  // fallback sicuro
+  }));
 }
 
 // Aggiorna COLS globale con lo stato corrente (visibile e ordinato)
@@ -1301,7 +1305,7 @@ function colonneShowAll() {
 }
 
 function colonneReset() {
-  _colState = COLS.map(([key, label, w]) => ({key, label, w, visible: true}));
+  _colState = COLS.map(([key, label, w, tipo]) => ({key, label, w, tipo: tipo||'str', visible: true}));
   saveColState();
   openColonneModal();
 }

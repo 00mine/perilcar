@@ -12,7 +12,7 @@ from datetime import datetime
 from pathlib import Path
 
 # ─── Versione schema ─────────────────────────────────────────────────────────
-DB_SCHEMA_VERSION = 2
+DB_SCHEMA_VERSION = 3
 APP_VERSION = "1.0.0"
 
 logger = logging.getLogger("perilcar.database")
@@ -258,18 +258,36 @@ class DatabaseManager:
         -- ── VIEW: giacenza attuale per componente ─────────────────────────
         CREATE VIEW IF NOT EXISTS v_giacenza AS
         SELECT
-            c.id            AS componente_id,
-            c.codice        AS cmp,
-            c.nome          AS articolo,
+            c.id              AS componente_id,
+            c.codice          AS cmp,
+            c.nome            AS articolo,
             c.descrizione,
-            COALESCE(SUM(CASE
-                WHEN m.tipo IN ('carico','inventario') THEN  m.quantita
-                WHEN m.tipo  = 'scarico'               THEN -m.quantita
-                WHEN m.tipo  = 'rettifica'             THEN  m.quantita
-                ELSE 0
-            END), 0)        AS esistenza,
-            COALESCE(mag.scorta_minima, c.scorta_minima, 0) AS scorta,
-            c.note        AS nota,
+            c.tipologia,
+            c.categoria,
+            c.sottocategoria,
+            c.cod_udm,
+            c.cod_iva,
+            c.listino1,
+            c.listino2,
+            c.listino3,
+            c.note            AS nota,
+            c.cod_barre,
+            c.internet,
+            c.marca,
+            c.extra1,
+            c.extra2,
+            c.extra3,
+            c.extra4,
+            c.cod_fornitore,
+            c.fornitore,
+            c.cod_prod_forn,
+            c.prezzo_forn,
+            c.note_fornitura,
+            c.ord_multipli,
+            c.gg_ordine,
+            COALESCE(c.scorta_minima, 0) AS scorta,
+            c.ubicazione,
+            c.modello,
             c.colore,
             c.cilindrata,
             c.carburante,
@@ -277,15 +295,20 @@ class DatabaseManager:
             c.anno_da,
             c.anno_a,
             c.intervallo,
-            c.marca,
-            c.modello,
             c.cod_modello,
-            c.immagine_path AS immagini,
+            c.stato_magazzino,
+            c.immagine_path   AS immagini,
+            c.files_path,
             c.pubblicato,
-            c.eliminato
+            c.eliminato,
+            COALESCE(SUM(CASE
+                WHEN m.tipo IN ('carico','inventario') THEN  m.quantita
+                WHEN m.tipo = 'scarico'               THEN -m.quantita
+                WHEN m.tipo = 'rettifica'             THEN  m.quantita
+                ELSE 0
+            END), 0) AS esistenza
         FROM componenti c
-        LEFT JOIN movimenti_magazzino m  ON m.componente_id = c.id
-        LEFT JOIN magazzino           mag ON mag.componente_id = c.id
+        LEFT JOIN movimenti_magazzino m ON m.componente_id = c.id
         WHERE c.eliminato = 0
         GROUP BY c.id;
         """)
@@ -298,6 +321,10 @@ class DatabaseManager:
                 INSERT OR REPLACE INTO schema_version(id, version, aggiornato_il)
                 VALUES (1, ?, datetime('now'))
             """, (DB_SCHEMA_VERSION,))
+            # v3: ricrea view con tutte le colonne nuove
+            if current < 3:
+                conn.execute("DROP VIEW IF EXISTS v_giacenza")
+                self._create_tables(conn)
             # Crea utente admin di default se non esiste
             existing = conn.execute("SELECT id FROM utenti WHERE username='admin'").fetchone()
             if not existing:

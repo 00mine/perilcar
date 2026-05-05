@@ -161,29 +161,46 @@ def api_crea_componente():
         dati[campo] = int(v) if v.isdigit() else None
 
     try:
+        # Tutti i campi accettati
+        CAMPI_COMP = [
+            "codice","nome","descrizione","tipologia","categoria","sottocategoria",
+            "cod_udm","cod_iva","listino1","listino2","listino3",
+            "marca","modello","cod_modello","colore","cilindrata","carburante",
+            "versione","anno_da","anno_a","intervallo","scorta_minima",
+            "note","cod_barre","internet","extra1","extra2","extra3","extra4",
+            "cod_fornitore","fornitore","cod_prod_forn","prezzo_forn",
+            "note_fornitura","ord_multipli","gg_ordine","ubicazione",
+            "stato_magazzino","immagine_path","files_path"
+        ]
+        campi_validi = {k: dati.get(k) for k in CAMPI_COMP if dati.get(k) is not None and str(dati.get(k,"")).strip() != ""}
+        campi_validi["pubblicato"] = 0
+        campi_validi["creato_da"] = u.get("id")
+
+        # Conversioni numeriche
+        for nk in ("anno_da","anno_a","scorta_minima","ord_multipli","gg_ordine"):
+            if nk in campi_validi:
+                try: campi_validi[nk] = int(float(campi_validi[nk]))
+                except: del campi_validi[nk]
+        for fk in ("listino1","listino2","listino3","prezzo_forn"):
+            if fk in campi_validi:
+                try: campi_validi[fk] = float(campi_validi[fk])
+                except: del campi_validi[fk]
+
         with db._write_lock:
             conn = db.get_connection()
             try:
-                cur = conn.execute("""
-                    INSERT INTO componenti
-                        (codice,nome,descrizione,marca,modello,cod_modello,
-                         colore,cilindrata,carburante,versione,
-                         anno_da,anno_a,intervallo,scorta_minima,
-                         note,immagine_path,pubblicato,creato_da)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,?)
-                """, (dati.get("codice"), dati.get("nome"), dati.get("descrizione"),
-                      dati.get("marca"), dati.get("modello"), dati.get("cod_modello"),
-                      dati.get("colore"), dati.get("cilindrata"), dati.get("carburante"),
-                      dati.get("versione"), dati.get("anno_da"), dati.get("anno_a"),
-                      dati.get("intervallo"), dati.get("scorta_minima", 0),
-                      dati.get("note"), dati.get("immagine_path"), u.get("id")))
+                cols_str = ", ".join(campi_validi.keys())
+                placeholders = ", ".join(["?"] * len(campi_validi))
+                cur = conn.execute(
+                    f"INSERT INTO componenti ({cols_str}) VALUES ({placeholders})",
+                    list(campi_validi.values()))
                 comp_id = cur.lastrowid
-                conn.execute("INSERT INTO magazzino(componente_id,scorta_minima) VALUES(?,?)",
-                             (comp_id, dati.get("scorta_minima", 0)))
+                conn.execute("INSERT OR IGNORE INTO magazzino(componente_id,scorta_minima) VALUES(?,?)",
+                             (comp_id, campi_validi.get("scorta_minima", 0)))
                 conn.execute("""INSERT INTO log_operazioni
                     (utente_id,username,modulo,azione,tabella,record_id,dati_nuovi)
                     VALUES(?,?,?,?,?,?,?)""",
-                    (u.get("id"),u.get("username"),"MAGAZZINO","CREA","componenti",comp_id,str(dati)))
+                    (u.get("id"),u.get("username"),"MAGAZZINO","CREA","componenti",comp_id,str(campi_validi)))
                 conn.commit()
                 return jsonify({"ok": True, "msg": "Componente creato", "id": comp_id})
             except Exception as e:
