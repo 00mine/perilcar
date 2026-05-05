@@ -998,32 +998,33 @@ MAGAZZINO ATTUALE (formato: CODICE|NOME|ES:giacenza|SC:scorta|altri dati):
 
 Se il magazzino è vuoto o non caricato, dillo all'utente."""
 
+    # Usa Ollama (AI locale gratuita)
     payload = _json.dumps({
-        "model": "claude-sonnet-4-20250514",
-        "max_tokens": 400,
-        "system": system_prompt,
-        "messages": [{"role": "user", "content": domanda}]
+        "model": "llama3.2",
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user",   "content": domanda}
+        ],
+        "stream": False,
+        "options": {"temperature": 0.3, "num_predict": 400}
     }).encode()
 
     req = urllib.request.Request(
-        "https://api.anthropic.com/v1/messages",
+        "http://localhost:11434/api/chat",
         data=payload,
-        headers={
-            "Content-Type": "application/json",
-            "anthropic-version": "2023-06-01"
-        },
+        headers={"Content-Type": "application/json"},
         method="POST"
     )
 
     try:
-        with urllib.request.urlopen(req, timeout=30) as resp:
+        with urllib.request.urlopen(req, timeout=60) as resp:
             result = _json.loads(resp.read())
-            risposta = result["content"][0]["text"]
+            risposta = result["message"]["content"]
             return jsonify({"ok": True, "risposta": risposta})
-    except urllib.error.HTTPError as e:
-        body = e.read().decode()
-        log.error(f"Assistente API error: {e.code} {body}")
-        return jsonify({"ok": False, "msg": f"Errore API: {e.code}"}), 500
+    except urllib.error.URLError as e:
+        msg = "Ollama non è avviato. Apri il terminale e scrivi: ollama serve"
+        log.error(f"Ollama non raggiungibile: {e}")
+        return jsonify({"ok": False, "msg": msg}), 503
     except Exception as e:
         log.error(f"Assistente error: {e}")
         return jsonify({"ok": False, "msg": str(e)}), 500

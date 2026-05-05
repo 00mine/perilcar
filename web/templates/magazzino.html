@@ -618,9 +618,9 @@
       <!-- Messaggi chat -->
       <div class="chat-messages" id="chat-messages">
         <div class="chat-msg ai">
-          Ciao! 👋 Sono l'assistente del magazzino PerilCar.<br>
-          Dimmi quale pezzo cerchi — posso rispondere sia a voce che per scritto.
-          Parla nel microfono o scrivi qui sotto!
+          Ciao! 👋 Sono l'assistente AI del magazzino PerilCar.<br>
+          Dimmi quale pezzo cerchi — rispondo in italiano su giacenze e compatibilità.
+          Parla nel microfono 🎤 o scrivi qui sotto!
         </div>
       </div>
 
@@ -1677,7 +1677,11 @@ async function inviaDomanda(domanda) {
       aggiungiMessaggio(res.risposta, 'ai');
       parla(res.risposta);
     } else {
-      aggiungiMessaggio('❌ ' + (res.msg || 'Errore'), 'ai');
+      var errMsg = res.msg || 'Errore sconosciuto';
+      if(errMsg.includes('Ollama')) {
+        errMsg = '⚠️ ' + errMsg + '<br><small>Apri il terminale e scrivi: <b>ollama serve</b></small>';
+      }
+      aggiungiMessaggio('❌ ' + errMsg, 'ai');
     }
   } catch(e) {
     var loadEl2 = document.getElementById(loadId);
