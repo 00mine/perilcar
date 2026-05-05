@@ -3,65 +3,57 @@ chcp 65001 >nul
 title PerilCar ERP — Dev Server
 
 echo.
-echo  ██████╗ ███████╗██████╗ ██╗██╗      ██████╗ █████╗ ██████╗
-echo  ██╔══██╗██╔════╝██╔══██╗██║██║     ██╔════╝██╔══██╗██╔══██╗
-echo  ██████╔╝█████╗  ██████╔╝██║██║     ██║     ███████║██████╔╝
-echo  ██╔═══╝ ██╔══╝  ██╔══██╗██║██║     ██║     ██╔══██║██╔══██╗
-echo  ██║     ███████╗██║  ██║██║███████╗╚██████╗██║  ██║██║  ██║
-echo  ╚═╝     ╚══════╝╚═╝  ╚═╝╚═╝╚══════╝ ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝
+echo  PerilCar ERP — Gestionale Aziendale
+echo  Ing. Carmine Perillo
+echo  ====================================
 echo.
-echo  Gestionale Aziendale — Ing. Carmine Perillo
-echo  ============================================
-echo.
+
+cd /d "%~dp0"
 
 :: ── Verifica Python ──────────────────────────────────────────────────
 where python >nul 2>&1
 if %errorlevel% neq 0 (
     echo  [ERRORE] Python non trovato!
     echo  Scaricalo da: https://www.python.org/downloads/
-    echo  Assicurati di spuntare "Add Python to PATH" durante l'installazione.
     pause
     exit /b 1
 )
 
-for /f "tokens=*" %%v in ('python --version 2^>^&1') do set PYVER=%%v
-echo  Python trovato: %PYVER%
-
-:: ── Controlla/installa dipendenze ────────────────────────────────────
-echo.
-echo  Controllo dipendenze...
+:: ── Verifica dipendenze ───────────────────────────────────────────────
 python -c "import flask, flask_socketio, watchdog" >nul 2>&1
 if %errorlevel% neq 0 (
-    echo  Installazione dipendenze in corso...
-    pip install flask flask-socketio watchdog customtkinter pillow --quiet
-    if %errorlevel% neq 0 (
-        echo  [ERRORE] Installazione dipendenze fallita.
-        pause
-        exit /b 1
-    )
-    echo  Dipendenze installate!
-) else (
-    echo  Dipendenze OK.
+    echo  Installazione dipendenze...
+    pip install flask flask-socketio watchdog --quiet
 )
 
-:: ── Vai nella cartella del progetto ──────────────────────────────────
-cd /d "%~dp0"
-echo.
-echo  Directory: %CD%
-echo.
+:: ── Avvia Ollama se non in esecuzione ────────────────────────────────
+echo  Controllo Ollama (assistente AI)...
+curl -s http://localhost:11434/api/tags >nul 2>&1
+if %errorlevel% neq 0 (
+    echo  Avvio Ollama in background...
+    where ollama >nul 2>&1
+    if %errorlevel% equ 0 (
+        start /B "" ollama serve >nul 2>&1
+        timeout /t 3 /nobreak >nul
+        echo  Ollama avviato.
+    ) else (
+        echo  Ollama non installato - assistente AI non disponibile.
+        echo  Per installarlo: https://ollama.com/download
+        echo  Poi: ollama pull llama3.2:1b
+    )
+) else (
+    echo  Ollama gia attivo.
+)
 
-:: ── Avvio server ──────────────────────────────────────────────────────
-echo  ============================================
-echo   Avvio PerilCar Dev Server...
+echo.
+echo  ====================================
 echo   Browser: http://localhost:5000
 echo   Login:   admin / admin123
-echo.
-echo   Per fermare: premi CTRL+C
-echo  ============================================
+echo   Stop:    CTRL+C
+echo  ====================================
 echo.
 
 python dev_server.py
 
 echo.
-echo  Server fermato.
 pause

@@ -1000,7 +1000,7 @@ Se il magazzino è vuoto o non caricato, dillo all'utente."""
 
     # Usa Ollama (AI locale gratuita)
     payload = _json.dumps({
-        "model": "llama3.2",
+        "model": "llama3.2:1b",
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user",   "content": domanda}

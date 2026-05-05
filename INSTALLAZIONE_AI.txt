@@ -1,0 +1,35 @@
+INSTALLAZIONE ASSISTENTE AI — PerilCar ERP
+==========================================
+Da fare UNA VOLTA SOLA su ogni PC
+
+REQUISITI: almeno 4GB RAM, Windows 10/11
+
+PASSO 1 — Scarica Ollama
+  Vai su: https://ollama.com/download
+  Clicca "Download for Windows"
+  Installa normalmente (avanti, avanti, fine)
+
+PASSO 2 — Scarica il modello AI (1.3 GB)
+  Apri il Prompt dei comandi (cmd)
+  Scrivi:
+    ollama pull llama3.2:1b
+  Attendi il download (circa 2-5 minuti)
+
+PASSO 3 — Avvia PerilCar normalmente
+  Doppio click su start.bat
+  Ollama si avvia automaticamente
+
+PRONTO!
+  Clicca il pulsante "Assistente" nel magazzino
+  Puoi parlare o scrivere in italiano
+
+RISOLUZIONE PROBLEMI
+  Se l'assistente dice "Ollama non avviato":
+  Apri cmd e scrivi: ollama serve
+
+  Se vuoi verificare che funzioni:
+  Apri cmd e scrivi: ollama run llama3.2:1b
+  Scrivi "ciao" — deve rispondere
+  Esci con: /bye
+
+Ing. Carmine Perillo — PerilCar ERP
