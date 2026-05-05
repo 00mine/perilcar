@@ -22,6 +22,15 @@ app = Flask(__name__, template_folder="web/templates", static_folder="web/static
 app.secret_key = "perilcar-dev-secret-2024"
 app.config["MAX_CONTENT_LENGTH"] = 200 * 1024 * 1024
 
+@app.after_request
+def no_cache(response):
+    """Disabilita cache browser per tutti i template HTML durante sviluppo."""
+    if response.content_type and 'text/html' in response.content_type:
+        response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+    return response
+
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
 
 from core.config import ConfigManager
