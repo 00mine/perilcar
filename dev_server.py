@@ -356,7 +356,25 @@ def api_movimento():
 @require_login
 def api_movimenti():
     p = request.args
-    sql = """SELECT m.*, c.codice AS cmp, c.nome AS articolo, u.username
+    sql = """SELECT
+             m.*,
+             c.codice          AS cmp,
+             c.nome            AS articolo,
+             c.marca           AS produttore,
+             c.categoria,
+             c.sottocategoria,
+             c.modello,
+             c.colore,
+             c.cilindrata,
+             c.carburante,
+             c.tipologia,
+             c.ubicazione,
+             c.stato_magazzino,
+             c.extra1,
+             c.extra2,
+             c.extra3,
+             c.extra4,
+             u.username
              FROM movimenti_magazzino m
              LEFT JOIN componenti c ON c.id = m.componente_id
              LEFT JOIN utenti     u ON u.id = m.utente_id
