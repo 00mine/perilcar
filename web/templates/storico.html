@@ -8,220 +8,149 @@
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono&display=swap" rel="stylesheet">
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
   <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    :root {
-      --bg: #ffffff; --surface: #f7f8fa; --surface2: #eef0f4;
-      --border: #dde1e8; --orange: #e94c00; --orange2: #ff6b35;
-      --blue: #3a5bd9; --blue2: #5a7bf0;
-      --green: #16a34a; --green2: #22c55e;
-      --red: #dc2626; --text: #111827; --text2: #4b5563; --text3: #9ca3af;
-      --radius: 8px; --font: 'DM Sans', system-ui, sans-serif;
-      --mono: 'DM Mono', monospace;
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{
+      --bg:#fff;--surface:#f7f8fa;--surface2:#eef0f4;--border:#dde1e8;
+      --orange:#e94c00;--orange2:#ff6b35;--blue:#3a5bd9;--blue2:#5a7bf0;
+      --green:#16a34a;--green2:#22c55e;--red:#dc2626;
+      --text:#111827;--text2:#4b5563;--text3:#9ca3af;
+      --radius:8px;--font:'DM Sans',system-ui,sans-serif;--mono:'DM Mono',monospace;
     }
-    body {
-      font-family: var(--font); background: var(--bg); color: var(--text);
-      font-size: 13.5px; height: 100vh; overflow: hidden;
-      display: flex; flex-direction: column;
-    }
+    body{font-family:var(--font);background:var(--bg);color:var(--text);
+         font-size:13px;height:100vh;overflow:hidden;display:flex;flex-direction:column}
 
-    /* ── TOPBAR ─────────────────────────────────────────────── */
-    .topbar {
-      height: 50px; flex-shrink: 0; background: #fff;
-      border-bottom: 1px solid var(--border);
-      display: flex; align-items: center; padding: 0 16px; gap: 10px;
-      box-shadow: 0 1px 3px rgba(0,0,0,.06);
-    }
-    .topbar-logo { font-weight: 700; font-size: 17px; }
-    .topbar-logo span { color: var(--orange); }
-    .nav-link {
-      padding: 5px 12px; border-radius: 6px; font-size: 12.5px;
-      font-weight: 500; text-decoration: none; color: var(--text2); transition: .15s;
-    }
-    .nav-link:hover { background: var(--surface2); }
-    .nav-link.active { background: var(--orange); color: #fff; }
-    .topbar-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
-    .user-chip {
-      font-size: 12px; color: var(--text2); background: var(--surface);
-      border: 1px solid var(--border); padding: 4px 10px; border-radius: 20px;
-    }
-    .btn-logout {
-      font-size: 12px; padding: 5px 12px; border-radius: 6px;
-      border: 1px solid var(--border); background: #fff;
-      color: var(--text2); cursor: pointer; font-family: var(--font); transition: .15s;
-    }
-    .btn-logout:hover { background: #fee2e2; color: var(--red); }
+    /* TOPBAR */
+    .topbar{height:50px;flex-shrink:0;background:#fff;border-bottom:1px solid var(--border);
+            display:flex;align-items:center;padding:0 16px;gap:10px;
+            box-shadow:0 1px 3px rgba(0,0,0,.06)}
+    .topbar-logo{font-weight:700;font-size:17px}.topbar-logo span{color:var(--orange)}
+    .nav-link{padding:5px 12px;border-radius:6px;font-size:12.5px;font-weight:500;
+              text-decoration:none;color:var(--text2);transition:.15s}
+    .nav-link:hover{background:var(--surface2)}.nav-link.active{background:var(--orange);color:#fff}
+    .topbar-right{margin-left:auto;display:flex;align-items:center;gap:10px}
+    .user-chip{font-size:12px;color:var(--text2);background:var(--surface);
+               border:1px solid var(--border);padding:4px 10px;border-radius:20px}
+    .btn-logout{font-size:12px;padding:5px 12px;border-radius:6px;
+                border:1px solid var(--border);background:#fff;color:var(--text2);
+                cursor:pointer;font-family:var(--font);transition:.15s}
+    .btn-logout:hover{background:#fee2e2;color:var(--red)}
 
-    /* ── LAYOUT ─────────────────────────────────────────────── */
-    .layout {
-      display: grid; grid-template-columns: 240px 1fr;
-      flex: 1; overflow: hidden;
-    }
+    /* LAYOUT principale */
+    .main-wrap{flex:1;overflow:hidden;display:flex;flex-direction:column;
+               padding:10px 14px 8px;gap:8px}
 
-    /* ── SIDEBAR ANNI/MESI ───────────────────────────────────── */
-    .sidebar {
-      background: var(--surface); border-right: 1px solid var(--border);
-      overflow-y: auto; padding: 14px 0;
-      display: flex; flex-direction: column; gap: 0;
-    }
-    .sidebar-title {
-      font-size: 10px; font-weight: 700; color: var(--text3);
-      text-transform: uppercase; letter-spacing: .8px;
-      padding: 6px 16px 10px;
-    }
-    .anno-group { }
-    .anno-btn {
-      width: 100%; padding: 9px 16px; background: none; border: none;
-      display: flex; align-items: center; justify-content: space-between;
-      font-family: var(--font); font-size: 13.5px; font-weight: 700;
-      color: var(--text); cursor: pointer; transition: background .12s;
-    }
-    .anno-btn:hover { background: var(--surface2); }
-    .anno-btn.active { background: #fff3ee; color: var(--orange); }
-    .anno-arrow { font-size: 10px; color: var(--text3); transition: transform .2s; }
-    .anno-btn.open .anno-arrow { transform: rotate(90deg); }
+    /* SIDEBAR ANNI/MESI + TABELLA */
+    .content{flex:1;overflow:hidden;display:grid;grid-template-columns:200px 1fr;gap:10px}
 
-    .mesi-list { display: none; }
-    .mesi-list.open { display: block; }
-    .mese-btn {
-      width: 100%; padding: 7px 16px 7px 32px;
-      background: none; border: none;
-      font-family: var(--font); font-size: 12.5px;
-      color: var(--text2); cursor: pointer; text-align: left;
-      transition: background .12s; display: flex; align-items: center;
-      justify-content: space-between;
-    }
-    .mese-btn:hover { background: var(--surface2); }
-    .mese-btn.active { background: #fff3ee; color: var(--orange); font-weight: 600; }
-    .mese-count {
-      font-size: 10px; background: var(--surface2);
-      color: var(--text3); padding: 1px 7px; border-radius: 10px;
-    }
-    .mese-btn.active .mese-count { background: #ffd0b5; color: var(--orange); }
+    /* SIDEBAR */
+    .sidebar{background:var(--surface);border:1px solid var(--border);
+             border-radius:10px;overflow-y:auto;padding:8px 0}
+    .sidebar-title{font-size:10px;font-weight:700;color:var(--text3);
+                   text-transform:uppercase;letter-spacing:.8px;padding:4px 14px 8px}
+    .filter-tutti{width:100%;padding:8px 14px;background:none;border:none;
+                  font-family:var(--font);font-size:13px;font-weight:600;
+                  color:var(--blue);cursor:pointer;text-align:left;transition:.15s}
+    .filter-tutti:hover{background:var(--surface2)}
+    .filter-tutti.active{background:#eff3ff}
+    .sidebar-sep{border:none;border-top:1px solid var(--border);margin:4px 10px}
+    .anno-btn{width:100%;padding:8px 14px;background:none;border:none;
+              display:flex;align-items:center;justify-content:space-between;
+              font-family:var(--font);font-size:13px;font-weight:700;
+              color:var(--text);cursor:pointer;transition:.15s}
+    .anno-btn:hover{background:var(--surface2)}
+    .anno-btn.active{background:#fff3ee;color:var(--orange)}
+    .anno-arrow{font-size:10px;color:var(--text3);transition:transform .2s}
+    .anno-btn.open .anno-arrow{transform:rotate(90deg)}
+    .mesi-list{display:none}.mesi-list.open{display:block}
+    .mese-btn{width:100%;padding:6px 14px 6px 28px;background:none;border:none;
+              font-family:var(--font);font-size:12.5px;color:var(--text2);
+              cursor:pointer;text-align:left;transition:.15s}
+    .mese-btn:hover{background:var(--surface2)}
+    .mese-btn.active{background:#fff3ee;color:var(--orange);font-weight:600}
 
-    .sidebar-sep { border: none; border-top: 1px solid var(--border); margin: 8px 12px; }
+    /* DESTRA: tabella */
+    .table-wrap-outer{display:flex;flex-direction:column;overflow:hidden;gap:6px}
 
-    .filter-tutti {
-      width: 100%; padding: 9px 16px; background: none; border: none;
-      font-family: var(--font); font-size: 13px; font-weight: 600;
-      color: var(--blue); cursor: pointer; text-align: left; transition: background .12s;
-    }
-    .filter-tutti:hover { background: var(--surface2); }
-    .filter-tutti.active { background: #eff3ff; }
+    /* Action bar */
+    .actions{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+    .btn{display:inline-flex;align-items:center;gap:4px;padding:5px 11px;
+         border-radius:var(--radius);font-size:11.5px;font-weight:600;cursor:pointer;
+         border:none;font-family:var(--font);transition:.15s;white-space:nowrap}
+    .btn-ghost{background:#fff;color:var(--text2);border:1px solid var(--border)}
+    .btn-ghost:hover{background:var(--surface2)}
+    .btn-blue{background:var(--blue);color:#fff}.btn-blue:hover{background:var(--blue2)}
+    .btn-danger-soft{background:#fff;color:var(--red);border:1px solid #fca5a5}
+    .btn-danger-soft:hover{background:#fee2e2}
 
-    /* ── COLONNA DESTRA ─────────────────────────────────────── */
-    .main {
-      display: flex; flex-direction: column;
-      overflow: hidden; padding: 14px 16px 10px; gap: 10px;
-    }
+    /* Filtri tipo */
+    .tipo-pills{display:flex;gap:4px}
+    .tipo-pill{padding:4px 10px;border-radius:20px;font-size:11.5px;font-weight:600;
+               border:1px solid var(--border);background:#fff;color:var(--text2);
+               cursor:pointer;transition:.15s;font-family:var(--font)}
+    .tipo-pill:hover{border-color:var(--orange);color:var(--orange)}
+    .tipo-pill.active{background:var(--orange);color:#fff;border-color:var(--orange)}
+    .tipo-pill.t-scarico.active{background:var(--green);border-color:var(--green)}
 
-    /* Filtri veloci */
-    .filters-bar {
-      display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-    }
-    .btn {
-      display: inline-flex; align-items: center; gap: 5px;
-      padding: 7px 14px; border-radius: var(--radius);
-      font-size: 12.5px; font-weight: 600; cursor: pointer;
-      border: none; font-family: var(--font); transition: .15s;
-    }
-    .btn-ghost { background: #fff; color: var(--text2); border: 1px solid var(--border); }
-    .btn-ghost:hover { background: var(--surface2); }
-    .btn-blue  { background: var(--blue); color: #fff; }
-    .btn-blue:hover { background: var(--blue2); }
-    .btn-orange { background: var(--orange); color: #fff; }
-    .btn-orange:hover { background: var(--orange2); }
+    /* Status */
+    .status-bar{font-size:11px;color:var(--text3);display:flex;gap:12px;flex-shrink:0}
 
-    .tipo-filter {
-      display: flex; gap: 4px;
-    }
-    .tipo-pill {
-      padding: 5px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;
-      border: 1px solid var(--border); background: #fff; color: var(--text2);
-      cursor: pointer; transition: .15s; font-family: var(--font);
-    }
-    .tipo-pill:hover { border-color: var(--orange); color: var(--orange); }
-    .tipo-pill.active { background: var(--orange); color: #fff; border-color: var(--orange); }
-    .tipo-pill.carico.active  { background: var(--orange); border-color: var(--orange); }
-    .tipo-pill.scarico.active { background: var(--green);  border-color: var(--green); color:#fff; }
+    /* TABELLA VIRTUALE — identica a magazzino */
+    .table-container{flex:1;overflow:hidden;border:1px solid var(--border);
+                     border-radius:10px;background:#fff;
+                     box-shadow:0 1px 4px rgba(0,0,0,.06);display:flex;flex-direction:column}
+    .table-scroll-x{overflow-x:auto;overflow-y:hidden;flex-shrink:0}
+    .table-scroll-x::-webkit-scrollbar{height:7px}
+    .table-scroll-x::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
+    .table-header{flex-shrink:0;overflow:hidden;background:var(--surface);
+                  border-bottom:2px solid var(--border)}
+    .table-header table{width:100%;border-collapse:collapse;table-layout:fixed}
+    .table-filters{flex-shrink:0;overflow:hidden;background:#fff;
+                   border-bottom:1px solid var(--border)}
+    .table-filters table{width:100%;border-collapse:collapse;table-layout:fixed}
+    .table-body{flex:1;overflow-y:auto;overflow-x:hidden;position:relative}
+    .table-body table{width:100%;border-collapse:collapse;table-layout:fixed}
 
-    .searchbox {
-      display: flex; align-items: center; gap: 6px;
-      background: #fff; border: 1px solid var(--border);
-      border-radius: var(--radius); padding: 0 10px; margin-left: auto;
-    }
-    .searchbox input {
-      border: none; background: transparent; outline: none;
-      font-family: var(--font); font-size: 13px; color: var(--text);
-      width: 180px; padding: 7px 0;
-    }
+    th.col-hdr{padding:7px 6px;font-size:9.5px;font-weight:700;text-transform:uppercase;
+               letter-spacing:.4px;color:var(--text2);text-align:left;
+               white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+               cursor:pointer;user-select:none;background:var(--surface)}
+    th.col-hdr:hover{color:var(--text);background:var(--surface2)}
+    th.col-hdr.sort-asc::after{content:' ↑';color:var(--orange)}
+    th.col-hdr.sort-desc::after{content:' ↓';color:var(--orange)}
+    th.col-filter{padding:3px 4px;background:#fff}
+    th.col-filter input{width:100%;padding:3px 6px;font-size:11px;
+                        font-family:var(--mono);background:var(--surface);
+                        border:1px solid var(--border);border-radius:4px;
+                        color:var(--text);outline:none}
+    th.col-filter input:focus{border-color:var(--blue);background:#fff}
+    th.col-filter input::placeholder{color:var(--text3);font-size:10px}
 
-    /* Header periodo selezionato */
-    .period-header {
-      display: flex; align-items: center; gap: 10px;
-    }
-    .period-title { font-size: 18px; font-weight: 700; }
-    .period-sub { font-size: 12px; color: var(--text3); }
+    tbody tr{border-bottom:1px solid #f3f4f6;transition:background .08s}
+    tbody tr:hover{background:#fafafa}
+    tbody td{padding:5px 6px;white-space:nowrap;overflow:hidden;
+             text-overflow:ellipsis;font-size:11.5px}
+    td.num{text-align:center;font-family:var(--mono);font-size:11px}
+    td.delta-pos{color:var(--green);font-weight:700;text-align:center;font-family:var(--mono)}
+    td.delta-neg{color:var(--red);font-weight:700;text-align:center;font-family:var(--mono)}
 
-    /* Tabella */
-    .table-wrap {
-      flex: 1; overflow: auto;
-      border: 1px solid var(--border); border-radius: 10px;
-      background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.06);
-    }
-    table { width: 100%; border-collapse: collapse; min-width: 860px; }
-    thead th {
-      position: sticky; top: 0; z-index: 5;
-      background: var(--surface); color: var(--text2);
-      font-size: 10.5px; font-weight: 700; text-transform: uppercase;
-      letter-spacing: .5px; padding: 9px 12px; text-align: left;
-      border-bottom: 1px solid var(--border); white-space: nowrap;
-    }
-    tbody tr { border-bottom: 1px solid #f3f4f6; transition: background .1s; }
-    tbody tr:hover { background: #fafafa; }
-    tbody td { padding: 7px 12px; font-size: 13px; white-space: nowrap; }
+    .tipo-badge{display:inline-block;padding:1px 8px;border-radius:20px;
+                font-size:10px;font-weight:700;text-transform:uppercase}
+    .t-carico    {background:#fff3ee;color:var(--orange);border:1px solid #ffd0b5}
+    .t-scarico   {background:#f0fdf4;color:var(--green); border:1px solid #bbf7d0}
+    .t-rettifica {background:#fefce8;color:#ca8a04;      border:1px solid #fde68a}
+    .t-inventario{background:#eff3ff;color:var(--blue);  border:1px solid #c7d2fe}
 
-    .tipo-badge {
-      display: inline-block; padding: 2px 9px; border-radius: 20px;
-      font-size: 11px; font-weight: 700; text-transform: uppercase;
-    }
-    .tipo-carico     { background: #fff3ee; color: var(--orange); border: 1px solid #ffd0b5; }
-    .tipo-scarico    { background: #f0fdf4; color: var(--green);  border: 1px solid #bbf7d0; }
-    .tipo-rettifica  { background: #fefce8; color: #ca8a04;       border: 1px solid #fde68a; }
-    .tipo-inventario { background: #eff3ff; color: var(--blue);   border: 1px solid #c7d2fe; }
+    .cmp-chip{display:inline-block;font-family:var(--mono);font-size:10px;
+              background:#fff3ee;color:var(--orange);border:1px solid #ffd0b5;
+              padding:1px 5px;border-radius:3px}
 
-    .num { text-align: center; font-family: var(--mono); font-size: 12.5px; }
-    .delta-pos { color: var(--green); font-weight: 700; }
-    .delta-neg { color: var(--red);   font-weight: 700; }
-    .cmp-chip {
-      font-family: var(--mono); font-size: 11px;
-      background: #fff3ee; color: var(--orange);
-      border: 1px solid #ffd0b5; padding: 1px 7px; border-radius: 4px;
-    }
-
-    .status-bar {
-      font-size: 11.5px; color: var(--text3); display: flex; gap: 16px; padding: 2px 0;
-    }
-
-    /* Raggruppamento per mese nella tabella */
-    .group-header td {
-      background: var(--surface); color: var(--text2);
-      font-size: 11px; font-weight: 700; text-transform: uppercase;
-      letter-spacing: .5px; padding: 6px 12px;
-      border-bottom: 1px solid var(--border);
-      border-top: 2px solid var(--border);
-    }
-
-    #reload-badge {
-      position: fixed; bottom: 14px; left: 14px; z-index: 9999;
-      background: var(--green); color: #fff; padding: 5px 12px;
-      border-radius: 20px; font-size: 11px; font-weight: 600;
-      opacity: 0; transition: opacity .3s; pointer-events: none;
-    }
+    #reload-badge{position:fixed;bottom:12px;left:12px;z-index:9999;
+                  background:var(--green);color:#fff;padding:4px 10px;border-radius:20px;
+                  font-size:10px;font-weight:600;opacity:0;transition:opacity .3s;pointer-events:none}
   </style>
 </head>
 <body>
 
-<!-- TOPBAR -->
 <header class="topbar">
   <span class="topbar-logo">Peril<span>Car</span></span>
   <nav style="display:flex;gap:4px;margin-left:12px">
@@ -230,383 +159,430 @@
     <a href="/storico"   class="nav-link active">📋 Storico</a>
   </nav>
   <div class="topbar-right">
-    <span class="user-chip" id="user-chip">👤 —</span>
+    <span class="user-chip">👤 {{ user.username }}</span>
     <button class="btn-logout" onclick="logout()">Esci</button>
   </div>
 </header>
 
-<div class="layout">
+<div class="main-wrap">
 
-  <!-- ══ SIDEBAR ANNI/MESI ════════════════════════════════════════ -->
-  <aside class="sidebar">
-    <div class="sidebar-title">📅 Periodo</div>
+  <!-- Azioni -->
+  <div class="actions">
+    <a href="/magazzino" class="btn btn-ghost" style="text-decoration:none">‹ Magazzino</a>
 
-    <button class="filter-tutti active" id="btn-tutti" onclick="selTutti()">
-      🗂 Tutti i movimenti
-    </button>
-    <hr class="sidebar-sep">
-
-    <div id="albero-anni">
-      <div style="padding:12px 16px;color:var(--text3);font-size:12px">Caricamento...</div>
-    </div>
-  </aside>
-
-  <!-- ══ MAIN ═════════════════════════════════════════════════════ -->
-  <div class="main">
-
-    <!-- Filtri rapidi -->
-    <div class="filters-bar">
-      <div class="tipo-filter">
-        <button class="tipo-pill active" id="f-tutti"   onclick="setTipo('')">Tutti</button>
-        <button class="tipo-pill carico"  id="f-carico"  onclick="setTipo('carico')">↑ Carichi</button>
-        <button class="tipo-pill scarico" id="f-scarico" onclick="setTipo('scarico')">↓ Scarichi</button>
-        <button class="tipo-pill"         id="f-rett"    onclick="setTipo('rettifica')">⚡ Rettifiche</button>
-      </div>
-      <button class="btn btn-blue" onclick="caricaDati()">🔄 Aggiorna</button>
-      <button class="btn btn-ghost" onclick="stampa()">🖨 Stampa</button>
-      <div class="searchbox">
-        <span style="color:var(--text3)">🔍</span>
-        <input type="text" id="inp-cerca" placeholder="Cerca articolo..."
-               oninput="filtraLocale()">
-      </div>
+    <div class="tipo-pills">
+      <button class="tipo-pill active" id="f-tutti"    onclick="setTipo('')">Tutti</button>
+      <button class="tipo-pill"        id="f-carico"   onclick="setTipo('carico')">↑ Carichi</button>
+      <button class="tipo-pill t-scarico" id="f-scarico" onclick="setTipo('scarico')">↓ Scarichi</button>
+      <button class="tipo-pill"        id="f-rett"     onclick="setTipo('rettifica')">⚡ Rettifiche</button>
     </div>
 
-    <!-- Header periodo -->
-    <div class="period-header">
-      <span class="period-title" id="period-title">📋 Tutti i movimenti</span>
-      <span class="period-sub" id="period-sub"></span>
-    </div>
-
-    <!-- Tabella -->
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>Data / Ora</th>
-            <th>CMP</th>
-            <th>Articolo</th>
-            <th>Tipo</th>
-            <th class="num">Qtà</th>
-            <th class="num">Prima</th>
-            <th class="num">Dopo</th>
-            <th class="num">Δ</th>
-            <th>Riferimento</th>
-            <th>Note</th>
-            <th>Utente</th>
-          </tr>
-        </thead>
-        <tbody id="stor-tbody">
-          <tr><td colspan="12" style="text-align:center;padding:40px;color:var(--text3)">
-            ⏳ Caricamento...
-          </td></tr>
-        </tbody>
-      </table>
-    </div>
-
-    <div class="status-bar">
-      <span id="s-count">— movimenti</span>
-      <span id="s-carichi"  style="color:var(--orange)"></span>
-      <span id="s-scarichi" style="color:var(--green)"></span>
-    </div>
+    <button class="btn btn-ghost" onclick="clearAllFilters()">✕ Pulisci filtri</button>
+    <button class="btn btn-ghost" onclick="stampa()">🖨 Stampa</button>
+    <button class="btn btn-ghost" onclick="caricaDati()">🔄 Aggiorna</button>
   </div>
+
+  <!-- Status -->
+  <div class="status-bar">
+    <span id="s-period">Tutti i movimenti</span>
+    <span id="s-count"></span>
+    <span id="s-vis" style="color:var(--blue)"></span>
+    <span id="s-filtri" style="color:var(--orange)"></span>
+  </div>
+
+  <!-- Content: sidebar + tabella -->
+  <div class="content">
+
+    <!-- SIDEBAR ANNI/MESI -->
+    <aside class="sidebar">
+      <div class="sidebar-title">📅 Periodo</div>
+      <button class="filter-tutti active" id="btn-tutti" onclick="selTutti()">
+        🗂 Tutti
+      </button>
+      <hr class="sidebar-sep">
+      <div id="albero-anni">
+        <div style="padding:10px 14px;font-size:11px;color:var(--text3)">Caricamento...</div>
+      </div>
+    </aside>
+
+    <!-- TABELLA VIRTUALE -->
+    <div class="table-wrap-outer">
+      <div class="table-container" id="table-container">
+
+        <div class="table-scroll-x" id="scroll-x">
+          <div id="scroll-x-inner" style="height:1px"></div>
+        </div>
+
+        <div class="table-header" id="tbl-header">
+          <table id="tbl-hdr-table"><thead><tr id="hdr-row"></tr></thead></table>
+        </div>
+
+        <div class="table-filters" id="tbl-filters">
+          <table id="tbl-flt-table"><thead><tr id="flt-row"></tr></thead></table>
+        </div>
+
+        <div class="table-body" id="tbl-body" onscroll="onBodyScroll()">
+          <table id="tbl-data">
+            <tbody>
+              <tr id="spacer-top" style="height:0px"><td colspan="99"></td></tr>
+            </tbody>
+            <tbody id="tbl-tbody"></tbody>
+            <tbody>
+              <tr id="spacer-bot" style="height:0px"><td colspan="99"></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+      </div>
+    </div>
+
+  </div><!-- /content -->
 </div>
 
-<div id="reload-badge">🔄 Hot reload</div>
+<div id="reload-badge">🔄</div>
 
 <script>
-// ── HOT RELOAD ───────────────────────────────────────────────────────
-const _sock = io();
-_sock.on('reload', d => {
-  const b = document.getElementById('reload-badge');
-  b.style.opacity = '1'; b.textContent = '🔄 ' + (d.file||'');
-  setTimeout(()=>window.location.reload(), 400);
+// HOT RELOAD
+io().on('reload', () => {
+  document.getElementById('reload-badge').style.opacity='1';
+  setTimeout(()=>window.location.reload(), 500);
 });
 
-// ── STATO ────────────────────────────────────────────────────────────
-let _anno  = null;
-let _mese  = null;
-let _tipo  = '';
-let _dati  = [];      // tutti i movimenti caricati
-let _filt  = [];      // dopo filtro testo locale
+// ── COLONNE storico ───────────────────────────────────────────────────
+// [chiave, label, larghezza, tipo]
+const COLS = [
+  ['id',             '#',            50,  'num'],
+  ['creato_il',      'Data / Ora',  140,  'str'],
+  ['cmp',            'Cod.',         80,  'cmp'],
+  ['articolo',       'Descrizione', 220,  'str'],
+  ['tipo',           'Tipo',         90,  'tipo'],
+  ['quantita',       'Qtà',          55,  'num'],
+  ['quantita_prima', 'Prima',        55,  'num'],
+  ['quantita_dopo',  'Dopo',         55,  'num'],
+  ['delta',          'Δ',            55,  'delta'],
+  ['riferimento',    'Riferimento', 130,  'str'],
+  ['note',           'Note',        160,  'str'],
+  ['username',       'Utente',       90,  'str'],
+];
+const COL_TIPO = {};
+COLS.forEach(([key,,,tipo]) => { COL_TIPO[key] = tipo; });
+const TOT_W = COLS.reduce((s,[,,w])=>s+w, 0);
 
 const MESI_IT = ['','Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno',
                  'Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
 
+// ── STATO ────────────────────────────────────────────────────────────
+let _tutti = [];
+let _filt  = [];
+let _anno  = null;
+let _mese  = null;
+let _tipo  = '';
+let _colFilters = {};
+let _sortCol = null;
+let _sortDir = 1;
+
+// Scroll virtuale
+const ROW_H   = 26;
+const OVERSCAN = 20;
+let _scrollTop = 0;
+
 // ── UTILS ────────────────────────────────────────────────────────────
 async function apiFetch(url, opts={}) {
   opts.headers = {'Content-Type':'application/json',...(opts.headers||{})};
-  const r = await fetch(url, opts);
-  return r.json();
+  const r = await fetch(url, opts); return r.json();
 }
 function esc(s) {
-  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;')
-    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
-async function logout() {
-  await apiFetch('/api/logout',{method:'POST'});
-  window.location.href='/login';
+async function logout() { await apiFetch('/api/logout',{method:'POST'}); window.location.href='/login'; }
+
+// ── BUILD HEADER + FILTRI ─────────────────────────────────────────────
+function buildHeaderAndFilters() {
+  const hdrRow = document.getElementById('hdr-row');
+  const fltRow = document.getElementById('flt-row');
+  hdrRow.innerHTML = '';
+  fltRow.innerHTML = '';
+
+  const tables = ['tbl-hdr-table','tbl-flt-table','tbl-data'];
+  tables.forEach(id => {
+    const t = document.getElementById(id); if(!t) return;
+    let cg = t.querySelector('colgroup');
+    if(!cg) { cg = document.createElement('colgroup'); t.prepend(cg); }
+    cg.innerHTML = COLS.map(([,,w])=>`<col style="width:${w}px;min-width:${w}px">`).join('');
+  });
+  document.getElementById('scroll-x-inner').style.width = TOT_W + 'px';
+
+  COLS.forEach(([key, label, w]) => {
+    // Header
+    const th = document.createElement('th');
+    th.className = 'col-hdr';
+    th.textContent = label;
+    th.style.width = w+'px';
+    th.id = `hdr-${key}`;
+    th.onclick = () => sortBy(key);
+    hdrRow.appendChild(th);
+
+    // Filtro
+    const tf = document.createElement('th');
+    tf.className = 'col-filter';
+    tf.style.width = w+'px';
+    const inp = document.createElement('input');
+    inp.type = 'text';
+    inp.placeholder = '…';
+    inp.id = `flt-${key}`;
+    if(_colFilters[key]) inp.value = _colFilters[key];
+    inp.addEventListener('input', () => {
+      const v = inp.value.trim().toLowerCase();
+      if(v) _colFilters[key] = v; else delete _colFilters[key];
+      applicaFiltri();
+    });
+    tf.appendChild(inp);
+    fltRow.appendChild(tf);
+  });
+
+  // Sync scroll
+  const scrollX = document.getElementById('scroll-x');
+  scrollX.addEventListener('scroll', () => {
+    ['tbl-header','tbl-filters','tbl-body'].forEach(id =>
+      document.getElementById(id).scrollLeft = scrollX.scrollLeft);
+  });
+  document.getElementById('tbl-body').addEventListener('scroll', () => {
+    const sl = document.getElementById('tbl-body').scrollLeft;
+    ['scroll-x','tbl-header','tbl-filters'].forEach(id =>
+      document.getElementById(id).scrollLeft = sl);
+  });
 }
 
-// ── ALBERO ANNI/MESI ─────────────────────────────────────────────────
+// ── CARICA ALBERO ANNI/MESI ───────────────────────────────────────────
 async function caricaAlbero() {
   const tree = await apiFetch('/api/magazzino/movimenti/albero');
   const div  = document.getElementById('albero-anni');
-
   if(!Object.keys(tree).length) {
-    div.innerHTML = '<div style="padding:12px 16px;color:var(--text3);font-size:12px">Nessun movimento</div>';
+    div.innerHTML='<div style="padding:10px 14px;font-size:11px;color:var(--text3)">Nessun movimento</div>';
     return;
   }
-
   div.innerHTML = Object.entries(tree).map(([anno, mesi]) => `
-    <div class="anno-group" id="ag-${anno}">
+    <div>
       <button class="anno-btn" id="ab-${anno}" onclick="toggleAnno('${anno}')">
-        <span>📅 ${anno}</span>
-        <span class="anno-arrow">▶</span>
+        <span>📅 ${anno}</span><span class="anno-arrow">▶</span>
       </button>
       <div class="mesi-list" id="ml-${anno}">
-        ${mesi.map(m => `
+        ${mesi.map(m=>`
           <button class="mese-btn" id="mb-${anno}-${m}"
                   onclick="selMese('${anno}','${m}')">
-            <span>${MESI_IT[parseInt(m)]}</span>
-            <span class="mese-count" id="mc-${anno}-${m}">—</span>
-          </button>
-        `).join('')}
+            ${MESI_IT[parseInt(m)]}
+          </button>`).join('')}
       </div>
-    </div>
-  `).join('');
-
-  // Apri l'anno corrente di default
-  const annoCorrente = new Date().getFullYear().toString();
-  if(tree[annoCorrente]) toggleAnno(annoCorrente);
+    </div>`).join('');
+  // Apri anno corrente
+  const cur = new Date().getFullYear().toString();
+  if(tree[cur]) toggleAnno(cur);
 }
 
 function toggleAnno(anno) {
-  const btn = document.getElementById('ab-'+anno);
-  const list = document.getElementById('ml-'+anno);
-  const isOpen = list.classList.contains('open');
-  // Chiudi tutti
   document.querySelectorAll('.mesi-list').forEach(el=>el.classList.remove('open'));
   document.querySelectorAll('.anno-btn').forEach(el=>el.classList.remove('open'));
-  if(!isOpen) {
-    list.classList.add('open');
-    btn.classList.add('open');
-  }
+  const list = document.getElementById('ml-'+anno);
+  const btn  = document.getElementById('ab-'+anno);
+  if(list) { list.classList.add('open'); btn.classList.add('open'); }
 }
 
-async function selAnno(anno) {
-  _anno = anno; _mese = null;
-  aggiornaUI();
-  document.getElementById('period-title').textContent = `📅 Anno ${anno}`;
-  document.getElementById('period-sub').textContent = '';
-  // Evidenzia
-  document.querySelectorAll('.anno-btn').forEach(b=>b.classList.remove('active'));
-  document.querySelectorAll('.mese-btn').forEach(b=>b.classList.remove('active'));
-  document.getElementById('ab-'+anno)?.classList.add('active');
-  document.getElementById('btn-tutti').classList.remove('active');
+async function selTutti() {
+  _anno=null; _mese=null;
+  document.querySelectorAll('.anno-btn,.mese-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('btn-tutti').classList.add('active');
+  document.getElementById('s-period').textContent='Tutti i movimenti';
   await caricaDati();
 }
 
 async function selMese(anno, mese) {
-  _anno = anno; _mese = mese;
-  aggiornaUI();
-  const nomeMese = MESI_IT[parseInt(mese)];
-  document.getElementById('period-title').textContent = `📅 ${nomeMese} ${anno}`;
-  document.getElementById('period-sub').textContent = '';
-  // Evidenzia
-  document.querySelectorAll('.anno-btn').forEach(b=>b.classList.remove('active'));
-  document.querySelectorAll('.mese-btn').forEach(b=>b.classList.remove('active'));
+  _anno=anno; _mese=mese;
+  document.querySelectorAll('.anno-btn,.mese-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('btn-tutti').classList.remove('active');
   document.getElementById(`mb-${anno}-${mese}`)?.classList.add('active');
-  document.getElementById('btn-tutti').classList.remove('active');
+  document.getElementById('s-period').textContent=`${MESI_IT[parseInt(mese)]} ${anno}`;
   await caricaDati();
 }
 
-async function selTutti() {
-  _anno = null; _mese = null;
-  document.getElementById('period-title').textContent = '📋 Tutti i movimenti';
-  document.getElementById('period-sub').textContent = '';
-  document.querySelectorAll('.anno-btn').forEach(b=>b.classList.remove('active'));
-  document.querySelectorAll('.mese-btn').forEach(b=>b.classList.remove('active'));
-  document.getElementById('btn-tutti').classList.add('active');
-  await caricaDati();
-}
-
-function aggiornaUI() {
-  document.getElementById('btn-tutti').classList.remove('active');
-}
-
-// ── TIPO FILTER ──────────────────────────────────────────────────────
+// ── TIPO FILTER ───────────────────────────────────────────────────────
 function setTipo(t) {
   _tipo = t;
-  ['tutti','carico','scarico','rett'].forEach(id => {
-    document.getElementById('f-'+id).classList.remove('active');
-  });
-  if(t==='') document.getElementById('f-tutti').classList.add('active');
-  else if(t==='carico')    document.getElementById('f-carico').classList.add('active');
-  else if(t==='scarico')   document.getElementById('f-scarico').classList.add('active');
-  else if(t==='rettifica') document.getElementById('f-rett').classList.add('active');
-  caricaDati();
+  ['tutti','carico','scarico','rett'].forEach(id=>
+    document.getElementById('f-'+id).classList.remove('active'));
+  const map = {'':`f-tutti`,'carico':'f-carico','scarico':'f-scarico','rettifica':'f-rett'};
+  document.getElementById(map[t]||'f-tutti').classList.add('active');
+  applicaFiltri();
 }
 
-// ── CARICA DATI ──────────────────────────────────────────────────────
+// ── CARICA DATI ───────────────────────────────────────────────────────
 async function caricaDati() {
-  // Leggi anche componente_id da URL se presente
-  const urlComp = new URLSearchParams(window.location.search).get('comp');
-
+  document.getElementById('s-count').textContent = 'Caricamento...';
   const p = new URLSearchParams();
   if(_anno) p.set('anno', _anno);
   if(_mese) p.set('mese', _mese);
-  if(_tipo) p.set('tipo', _tipo);
+
+  // Legge componente da URL se presente
+  const urlComp = new URLSearchParams(window.location.search).get('comp');
   if(urlComp) p.set('componente_id', urlComp);
 
-  document.getElementById('stor-tbody').innerHTML =
-    `<tr><td colspan="12" style="text-align:center;padding:30px;color:var(--text3)">
-    ⏳ Caricamento...</td></tr>`;
+  const raw = await apiFetch('/api/magazzino/movimenti?'+p.toString());
 
-  _dati = await apiFetch('/api/magazzino/movimenti?'+p.toString());
-  _filt = _dati;
+  // Aggiungi campo delta calcolato
+  _tutti = raw.map(m => ({
+    ...m,
+    delta: (m.quantita_dopo||0) - (m.quantita_prima||0),
+    creato_il: (m.creato_il||'').slice(0,19).replace('T',' ')
+  }));
 
-  // Aggiorna titolo con count
-  document.getElementById('period-sub').textContent = `${_dati.length} movimenti`;
-
-  filtraLocale();
+  applicaFiltri();
 }
 
-// ── FILTRO TESTO LOCALE (senza API) ─────────────────────────────────
-function filtraLocale() {
-  const q = document.getElementById('inp-cerca').value.trim().toLowerCase();
-  _filt = q ? _dati.filter(r =>
-    (r.articolo||'').toLowerCase().includes(q) ||
-    (r.cmp||'').toLowerCase().includes(q) ||
-    (r.riferimento||'').toLowerCase().includes(q)
-  ) : _dati;
-  renderTabella(_filt);
-}
+// ── FILTRI ────────────────────────────────────────────────────────────
+function applicaFiltri() {
+  let data = _tutti;
 
-// ── RENDER ───────────────────────────────────────────────────────────
-function renderTabella(data) {
-  const tbody = document.getElementById('stor-tbody');
-  if(!data.length) {
-    tbody.innerHTML=`<tr><td colspan="12"
-      style="text-align:center;padding:40px;color:var(--text3)">
-      Nessun movimento trovato</td></tr>`;
-    updateStatus(0,0,0); return;
+  // Filtro tipo (pill)
+  if(_tipo) data = data.filter(r => r.tipo === _tipo);
+
+  // Filtri colonna
+  const keys = Object.keys(_colFilters);
+  if(keys.length) {
+    data = data.filter(r => keys.every(k => {
+      const v = String(r[k]??'').toLowerCase();
+      return v.includes(_colFilters[k]);
+    }));
   }
 
-  let nc=0, ns=0;
-  let html='';
-  let lastGruppo = '';
+  // Sort
+  if(_sortCol) {
+    data = [...data].sort((a,b) => {
+      const va=a[_sortCol]??'', vb=b[_sortCol]??'';
+      return (va<vb?-1:va>vb?1:0)*_sortDir;
+    });
+  }
 
-  data.forEach(m => {
-    // Raggruppa per mese (solo quando vediamo tutto o per anno)
-    if(!_mese) {
-      const gruppoKey = m.creato_il ? m.creato_il.slice(0,7) : '';
-      if(gruppoKey !== lastGruppo) {
-        lastGruppo = gruppoKey;
-        const [a,me] = gruppoKey.split('-');
-        const nome = MESI_IT[parseInt(me)] || me;
-        html += `<tr class="group-header">
-          <td colspan="12">📅 ${nome} ${a}</td>
-        </tr>`;
+  _filt = data;
+  updateStatus();
+  resetVirtual();
+  renderVirtual();
+}
+
+function clearAllFilters() {
+  _colFilters = {};
+  document.querySelectorAll('[id^="flt-"]').forEach(inp=>inp.value='');
+  applicaFiltri();
+}
+
+function sortBy(key) {
+  _sortDir = _sortCol===key ? _sortDir*-1 : 1;
+  _sortCol = key;
+  document.querySelectorAll('th.col-hdr').forEach(th=>th.classList.remove('sort-asc','sort-desc'));
+  document.getElementById(`hdr-${key}`)?.classList.add(_sortDir===1?'sort-asc':'sort-desc');
+  applicaFiltri();
+}
+
+// ── SCROLL VIRTUALE ───────────────────────────────────────────────────
+function resetVirtual() {
+  _scrollTop = 0;
+  document.getElementById('tbl-body').scrollTop = 0;
+}
+
+function onBodyScroll() {
+  _scrollTop = document.getElementById('tbl-body').scrollTop;
+  renderVirtual();
+}
+
+function renderVirtual() {
+  const bodyH  = document.getElementById('tbl-body').clientHeight;
+  const total  = _filt.length;
+  const startRow = Math.max(0, Math.floor(_scrollTop/ROW_H) - OVERSCAN);
+  const endRow   = Math.min(total, Math.ceil((_scrollTop+bodyH)/ROW_H) + OVERSCAN);
+
+  document.getElementById('spacer-top').style.height = (startRow*ROW_H)+'px';
+  document.getElementById('spacer-bot').style.height = ((total-endRow)*ROW_H)+'px';
+
+  const tbody = document.getElementById('tbl-tbody');
+  const slice = _filt.slice(startRow, endRow);
+
+  tbody.innerHTML = slice.map(m => {
+    const delta = m.delta ?? 0;
+    const cells = COLS.map(([key,,w,tipo]) => {
+      const v = m[key]??'';
+      if(tipo==='num')   return `<td class="num">${v||''}</td>`;
+      if(tipo==='cmp')   return `<td><span class="cmp-chip">${esc(v)}</span></td>`;
+      if(tipo==='tipo')  return `<td><span class="tipo-badge t-${v}">${v}</span></td>`;
+      if(tipo==='delta') {
+        const cl = delta>=0?'delta-pos':'delta-neg';
+        return `<td class="${cl}">${delta>=0?'+':''}${delta}</td>`;
       }
-    }
-
-    const delta  = (m.quantita_dopo||0) - (m.quantita_prima||0);
-    const dClass = delta>=0 ? 'delta-pos' : 'delta-neg';
-    const dSign  = delta>=0 ? '+' : '';
-    if(m.tipo==='carico')  nc++;
-    if(m.tipo==='scarico') ns++;
-
-    html += `<tr>
-      <td style="color:var(--text3);font-size:11px">${m.id}</td>
-      <td style="color:var(--text2);font-family:var(--mono);font-size:12px">
-        ${(m.creato_il||'').slice(0,19).replace('T',' ')}</td>
-      <td><span class="cmp-chip">${esc(m.cmp||'')}</span></td>
-      <td style="font-weight:500;max-width:200px;overflow:hidden;text-overflow:ellipsis">
-        ${esc(m.articolo||'')}</td>
-      <td><span class="tipo-badge tipo-${m.tipo}">${m.tipo}</span></td>
-      <td class="num" style="font-weight:700">${m.quantita}</td>
-      <td class="num" style="color:var(--text3)">${m.quantita_prima||0}</td>
-      <td class="num" style="color:var(--text3)">${m.quantita_dopo||0}</td>
-      <td class="num ${dClass}">${dSign}${delta}</td>
-      <td style="color:var(--text2);font-size:12px">${esc(m.riferimento||'—')}</td>
-      <td style="color:var(--text3);font-size:12px;max-width:160px;overflow:hidden;text-overflow:ellipsis">
-        ${esc(m.note||'')}</td>
-      <td style="font-size:12px">${esc(m.username||'—')}</td>
-    </tr>`;
-  });
-
-  tbody.innerHTML = html;
-  updateStatus(data.length, nc, ns);
+      return `<td title="${esc(String(v))}">${esc(String(v))}</td>`;
+    }).join('');
+    return `<tr style="height:${ROW_H}px">${cells}</tr>`;
+  }).join('');
 }
 
-function updateStatus(tot, nc, ns) {
-  document.getElementById('s-count').textContent   = `${tot} movimenti`;
-  document.getElementById('s-carichi').textContent  = nc  ? `↑ ${nc} carichi`  : '';
-  document.getElementById('s-scarichi').textContent = ns  ? `↓ ${ns} scarichi` : '';
+function updateStatus() {
+  const tot  = _tutti.length;
+  const vis  = _filt.length;
+  const nFlt = Object.keys(_colFilters).length;
+  document.getElementById('s-count').textContent  = `${tot.toLocaleString()} movimenti`;
+  document.getElementById('s-vis').textContent    = vis<tot ? `— ${vis.toLocaleString()} filtrati` : '';
+  document.getElementById('s-filtri').textContent = nFlt ? `(${nFlt} filtri attivi)` : '';
 }
 
-// ── STAMPA ───────────────────────────────────────────────────────────
+// ── STAMPA ────────────────────────────────────────────────────────────
 function stampa() {
-  const titolo = document.getElementById('period-title').textContent;
-  const rows   = _filt.map(m => {
-    const delta = (m.quantita_dopo||0) - (m.quantita_prima||0);
+  const periodo = document.getElementById('s-period').textContent;
+  const w = window.open('','_blank');
+  const rows = _filt.map(m => {
+    const delta = m.delta??0;
     return `<tr>
-      <td>${(m.creato_il||'').slice(0,19).replace('T',' ')}</td>
+      <td>${esc(m.creato_il||'')}</td>
       <td>${esc(m.cmp||'')}</td>
       <td>${esc(m.articolo||'')}</td>
-      <td>${m.tipo}</td>
-      <td style="text-align:center">${m.quantita}</td>
+      <td>${m.tipo||''}</td>
+      <td style="text-align:center">${m.quantita||0}</td>
       <td style="text-align:center">${m.quantita_prima||0}</td>
       <td style="text-align:center">${m.quantita_dopo||0}</td>
-      <td style="text-align:center">${delta>=0?'+':''}${delta}</td>
+      <td style="text-align:center;color:${delta>=0?'green':'red'}">${delta>=0?'+':''}${delta}</td>
       <td>${esc(m.riferimento||'')}</td>
       <td>${esc(m.username||'')}</td>
     </tr>`;
   }).join('');
-
-  const w = window.open('','_blank');
-  w.document.write(`<!DOCTYPE html><html><head>
-    <meta charset="UTF-8"><title>Storico PerilCar</title>
-    <style>
-      body{font-family:Arial,sans-serif;font-size:10px;margin:15px}
-      h2{color:#e94c00;margin-bottom:4px}
-      p{color:#888;margin-bottom:10px;font-size:10px}
-      table{width:100%;border-collapse:collapse}
-      th{background:#e94c00;color:white;padding:5px 8px;text-align:left;font-size:9px;text-transform:uppercase}
-      td{padding:4px 8px;border-bottom:1px solid #eee;font-size:10px}
-      tr:nth-child(even){background:#fafafa}
-      @media print{@page{margin:.8cm;size:landscape}}
-    </style></head><body>
-    <h2>${esc(titolo)}</h2>
-    <p>Generato il ${new Date().toLocaleString('it-IT')} · ${_filt.length} movimenti</p>
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+    <title>Storico PerilCar</title>
+    <style>body{font-family:Arial,sans-serif;font-size:10px;margin:15px}
+    h2{color:#e94c00;margin-bottom:4px}p{color:#888;margin-bottom:10px;font-size:10px}
+    table{width:100%;border-collapse:collapse}
+    th{background:#e94c00;color:white;padding:5px 7px;text-align:left;font-size:9px;text-transform:uppercase}
+    td{padding:4px 7px;border-bottom:1px solid #eee}tr:nth-child(even){background:#fafafa}
+    @media print{@page{margin:.8cm;size:landscape}}</style></head><body>
+    <h2>📋 Storico Movimenti — PerilCar</h2>
+    <p>${esc(periodo)} · ${_filt.length} movimenti · ${new Date().toLocaleString('it-IT')}</p>
     <table><thead><tr>
-      <th>Data/Ora</th><th>CMP</th><th>Articolo</th><th>Tipo</th>
+      <th>Data/Ora</th><th>CMP</th><th>Descrizione</th><th>Tipo</th>
       <th>Qtà</th><th>Prima</th><th>Dopo</th><th>Δ</th>
       <th>Riferimento</th><th>Utente</th>
     </tr></thead><tbody>${rows}</tbody></table>
-    <script>window.onload=()=>window.print()<\/script>
-  </body></html>`);
+    <script>window.onload=()=>window.print()<\/script></body></html>`);
   w.document.close();
 }
 
 // ── INIT ─────────────────────────────────────────────────────────────
-(async () => {
-  // Imposta user chip
-  try {
-    const r = await fetch('/api/magazzino/stats');
-    if(r.status===401) { window.location.href='/login'; return; }
-  } catch(e) {}
+buildHeaderAndFilters();
 
-  // Leggi componente da URL
-  const urlComp = new URLSearchParams(window.location.search).get('comp');
-  if(urlComp) {
-    document.getElementById('period-title').textContent = `📋 Movimenti componente #${urlComp}`;
-  }
+const resizeObs = new ResizeObserver(() => renderVirtual());
+resizeObs.observe(document.getElementById('tbl-body'));
 
-  await caricaAlbero();
-  await caricaDati();
-})();
+// Se arrivato da magazzino con ?comp=X
+const urlComp = new URLSearchParams(window.location.search).get('comp');
+if(urlComp) {
+  document.getElementById('s-period').textContent = `Movimenti componente #${urlComp}`;
+  document.getElementById('btn-tutti').classList.remove('active');
+}
+
+caricaAlbero();
+caricaDati();
 </script>
 </body>
 </html>
