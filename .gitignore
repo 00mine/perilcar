@@ -1,0 +1,9 @@
+db/perilcar.db
+db/*.db
+backup/*.db
+logs/*.log
+__pycache__/
+*.pyc
+web/static/uploads/*
+!web/static/uploads/.gitkeep
+config/settings.json

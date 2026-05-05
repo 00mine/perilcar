@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard — PerilCar ERP</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #ffffff; --surface: #f7f8fa; --surface2: #eef0f4;
+      --border: #dde1e8; --orange: #e94c00; --orange2: #ff6b35;
+      --blue: #3a5bd9; --green: #16a34a;
+      --red: #dc2626; --text: #111827; --text2: #4b5563; --text3: #9ca3af;
+      --font: 'DM Sans', system-ui, sans-serif;
+    }
+    body {
+      font-family: var(--font); background: var(--bg); color: var(--text);
+      min-height: 100vh; display: flex; flex-direction: column;
+    }
+
+    /* TOPBAR */
+    .topbar {
+      height: 50px; background: #fff; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; padding: 0 20px; gap: 10px;
+      box-shadow: 0 1px 3px rgba(0,0,0,.06);
+    }
+    .topbar-logo { font-weight: 700; font-size: 17px; }
+    .topbar-logo span { color: var(--orange); }
+    .nav-link {
+      padding: 5px 12px; border-radius: 6px; font-size: 12.5px;
+      font-weight: 500; text-decoration: none; color: var(--text2); transition: .15s;
+    }
+    .nav-link:hover { background: var(--surface2); }
+    .topbar-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+    .user-chip {
+      font-size: 12px; color: var(--text2); background: var(--surface);
+      border: 1px solid var(--border); padding: 4px 10px; border-radius: 20px;
+    }
+    .btn-logout {
+      font-size: 12px; padding: 5px 12px; border-radius: 6px;
+      border: 1px solid var(--border); background: #fff;
+      color: var(--text2); cursor: pointer; font-family: var(--font); transition: .15s;
+    }
+    .btn-logout:hover { background: #fee2e2; color: var(--red); }
+
+    /* CENTRO */
+    .center {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 40px 20px; gap: 36px;
+    }
+
+    /* Stats */
+    .stats-row { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+    .stat-card {
+      background: #fff; border: 1px solid var(--border); border-radius: 12px;
+      padding: 16px 24px; display: flex; flex-direction: column;
+      align-items: center; gap: 4px; min-width: 140px;
+      box-shadow: 0 1px 4px rgba(0,0,0,.06);
+    }
+    .stat-num { font-size: 28px; font-weight: 700; }
+    .stat-lbl { font-size: 11px; color: var(--text3); font-weight: 500; }
+    .stat-num.orange { color: var(--orange); }
+    .stat-num.red    { color: var(--red); }
+    .stat-num.small  { font-size: 13px; color: var(--text2); }
+
+    /* Logo */
+    .logo h1 {
+      font-size: 72px; font-weight: 700; letter-spacing: -4px;
+      text-align: center; color: var(--text); line-height: 1;
+    }
+    .logo h1 span { color: var(--orange); }
+    .logo p {
+      text-align: center; color: var(--orange);
+      font-style: italic; font-size: 18px; margin-top: 6px;
+    }
+
+    /* Grid moduli */
+    .modules { width: 100%; max-width: 860px; display: flex; flex-direction: column; gap: 14px; }
+    .row-3 { display: grid; grid-template-columns: repeat(3,1fr); gap: 14px; }
+
+    .module-card {
+      background: #fff; border: 1.5px solid var(--border); border-radius: 16px;
+      padding: 32px 20px; display: flex; flex-direction: column;
+      align-items: center; gap: 10px; cursor: pointer;
+      transition: border-color .2s, box-shadow .2s, transform .15s;
+      text-decoration: none; color: inherit; min-height: 160px;
+      justify-content: center;
+      box-shadow: 0 1px 4px rgba(0,0,0,.06);
+    }
+    .module-card:hover:not(.disabled) {
+      border-color: var(--orange); box-shadow: 0 4px 20px rgba(233,76,0,.12);
+      transform: translateY(-2px);
+    }
+    .module-card.current { border-color: var(--orange); background: #fff8f5; }
+    .module-card.disabled { opacity: .45; cursor: default; }
+    .mod-icon { font-size: 36px; line-height: 1; }
+    .mod-name { font-size: 22px; font-weight: 700; letter-spacing: -.5px; }
+    .mod-sub  { font-size: 12px; color: var(--text3); text-align: center; }
+    .mod-badge {
+      font-size: 10px; padding: 2px 10px; border-radius: 20px;
+      background: var(--surface2); color: var(--text3);
+    }
+
+    /* Shop card (wide) */
+    .module-card.wide {
+      flex-direction: row; min-height: 80px; padding: 20px 32px;
+      justify-content: flex-start; gap: 20px;
+    }
+    .module-card.wide .mod-name { font-size: 24px; }
+
+    /* Footer */
+    .footer { padding: 16px; text-align: center; font-size: 12px; color: var(--text3); font-style: italic; }
+
+    /* hot reload */
+    #reload-badge {
+      position: fixed; bottom: 14px; left: 14px; z-index: 9999;
+      background: var(--green); color: #fff; padding: 5px 12px;
+      border-radius: 20px; font-size: 11px; font-weight: 600;
+      opacity: 0; transition: opacity .3s; pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+
+<header class="topbar">
+  <span class="topbar-logo">Peril<span>Car</span></span>
+  <nav style="display:flex;gap:4px;margin-left:12px">
+    <a href="/magazzino" class="nav-link">📦 Magazzino</a>
+    <a href="/storico"   class="nav-link">📋 Storico</a>
+  </nav>
+  <div class="topbar-right">
+    <span class="user-chip">👤 {{ user.username }}</span>
+    <button class="btn-logout" onclick="logout()">Esci</button>
+  </div>
+</header>
+
+<div class="center">
+
+  <!-- Statistiche -->
+  <div class="stats-row">
+    <div class="stat-card">
+      <span class="stat-num orange" id="s-comp">—</span>
+      <span class="stat-lbl">Componenti</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-num red" id="s-scorta">—</span>
+      <span class="stat-lbl">Sotto scorta</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-num small" id="s-mov">—</span>
+      <span class="stat-lbl">Ultimo movimento</span>
+    </div>
+  </div>
+
+  <!-- Logo -->
+  <div class="logo">
+    <h1>Peril<span>Car</span></h1>
+    <p>Gestionale aziendale</p>
+  </div>
+
+  <!-- Moduli -->
+  <div class="modules">
+    <div class="row-3">
+      <div class="module-card disabled">
+        <span class="mod-icon">🔧</span>
+        <span class="mod-name">Demolizioni</span>
+        <span class="mod-sub">Veicoli e demolizioni</span>
+        <span class="mod-badge">Prossimamente</span>
+      </div>
+      <div class="module-card disabled">
+        <span class="mod-icon">👷</span>
+        <span class="mod-name">Personale</span>
+        <span class="mod-sub">Operai e turnazione</span>
+        <span class="mod-badge">Prossimamente</span>
+      </div>
+      <a href="/magazzino" class="module-card current">
+        <span class="mod-icon">📦</span>
+        <span class="mod-name">Magazzino</span>
+        <span class="mod-sub">Ricambi e componenti</span>
+      </a>
+    </div>
+    <div class="module-card wide disabled">
+      <span class="mod-icon">🛒</span>
+      <div>
+        <div class="mod-name">Shop</div>
+        <div class="mod-sub">Vendita online e listino prezzi</div>
+      </div>
+      <span class="mod-badge" style="margin-left:auto">Prossimamente</span>
+    </div>
+  </div>
+</div>
+
+<footer class="footer">Ing. Carmine Perillo · PerilCar ERP v1.1.0</footer>
+<div id="reload-badge">🔄 Hot reload</div>
+
+<script>
+const _sock = io();
+_sock.on('reload', d => {
+  const b = document.getElementById('reload-badge');
+  b.style.opacity='1'; b.textContent='🔄 '+(d.file||'');
+  setTimeout(()=>window.location.reload(), 400);
+});
+
+async function logout() {
+  await fetch('/api/logout',{method:'POST'});
+  window.location.href='/login';
+}
+
+(async () => {
+  try {
+    const s = await (await fetch('/api/magazzino/stats')).json();
+    document.getElementById('s-comp').textContent   = s.totale_componenti;
+    document.getElementById('s-scorta').textContent = s.sotto_scorta;
+    document.getElementById('s-mov').textContent    = (s.ultimo_movimento||'—').slice(0,16);
+  } catch(e) {}
+})();
+</script>
+</body>
+</html>

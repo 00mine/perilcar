@@ -1,0 +1,625 @@
+"""
+PerilCar ERP — Dev Server v1.1
+Flask + SocketIO con hot reload automatico.
+"""
+import sys, os, time, threading, logging, io
+from pathlib import Path
+
+ROOT = Path(__file__).parent
+sys.path.insert(0, str(ROOT))
+
+UPLOAD_FOLDER = ROOT / "web" / "static" / "uploads"
+UPLOAD_FOLDER.mkdir(parents=True, exist_ok=True)
+
+logging.basicConfig(level=logging.INFO,
+    format="%(asctime)s  %(name)-20s  %(levelname)s  %(message)s")
+log = logging.getLogger("perilcar.dev")
+
+from flask import Flask, render_template, request, jsonify, session, redirect, url_for, send_file
+from flask_socketio import SocketIO
+
+app = Flask(__name__, template_folder="web/templates", static_folder="web/static")
+app.secret_key = "perilcar-dev-secret-2024"
+app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024
+
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
+
+from core.config import ConfigManager
+from core.database import DatabaseManager
+
+cfg = ConfigManager()
+db  = DatabaseManager(cfg.get("db_path"))
+log.info(f"DB: {cfg.get('db_path')}")
+
+# ── Scrittura sicura: tutte le operazioni passano da qui ─────────────────────
+def db_write(statements: list):
+    """Esegue più statement in una singola transazione atomica."""
+    with db._write_lock:
+        conn = db.get_connection()
+        try:
+            for sql, params in statements:
+                conn.execute(sql, params)
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+
+def require_login(f):
+    from functools import wraps
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        if not session.get("user"):
+            return redirect(url_for("login_page"))
+        return f(*args, **kwargs)
+    return wrapper
+
+def cu():
+    return session.get("user", {})
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PAGINE
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.route("/")
+def index():
+    return redirect(url_for("dashboard") if session.get("user") else url_for("login_page"))
+
+@app.route("/login")
+def login_page():
+    return render_template("login.html")
+
+@app.route("/dashboard")
+@require_login
+def dashboard():
+    return render_template("dashboard.html", user=session["user"])
+
+@app.route("/magazzino")
+@require_login
+def magazzino():
+    return render_template("magazzino.html", user=session["user"])
+
+@app.route("/storico")
+@require_login
+def storico():
+    return render_template("storico.html", user=session["user"])
+
+# ══════════════════════════════════════════════════════════════════════════════
+# AUTH
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.route("/api/login", methods=["POST"])
+def api_login():
+    import hashlib
+    d = request.json or {}
+    pwd_hash = hashlib.sha256(d.get("password","").encode()).hexdigest()
+    user = db.fetchone("SELECT * FROM utenti WHERE username=? AND eliminato=0",
+                       (d.get("username","").strip(),))
+    if not user:
+        return jsonify({"ok": False, "msg": "Utente non trovato"}), 401
+    if not user["attivo"]:
+        return jsonify({"ok": False, "msg": "Account disabilitato"}), 403
+    if user["password_hash"] != pwd_hash:
+        return jsonify({"ok": False, "msg": "Password errata"}), 401
+    session["user"] = {"id": user["id"], "username": user["username"],
+                       "ruolo": user["ruolo"], "nome": user["nome_completo"] or user["username"]}
+    db_write([("INSERT INTO log_operazioni(utente_id,username,modulo,azione) VALUES(?,?,?,?)",
+               (user["id"], user["username"], "AUTH", "LOGIN"))])
+    return jsonify({"ok": True, "user": session["user"]})
+
+@app.route("/api/logout", methods=["POST"])
+def api_logout():
+    u = cu()
+    if u:
+        db_write([("INSERT INTO log_operazioni(utente_id,username,modulo,azione) VALUES(?,?,?,?)",
+                   (u.get("id"), u.get("username"), "AUTH", "LOGOUT"))])
+    session.clear()
+    return jsonify({"ok": True})
+
+# ══════════════════════════════════════════════════════════════════════════════
+# COMPONENTI
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.route("/api/magazzino/componenti")
+@require_login
+def api_componenti():
+    p = request.args
+    sql = "SELECT * FROM v_giacenza WHERE 1=1"
+    params = []
+    if p.get("q"):
+        t = f"%{p['q']}%"
+        sql += " AND (cmp LIKE ? OR articolo LIKE ? OR descrizione LIKE ? OR marca LIKE ? OR modello LIKE ? OR colore LIKE ?)"
+        params += [t,t,t,t,t,t]
+    if p.get("es_min","").isdigit():
+        sql += " AND esistenza >= ?"; params.append(int(p["es_min"]))
+    if p.get("es_max","").isdigit():
+        sql += " AND esistenza <= ?"; params.append(int(p["es_max"]))
+    if p.get("sotto_scorta") == "1":
+        sql += " AND esistenza <= scorta AND scorta > 0"
+    if p.get("marca"):
+        sql += " AND marca LIKE ?"; params.append(f"%{p['marca']}%")
+    if p.get("modello"):
+        sql += " AND modello LIKE ?"; params.append(f"%{p['modello']}%")
+    sql += " ORDER BY articolo"
+    return jsonify(db.fetchall(sql, params))
+
+@app.route("/api/magazzino/componenti", methods=["POST"])
+@require_login
+def api_crea_componente():
+    dati = request.json or {}
+    if not dati.get("codice"):
+        return jsonify({"ok": False, "msg": "Codice obbligatorio"}), 400
+    if not dati.get("nome"):
+        return jsonify({"ok": False, "msg": "Nome obbligatorio"}), 400
+    if db.fetchone("SELECT id FROM componenti WHERE codice=? AND eliminato=0", (dati["codice"],)):
+        return jsonify({"ok": False, "msg": f"Codice '{dati['codice']}' già esistente"}), 400
+
+    u = cu()
+    for campo in ("anno_da","anno_a","scorta_minima"):
+        v = str(dati.get(campo,"") or "")
+        dati[campo] = int(v) if v.isdigit() else None
+
+    try:
+        with db._write_lock:
+            conn = db.get_connection()
+            try:
+                cur = conn.execute("""
+                    INSERT INTO componenti
+                        (codice,nome,descrizione,marca,modello,cod_modello,
+                         colore,cilindrata,carburante,versione,
+                         anno_da,anno_a,intervallo,scorta_minima,
+                         note,immagine_path,pubblicato,creato_da)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,?)
+                """, (dati.get("codice"), dati.get("nome"), dati.get("descrizione"),
+                      dati.get("marca"), dati.get("modello"), dati.get("cod_modello"),
+                      dati.get("colore"), dati.get("cilindrata"), dati.get("carburante"),
+                      dati.get("versione"), dati.get("anno_da"), dati.get("anno_a"),
+                      dati.get("intervallo"), dati.get("scorta_minima", 0),
+                      dati.get("note"), dati.get("immagine_path"), u.get("id")))
+                comp_id = cur.lastrowid
+                conn.execute("INSERT INTO magazzino(componente_id,scorta_minima) VALUES(?,?)",
+                             (comp_id, dati.get("scorta_minima", 0)))
+                conn.execute("""INSERT INTO log_operazioni
+                    (utente_id,username,modulo,azione,tabella,record_id,dati_nuovi)
+                    VALUES(?,?,?,?,?,?,?)""",
+                    (u.get("id"),u.get("username"),"MAGAZZINO","CREA","componenti",comp_id,str(dati)))
+                conn.commit()
+                return jsonify({"ok": True, "msg": "Componente creato", "id": comp_id})
+            except Exception as e:
+                conn.rollback()
+                return jsonify({"ok": False, "msg": str(e)}), 500
+            finally:
+                conn.close()
+    except Exception as e:
+        return jsonify({"ok": False, "msg": str(e)}), 500
+
+@app.route("/api/magazzino/componenti/<int:cid>", methods=["PUT"])
+@require_login
+def api_modifica_componente(cid):
+    dati = request.json or {}
+    u = cu()
+    prec = db.fetchone("SELECT * FROM componenti WHERE id=? AND eliminato=0", (cid,))
+    if not prec:
+        return jsonify({"ok": False, "msg": "Componente non trovato"}), 404
+
+    def v(key, default=None):
+        return dati[key] if key in dati else (prec.get(key) if default is None else default)
+
+    try:
+        db_write([
+            ("""UPDATE componenti SET
+                nome=?, descrizione=?, marca=?, modello=?, cod_modello=?,
+                colore=?, cilindrata=?, carburante=?, versione=?, intervallo=?,
+                anno_da=?, anno_a=?, scorta_minima=?, note=?,
+                immagine_path=?, pubblicato=?, modificato_il=datetime('now')
+             WHERE id=? AND eliminato=0""",
+             (v("nome"), v("descrizione"), v("marca"), v("modello"), v("cod_modello"),
+              v("colore"), v("cilindrata"), v("carburante"), v("versione"), v("intervallo"),
+              v("anno_da"), v("anno_a"), v("scorta_minima"), v("note"),
+              v("immagine_path"), v("pubblicato", 0), cid)),
+            ("""INSERT INTO log_operazioni
+                (utente_id,username,modulo,azione,tabella,record_id)
+                VALUES(?,?,?,?,?,?)""",
+             (u.get("id"),u.get("username"),"MAGAZZINO","MODIFICA","componenti",cid))
+        ])
+        return jsonify({"ok": True, "msg": "Componente aggiornato"})
+    except Exception as e:
+        return jsonify({"ok": False, "msg": f"Errore: {e}"}), 500
+
+@app.route("/api/magazzino/componenti/<int:cid>", methods=["DELETE"])
+@require_login
+def api_elimina_componente(cid):
+    u = cu()
+    try:
+        db_write([
+            ("UPDATE componenti SET eliminato=1, modificato_il=datetime('now') WHERE id=?", (cid,)),
+            ("""INSERT INTO log_operazioni
+                (utente_id,username,modulo,azione,tabella,record_id)
+                VALUES(?,?,?,?,?,?)""",
+             (u.get("id"),u.get("username"),"MAGAZZINO","ELIMINA","componenti",cid))
+        ])
+        return jsonify({"ok": True, "msg": "Componente eliminato"})
+    except Exception as e:
+        return jsonify({"ok": False, "msg": str(e)}), 500
+
+@app.route("/api/magazzino/prossimo-codice")
+@require_login
+def api_prossimo_codice():
+    row = db.fetchone("SELECT codice FROM componenti WHERE eliminato=0 ORDER BY id DESC LIMIT 1")
+    if not row or not row.get("codice"):
+        return jsonify({"codice": ""})
+    import re
+    ultimo = row["codice"]
+    m = re.search(r'(\d+)$', ultimo)
+    if m:
+        num = int(m.group(1)) + 1
+        nuovo = ultimo[:m.start()] + str(num).zfill(len(m.group(1)))
+    else:
+        nuovo = ""
+    return jsonify({"codice": nuovo, "ultimo": ultimo})
+
+# ── Info movimenti per pannello laterale ─────────────────────────────────────
+@app.route("/api/magazzino/info-movimenti/<int:cid>")
+@require_login
+def api_info_movimenti(cid):
+    rows = db.fetchall("""
+        SELECT tipo, COUNT(*) as cnt, MAX(creato_il) as ultima
+        FROM movimenti_magazzino WHERE componente_id=?
+        GROUP BY tipo
+    """, (cid,))
+    r = {"carichi": 0, "scarichi": 0,
+         "ultima_data_carico": None, "ultima_data_scarico": None}
+    for row in rows:
+        if row["tipo"] == "carico":
+            r["carichi"] = row["cnt"]; r["ultima_data_carico"] = row["ultima"]
+        elif row["tipo"] == "scarico":
+            r["scarichi"] = row["cnt"]; r["ultima_data_scarico"] = row["ultima"]
+    return jsonify(r)
+
+# ══════════════════════════════════════════════════════════════════════════════
+# MOVIMENTI
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.route("/api/magazzino/movimento", methods=["POST"])
+@require_login
+def api_movimento():
+    d    = request.json or {}
+    cid  = d.get("componente_id")
+    tipo = d.get("tipo")
+    qty  = int(d.get("quantita", 0))
+    rif  = d.get("riferimento")
+    note = d.get("note")
+    u    = cu()
+
+    if not cid or not tipo or qty <= 0:
+        return jsonify({"ok": False, "msg": "Dati mancanti"}), 400
+
+    comp = db.fetchone("SELECT esistenza FROM v_giacenza WHERE componente_id=?", (cid,))
+    if not comp:
+        return jsonify({"ok": False, "msg": "Componente non trovato"}), 404
+
+    gia_prima = comp["esistenza"] or 0
+    if tipo == "scarico" and gia_prima < qty:
+        return jsonify({"ok": False, "msg": f"Giacenza insufficiente (disponibile: {gia_prima})"}), 400
+
+    gia_dopo = gia_prima + qty if tipo == "carico" else gia_prima - qty
+
+    try:
+        db_write([
+            ("""INSERT INTO movimenti_magazzino
+                (componente_id,tipo,quantita,quantita_prima,quantita_dopo,riferimento,note,utente_id)
+                VALUES(?,?,?,?,?,?,?,?)""",
+             (cid, tipo, qty, gia_prima, gia_dopo, rif, note, u.get("id"))),
+            ("UPDATE magazzino SET aggiornato_il=datetime('now') WHERE componente_id=?", (cid,)),
+            ("""INSERT INTO log_operazioni
+                (utente_id,username,modulo,azione,tabella,record_id,dati_precedenti,dati_nuovi)
+                VALUES(?,?,?,?,?,?,?,?)""",
+             (u.get("id"),u.get("username"),"MAGAZZINO",tipo.upper(),
+              "movimenti_magazzino",cid,str({"g":gia_prima}),str({"g":gia_dopo})))
+        ])
+        return jsonify({"ok": True, "msg": f"{tipo.capitalize()} di {qty} pz completato",
+                        "giacenza": gia_dopo})
+    except Exception as e:
+        return jsonify({"ok": False, "msg": str(e)}), 500
+
+@app.route("/api/magazzino/movimenti")
+@require_login
+def api_movimenti():
+    p = request.args
+    sql = """SELECT m.*, c.codice AS cmp, c.nome AS articolo, u.username
+             FROM movimenti_magazzino m
+             LEFT JOIN componenti c ON c.id = m.componente_id
+             LEFT JOIN utenti     u ON u.id = m.utente_id
+             WHERE 1=1"""
+    params = []
+    if p.get("componente_id"):
+        sql += " AND m.componente_id=?"; params.append(int(p["componente_id"]))
+    if p.get("tipo"):
+        sql += " AND m.tipo=?"; params.append(p["tipo"])
+    if p.get("anno"):
+        sql += " AND strftime('%Y',m.creato_il)=?"; params.append(p["anno"])
+    if p.get("mese"):
+        sql += " AND strftime('%m',m.creato_il)=?"; params.append(p["mese"].zfill(2))
+    sql += " ORDER BY m.creato_il DESC"
+    # Nessun LIMIT
+    return jsonify(db.fetchall(sql, params))
+
+@app.route("/api/magazzino/movimenti/albero")
+@require_login
+def api_movimenti_albero():
+    """Struttura anni → mesi disponibili nello storico."""
+    rows = db.fetchall("""
+        SELECT DISTINCT strftime('%Y',creato_il) AS anno,
+                        strftime('%m',creato_il) AS mese
+        FROM movimenti_magazzino
+        ORDER BY anno DESC, mese DESC
+    """)
+    tree = {}
+    for r in rows:
+        a, m = r["anno"], r["mese"]
+        tree.setdefault(a, [])
+        if m not in tree[a]: tree[a].append(m)
+    return jsonify(tree)
+
+# ══════════════════════════════════════════════════════════════════════════════
+# STATS / INVENTARIO / LISTA ACQUISTI
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.route("/api/magazzino/stats")
+@require_login
+def api_stats():
+    t = db.fetchone("SELECT COUNT(*) AS n FROM v_giacenza")
+    s = db.fetchone("SELECT COUNT(*) AS n FROM v_giacenza WHERE esistenza <= scorta AND scorta > 0")
+    u = db.fetchone("SELECT creato_il FROM movimenti_magazzino ORDER BY id DESC LIMIT 1")
+    return jsonify({"totale_componenti": t["n"] if t else 0,
+                    "sotto_scorta": s["n"] if s else 0,
+                    "ultimo_movimento": u["creato_il"] if u else "—"})
+
+@app.route("/api/magazzino/inventario")
+@require_login
+def api_inventario():
+    return jsonify(db.fetchall("""
+        SELECT cmp, articolo, descrizione, esistenza, scorta,
+               marca, modello, cod_modello, colore,
+               cilindrata, carburante, versione,
+               anno_da, anno_a, intervallo, nota
+        FROM v_giacenza ORDER BY articolo
+    """))
+
+@app.route("/api/magazzino/lista-acquisti")
+@require_login
+def api_lista_acquisti():
+    p = request.args
+    marca   = p.get("marca","").strip()
+    modello = p.get("modello","").strip()
+    try: soglia = int(p.get("soglia", 1))
+    except: soglia = 1
+
+    sql = "SELECT * FROM v_giacenza WHERE esistenza < ?"
+    params = [soglia]
+    if marca:
+        sql += " AND marca LIKE ?"; params.append(f"%{marca}%")
+    if modello:
+        sql += " AND modello LIKE ?"; params.append(f"%{modello}%")
+    sql += " ORDER BY articolo"
+    return jsonify(db.fetchall(sql, params))
+
+# ══════════════════════════════════════════════════════════════════════════════
+# UPLOAD IMMAGINI
+# ══════════════════════════════════════════════════════════════════════════════
+
+ALLOWED = {"png","jpg","jpeg","gif","webp","pdf"}
+
+@app.route("/api/magazzino/upload-immagine/<int:cid>", methods=["POST"])
+@require_login
+def api_upload_immagine(cid):
+    if "file" not in request.files:
+        return jsonify({"ok": False, "msg": "Nessun file"}), 400
+    f = request.files["file"]
+    ext = f.filename.rsplit(".",1)[-1].lower() if "." in f.filename else ""
+    if ext not in ALLOWED:
+        return jsonify({"ok": False, "msg": "Tipo non permesso"}), 400
+    import uuid
+    fname = f"comp_{cid}_{uuid.uuid4().hex[:8]}.{ext}"
+    f.save(UPLOAD_FOLDER / fname)
+    url = f"/static/uploads/{fname}"
+    try:
+        db_write([("UPDATE componenti SET immagine_path=?,modificato_il=datetime('now') WHERE id=?",
+                   (url, cid))])
+        return jsonify({"ok": True, "url": url})
+    except Exception as e:
+        return jsonify({"ok": False, "msg": str(e)}), 500
+
+# ══════════════════════════════════════════════════════════════════════════════
+# IMPORT / EXPORT EXCEL
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.route("/api/magazzino/export-excel")
+@require_login
+def api_export_excel():
+    import xlsxwriter
+    rows = db.fetchall("SELECT * FROM v_giacenza ORDER BY articolo")
+    buf  = io.BytesIO()
+    wb   = xlsxwriter.Workbook(buf, {"in_memory": True})
+    ws   = wb.add_worksheet("Magazzino")
+
+    hdr  = wb.add_format({"bold":True,"bg_color":"#E94C00","font_color":"white",
+                           "border":1,"align":"center","valign":"vcenter"})
+    cell = wb.add_format({"border":1,"valign":"vcenter"})
+    num  = wb.add_format({"border":1,"align":"center","valign":"vcenter"})
+    alt  = wb.add_format({"border":1,"bg_color":"#FFF3EE","valign":"vcenter"})
+
+    cols = [
+        ("CMP","cmp",12),("Articolo","articolo",28),("Descrizione","descrizione",36),
+        ("Esistenza","esistenza",11),("Scorta","scorta",10),
+        ("Marca","marca",16),("Modello","modello",16),("Cod.Modello","cod_modello",14),
+        ("Colore","colore",12),("Cilindrata","cilindrata",12),
+        ("Carburante","carburante",12),("Versione","versione",12),
+        ("Anno da","anno_da",10),("Anno a","anno_a",10),
+        ("Intervallo","intervallo",14),("Nota","nota",30),
+    ]
+
+    ws.set_row(0, 22)
+    for c,(label,_,w) in enumerate(cols):
+        ws.write(0, c, label, hdr); ws.set_column(c, c, w)
+
+    for ri, r in enumerate(rows):
+        fmt = cell if ri%2==0 else alt
+        for c, (_,key,_) in enumerate(cols):
+            val = r.get(key) or ""
+            ws.write(ri+1, c, val, num if key in ("esistenza","scorta","anno_da","anno_a") else fmt)
+
+    wb.close(); buf.seek(0)
+    return send_file(buf,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        as_attachment=True, download_name="perilcar_magazzino.xlsx")
+
+@app.route("/api/magazzino/import-excel", methods=["POST"])
+@require_login
+def api_import_excel():
+    if "file" not in request.files:
+        return jsonify({"ok": False, "msg": "Nessun file"}), 400
+    f = request.files["file"]
+    if not f.filename.endswith((".xlsx",".xls")):
+        return jsonify({"ok": False, "msg": "Solo .xlsx o .xls"}), 400
+
+    import openpyxl
+    u = cu()
+
+    try:
+        wb   = openpyxl.load_workbook(f, data_only=True)
+        ws   = wb.active
+        rows = list(ws.iter_rows(values_only=True))
+        if len(rows) < 2:
+            return jsonify({"ok": False, "msg": "File vuoto"}), 400
+
+        header = [str(h or "").strip().lower() for h in rows[0]]
+        ALIAS  = {
+            "cmp":"codice","articolo":"nome","es":"esistenza",
+            "scorta minima":"scorta","note":"nota",
+            "anno da":"anno_da","anno a":"anno_a",
+            "cod.modello":"cod_modello","cod modello":"cod_modello",
+        }
+        col_map = {ALIAS.get(h,h): i for i,h in enumerate(header)}
+
+        def get(row, field):
+            idx = col_map.get(field)
+            if idx is None: return None
+            v = row[idx]
+            return str(v).strip() if v is not None else None
+
+        importati = 0; saltati = 0; row_n = 1
+
+        with db._write_lock:
+            conn = db.get_connection()
+            try:
+                for row in rows[1:]:
+                    row_n += 1
+                    codice = get(row,"codice")
+                    nome   = get(row,"nome")
+                    if not codice or not nome:
+                        saltati += 1; continue
+
+                    def toint(field):
+                        try: return int(float(get(row,field) or 0)) or None
+                        except: return None
+                    scorta    = toint("scorta") or 0
+                    anno_da   = toint("anno_da")
+                    anno_a    = toint("anno_a")
+                    esistenza = 0
+                    try: esistenza = int(float(get(row,"esistenza") or 0))
+                    except: pass
+
+                    existing = conn.execute(
+                        "SELECT id FROM componenti WHERE codice=? AND eliminato=0",
+                        (codice,)).fetchone()
+
+                    if existing:
+                        comp_id = existing[0]
+                        conn.execute("""UPDATE componenti SET
+                            nome=?,descrizione=?,marca=?,modello=?,cod_modello=?,
+                            colore=?,cilindrata=?,carburante=?,versione=?,
+                            anno_da=?,anno_a=?,intervallo=?,scorta_minima=?,
+                            note=?,modificato_il=datetime('now') WHERE id=?""",
+                            (nome,get(row,"descrizione"),get(row,"marca"),get(row,"modello"),
+                             get(row,"cod_modello"),get(row,"colore"),get(row,"cilindrata"),
+                             get(row,"carburante"),get(row,"versione"),
+                             anno_da,anno_a,get(row,"intervallo"),scorta,
+                             get(row,"nota"),comp_id))
+                    else:
+                        cur = conn.execute("""INSERT INTO componenti
+                            (codice,nome,descrizione,marca,modello,cod_modello,
+                             colore,cilindrata,carburante,versione,
+                             anno_da,anno_a,intervallo,scorta_minima,
+                             note,pubblicato,creato_da)
+                            VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,?)""",
+                            (codice,nome,get(row,"descrizione"),get(row,"marca"),
+                             get(row,"modello"),get(row,"cod_modello"),get(row,"colore"),
+                             get(row,"cilindrata"),get(row,"carburante"),get(row,"versione"),
+                             anno_da,anno_a,get(row,"intervallo"),scorta,
+                             get(row,"nota"),u.get("id")))
+                        comp_id = cur.lastrowid
+                        conn.execute(
+                            "INSERT INTO magazzino(componente_id,scorta_minima) VALUES(?,?)",
+                            (comp_id, scorta))
+
+                    if esistenza > 0:
+                        conn.execute("""INSERT INTO movimenti_magazzino
+                            (componente_id,tipo,quantita,quantita_prima,quantita_dopo,
+                             riferimento,utente_id)
+                            VALUES(?,?,?,?,?,?,?)""",
+                            (comp_id,"carico",esistenza,0,esistenza,"Import Excel",u.get("id")))
+
+                    importati += 1
+
+                conn.commit()
+            except Exception as e:
+                conn.rollback()
+                return jsonify({"ok": False, "msg": f"Errore riga {row_n}: {e}"}), 500
+            finally:
+                conn.close()
+
+        return jsonify({"ok": True,
+            "msg": f"✅ Import completato: {importati} componenti, {saltati} saltati",
+            "importati": importati, "saltati": saltati})
+    except Exception as e:
+        return jsonify({"ok": False, "msg": f"Errore lettura file: {e}"}), 500
+
+@app.route("/api/backup", methods=["POST"])
+@require_login
+def api_backup():
+    path = db.backup()
+    return jsonify({"ok": True, "path": path})
+
+# ══════════════════════════════════════════════════════════════════════════════
+# HOT RELOAD
+# ══════════════════════════════════════════════════════════════════════════════
+
+def start_file_watcher():
+    try:
+        from watchdog.observers import Observer
+        from watchdog.events import FileSystemEventHandler
+        class H(FileSystemEventHandler):
+            def __init__(self): self._last = 0
+            def on_modified(self, ev):
+                if ev.is_directory: return
+                if not any(ev.src_path.endswith(e) for e in (".py",".html",".css",".js")): return
+                now = time.time()
+                if now - self._last < 0.8: return
+                self._last = now
+                socketio.emit("reload", {"file": os.path.relpath(ev.src_path, ROOT)})
+        obs = Observer(); obs.schedule(H(), str(ROOT), recursive=True); obs.start()
+        log.info("👀 Watchdog attivo")
+    except Exception as e:
+        log.warning(f"Watchdog non disponibile: {e}")
+
+if __name__ == "__main__":
+    import webbrowser
+    port = int(os.environ.get("PORT", 5000))
+    threading.Thread(target=lambda: (time.sleep(1.5), webbrowser.open(f"http://localhost:{port}")),
+                     daemon=True).start()
+    start_file_watcher()
+    log.info(f"🚀 PerilCar Dev Server — http://localhost:{port}")
+    socketio.run(app, host="0.0.0.0", port=port,
+                 debug=False, use_reloader=False, allow_unsafe_werkzeug=True)
