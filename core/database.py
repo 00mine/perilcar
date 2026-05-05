@@ -12,7 +12,7 @@ from datetime import datetime
 from pathlib import Path
 
 # ─── Versione schema ─────────────────────────────────────────────────────────
-DB_SCHEMA_VERSION = 1
+DB_SCHEMA_VERSION = 2
 APP_VERSION = "1.0.0"
 
 logger = logging.getLogger("perilcar.database")
@@ -121,7 +121,30 @@ class DatabaseManager:
             scorta_minima   INTEGER DEFAULT 0,
             note            TEXT,
             immagine_path   TEXT,
+            files_path      TEXT,
             pubblicato      INTEGER NOT NULL DEFAULT 0,
+            tipologia       TEXT,
+            sottocategoria  TEXT,
+            cod_udm         TEXT,
+            cod_iva         TEXT,
+            listino1        REAL    DEFAULT 0,
+            listino2        REAL    DEFAULT 0,
+            listino3        REAL    DEFAULT 0,
+            cod_barre       TEXT,
+            internet        TEXT,
+            extra1          TEXT,
+            extra2          TEXT,
+            extra3          TEXT,
+            extra4          TEXT,
+            cod_fornitore   TEXT,
+            fornitore       TEXT,
+            cod_prod_forn   TEXT,
+            prezzo_forn     REAL    DEFAULT 0,
+            note_fornitura  TEXT,
+            ord_multipli    INTEGER DEFAULT 0,
+            gg_ordine       INTEGER DEFAULT 0,
+            ubicazione      TEXT,
+            stato_magazzino TEXT,
             creato_da       INTEGER,
             creato_il       TEXT    NOT NULL DEFAULT (datetime('now')),
             modificato_il   TEXT    NOT NULL DEFAULT (datetime('now')),
@@ -162,11 +185,7 @@ class DatabaseManager:
             id              INTEGER PRIMARY KEY AUTOINCREMENT,
             targa           TEXT    UNIQUE,
             telaio          TEXT    UNIQUE,
-            marca           TEXT,
-            modello         TEXT,
             anno            INTEGER,
-            colore          TEXT,
-            carburante      TEXT,
             stato           TEXT    NOT NULL DEFAULT 'in_attesa',
             data_arrivo     TEXT,
             data_demolizione TEXT,

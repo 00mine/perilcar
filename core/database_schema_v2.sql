@@ -1,0 +1,1 @@
+-- aggiornamento schema v2 - colonne Danea

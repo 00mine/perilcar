@@ -409,31 +409,102 @@ def api_lista_acquisti():
 # UPLOAD IMMAGINI
 # ══════════════════════════════════════════════════════════════════════════════
 
-ALLOWED = {"png","jpg","jpeg","gif","webp","pdf"}
+ALLOWED = {"png","jpg","jpeg","gif","webp","pdf","xlsx","xls","docx","zip"}
 
-@app.route("/api/magazzino/upload-immagine/<int:cid>", methods=["POST"])
+@app.route("/api/magazzino/upload-file/<int:cid>", methods=["POST"])
 @require_login
-def api_upload_immagine(cid):
+def api_upload_file(cid):
+    """Upload immagini o file allegati a un componente (anche multipli)."""
     if "file" not in request.files:
         return jsonify({"ok": False, "msg": "Nessun file"}), 400
-    f = request.files["file"]
+    f   = request.files["file"]
     ext = f.filename.rsplit(".",1)[-1].lower() if "." in f.filename else ""
     if ext not in ALLOWED:
-        return jsonify({"ok": False, "msg": "Tipo non permesso"}), 400
+        return jsonify({"ok": False, "msg": f"Tipo .{ext} non permesso"}), 400
     import uuid
     fname = f"comp_{cid}_{uuid.uuid4().hex[:8]}.{ext}"
     f.save(UPLOAD_FOLDER / fname)
     url = f"/static/uploads/{fname}"
+    # Aggiungi alla lista files_path (separatore |)
+    comp = db.fetchone("SELECT files_path, immagine_path FROM componenti WHERE id=?", (cid,))
+    imgs_ext = {"png","jpg","jpeg","gif","webp"}
+    existing_files = comp["files_path"] or ""
+    new_files = (existing_files + "|" + url).strip("|") if existing_files else url
+    # Se è immagine e non c'è ancora immagine principale, impostala
+    new_img = comp["immagine_path"]
+    if ext in imgs_ext and not new_img:
+        new_img = url
     try:
-        db_write([("UPDATE componenti SET immagine_path=?,modificato_il=datetime('now') WHERE id=?",
-                   (url, cid))])
-        return jsonify({"ok": True, "url": url})
+        db_write([("""UPDATE componenti
+                      SET files_path=?, immagine_path=?, modificato_il=datetime('now')
+                      WHERE id=?""", (new_files, new_img, cid))])
+        return jsonify({"ok": True, "url": url, "files": new_files.split("|") if new_files else []})
+    except Exception as e:
+        return jsonify({"ok": False, "msg": str(e)}), 500
+
+@app.route("/api/magazzino/delete-file/<int:cid>", methods=["POST"])
+@require_login
+def api_delete_file(cid):
+    """Rimuove un file dalla lista allegati."""
+    url_da_rimuovere = (request.json or {}).get("url","")
+    comp = db.fetchone("SELECT files_path, immagine_path FROM componenti WHERE id=?", (cid,))
+    files = [f for f in (comp["files_path"] or "").split("|") if f and f != url_da_rimuovere]
+    new_files = "|".join(files)
+    new_img   = comp["immagine_path"] if comp["immagine_path"] != url_da_rimuovere else (files[0] if files else None)
+    try:
+        db_write([("""UPDATE componenti SET files_path=?, immagine_path=?, modificato_il=datetime('now') WHERE id=?""",
+                   (new_files, new_img, cid))])
+        return jsonify({"ok": True})
     except Exception as e:
         return jsonify({"ok": False, "msg": str(e)}), 500
 
 # ══════════════════════════════════════════════════════════════════════════════
-# IMPORT / EXPORT EXCEL
+# IMPORT / EXPORT EXCEL — formato Danea + generico
 # ══════════════════════════════════════════════════════════════════════════════
+
+# Mappa colonne Danea → campi DB (case-insensitive)
+DANEA_MAP = {
+    "cod.":             "codice",
+    "descrizione":      "nome",
+    "tipologia":        "tipologia",
+    "categoria":        "categoria",
+    "sottocategoria":   "sottocategoria",
+    "cod. udm":         "cod_udm",
+    "cod. iva":         "cod_iva",
+    "listino 1":        "listino1",
+    "listino 2":        "listino2",
+    "listino 3":        "listino3",
+    "note":             "nota",
+    "cod. a barre":     "cod_barre",
+    "internet":         "internet",
+    "produttore":       "marca",
+    "extra 1":          "extra1",
+    "extra 2":          "extra2",
+    "extra 3":          "extra3",
+    "extra 4":          "extra4",
+    "cod. fornitore":   "cod_fornitore",
+    "fornitore":        "fornitore",
+    "cod. prod. forn.": "cod_prod_forn",
+    "prezzo forn.":     "prezzo_forn",
+    "note fornitura":   "note_fornitura",
+    "ord. a multipli di": "ord_multipli",
+    "gg. ordine":       "gg_ordine",
+    "scorta min.":      "scorta_minima",
+    "ubicazione":       "ubicazione",
+    "q.tà giacenza":    "esistenza",
+    "stato magazzino":  "stato_magazzino",
+    "immagine":         "immagine_path",
+    # alias generici
+    "cmp":              "codice",
+    "articolo":         "nome",
+    "es":               "esistenza",
+    "scorta minima":    "scorta_minima",
+    "anno da":          "anno_da",
+    "anno a":           "anno_a",
+    "marca":            "marca",
+    "modello":          "modello",
+    "colore":           "colore",
+}
 
 @app.route("/api/magazzino/export-excel")
 @require_login
@@ -445,30 +516,66 @@ def api_export_excel():
     ws   = wb.add_worksheet("Magazzino")
 
     hdr  = wb.add_format({"bold":True,"bg_color":"#E94C00","font_color":"white",
-                           "border":1,"align":"center","valign":"vcenter"})
-    cell = wb.add_format({"border":1,"valign":"vcenter"})
-    num  = wb.add_format({"border":1,"align":"center","valign":"vcenter"})
-    alt  = wb.add_format({"border":1,"bg_color":"#FFF3EE","valign":"vcenter"})
+                           "border":1,"align":"center","valign":"vcenter","font_size":10})
+    cell = wb.add_format({"border":1,"valign":"vcenter","font_size":10})
+    num  = wb.add_format({"border":1,"align":"center","valign":"vcenter","font_size":10})
+    alt  = wb.add_format({"border":1,"bg_color":"#FFF3EE","valign":"vcenter","font_size":10})
 
+    # Colonne esatte come Danea + quelle aggiuntive
     cols = [
-        ("CMP","cmp",12),("Articolo","articolo",28),("Descrizione","descrizione",36),
-        ("Esistenza","esistenza",11),("Scorta","scorta",10),
-        ("Marca","marca",16),("Modello","modello",16),("Cod.Modello","cod_modello",14),
-        ("Colore","colore",12),("Cilindrata","cilindrata",12),
-        ("Carburante","carburante",12),("Versione","versione",12),
-        ("Anno da","anno_da",10),("Anno a","anno_a",10),
-        ("Intervallo","intervallo",14),("Nota","nota",30),
+        ("Cod.",            "cmp",            10),
+        ("Descrizione",     "articolo",       36),
+        ("Tipologia",       "tipologia",      18),
+        ("Categoria",       "categoria",      14),
+        ("Sottocategoria",  "sottocategoria", 14),
+        ("Cod. Udm",        "cod_udm",        10),
+        ("Cod. Iva",        "cod_iva",        10),
+        ("Listino 1",       "listino1",       12),
+        ("Listino 2",       "listino2",       12),
+        ("Listino 3",       "listino3",       12),
+        ("Note",            "nota",           30),
+        ("Cod. a barre",    "cod_barre",      14),
+        ("Internet",        "internet",       10),
+        ("Produttore",      "marca",          16),
+        ("Extra 1",         "extra1",         12),
+        ("Extra 2",         "extra2",         12),
+        ("Extra 3",         "extra3",         12),
+        ("Extra 4",         "extra4",         12),
+        ("Cod. fornitore",  "cod_fornitore",  14),
+        ("Fornitore",       "fornitore",      16),
+        ("Cod. prod. forn.","cod_prod_forn",  16),
+        ("Prezzo forn.",    "prezzo_forn",    12),
+        ("Note fornitura",  "note_fornitura", 20),
+        ("Ord. a multipli di","ord_multipli", 14),
+        ("Gg. ordine",      "gg_ordine",      10),
+        ("Scorta min.",     "scorta",         10),
+        ("Ubicazione",      "ubicazione",     18),
+        ("Q.tà giacenza",   "esistenza",      12),
+        ("Stato magazzino", "stato_magazzino",14),
+        ("Modello",         "modello",        16),
+        ("Colore",          "colore",         12),
+        ("Cilindrata",      "cilindrata",     12),
+        ("Carburante",      "carburante",     12),
+        ("Versione",        "versione",       12),
+        ("Anno da",         "anno_da",        10),
+        ("Anno a",          "anno_a",         10),
+        ("Intervallo",      "intervallo",     14),
+        ("File/Immagini",   "files_path",     30),
     ]
 
     ws.set_row(0, 22)
     for c,(label,_,w) in enumerate(cols):
-        ws.write(0, c, label, hdr); ws.set_column(c, c, w)
+        ws.write(0, c, label, hdr)
+        ws.set_column(c, c, w)
 
+    NUM_KEYS = {"esistenza","scorta","listino1","listino2","listino3",
+                "prezzo_forn","ord_multipli","gg_ordine","anno_da","anno_a"}
     for ri, r in enumerate(rows):
         fmt = cell if ri%2==0 else alt
         for c, (_,key,_) in enumerate(cols):
             val = r.get(key) or ""
-            ws.write(ri+1, c, val, num if key in ("esistenza","scorta","anno_da","anno_a") else fmt)
+            if val == "" and key in NUM_KEYS: val = 0
+            ws.write(ri+1, c, val, num if key in NUM_KEYS else fmt)
 
     wb.close(); buf.seek(0)
     return send_file(buf,
@@ -481,8 +588,8 @@ def api_import_excel():
     if "file" not in request.files:
         return jsonify({"ok": False, "msg": "Nessun file"}), 400
     f = request.files["file"]
-    if not f.filename.endswith((".xlsx",".xls")):
-        return jsonify({"ok": False, "msg": "Solo .xlsx o .xls"}), 400
+    if not f.filename.lower().endswith((".xlsx",".xls")):
+        return jsonify({"ok": False, "msg": "Solo file .xlsx o .xls"}), 400
 
     import openpyxl
     u = cu()
@@ -492,44 +599,78 @@ def api_import_excel():
         ws   = wb.active
         rows = list(ws.iter_rows(values_only=True))
         if len(rows) < 2:
-            return jsonify({"ok": False, "msg": "File vuoto"}), 400
+            return jsonify({"ok": False, "msg": "File vuoto o senza dati"}), 400
 
-        header = [str(h or "").strip().lower() for h in rows[0]]
-        ALIAS  = {
-            "cmp":"codice","articolo":"nome","es":"esistenza",
-            "scorta minima":"scorta","note":"nota",
-            "anno da":"anno_da","anno a":"anno_a",
-            "cod.modello":"cod_modello","cod modello":"cod_modello",
-        }
-        col_map = {ALIAS.get(h,h): i for i,h in enumerate(header)}
+        # Mappa intestazioni → indice colonna
+        header  = [str(h or "").strip().lower() for h in rows[0]]
+        col_map = {}
+        for i, h in enumerate(header):
+            field = DANEA_MAP.get(h, h.replace(" ","_").replace(".","").replace("'",""))
+            col_map[field] = i
 
-        def get(row, field):
+        def get(row, field, default=None):
             idx = col_map.get(field)
-            if idx is None: return None
+            if idx is None or idx >= len(row): return default
             v = row[idx]
-            return str(v).strip() if v is not None else None
+            if v is None: return default
+            # datetime → stringa
+            import datetime
+            if isinstance(v, (datetime.datetime, datetime.date)):
+                return str(v.year)
+            return str(v).strip() if str(v).strip() not in ("None","nan","") else default
 
-        importati = 0; saltati = 0; row_n = 1
+        def toint(row, field):
+            try: v = get(row, field, "0"); return int(float(v)) if v else 0
+            except: return 0
+
+        def tofloat(row, field):
+            try: v = get(row, field, "0"); return float(v) if v else 0.0
+            except: return 0.0
+
+        importati = 0; saltati = 0; aggiornati = 0; row_n = 1
 
         with db._write_lock:
             conn = db.get_connection()
             try:
                 for row in rows[1:]:
                     row_n += 1
-                    codice = get(row,"codice")
-                    nome   = get(row,"nome")
+                    codice = get(row, "codice")
+                    nome   = get(row, "nome")
                     if not codice or not nome:
                         saltati += 1; continue
 
-                    def toint(field):
-                        try: return int(float(get(row,field) or 0)) or None
-                        except: return None
-                    scorta    = toint("scorta") or 0
-                    anno_da   = toint("anno_da")
-                    anno_a    = toint("anno_a")
-                    esistenza = 0
-                    try: esistenza = int(float(get(row,"esistenza") or 0))
-                    except: pass
+                    scorta    = toint(row, "scorta_minima")
+                    esistenza = toint(row, "esistenza")
+
+                    campi = {
+                        "nome":           nome,
+                        "tipologia":      get(row, "tipologia"),
+                        "categoria":      get(row, "categoria"),
+                        "sottocategoria": get(row, "sottocategoria"),
+                        "cod_udm":        get(row, "cod_udm"),
+                        "cod_iva":        get(row, "cod_iva"),
+                        "listino1":       tofloat(row, "listino1"),
+                        "listino2":       tofloat(row, "listino2"),
+                        "listino3":       tofloat(row, "listino3"),
+                        "note":           get(row, "nota"),
+                        "cod_barre":      get(row, "cod_barre"),
+                        "internet":       get(row, "internet"),
+                        "marca":          get(row, "marca"),
+                        "extra1":         get(row, "extra1"),
+                        "extra2":         get(row, "extra2"),
+                        "extra3":         get(row, "extra3"),
+                        "extra4":         get(row, "extra4"),
+                        "cod_fornitore":  get(row, "cod_fornitore"),
+                        "fornitore":      get(row, "fornitore"),
+                        "cod_prod_forn":  get(row, "cod_prod_forn"),
+                        "prezzo_forn":    tofloat(row, "prezzo_forn"),
+                        "note_fornitura": get(row, "note_fornitura"),
+                        "ord_multipli":   toint(row, "ord_multipli"),
+                        "gg_ordine":      toint(row, "gg_ordine"),
+                        "scorta_minima":  scorta,
+                        "ubicazione":     get(row, "ubicazione"),
+                        "stato_magazzino":get(row, "stato_magazzino"),
+                    }
 
                     existing = conn.execute(
                         "SELECT id FROM componenti WHERE codice=? AND eliminato=0",
@@ -537,54 +678,55 @@ def api_import_excel():
 
                     if existing:
                         comp_id = existing[0]
-                        conn.execute("""UPDATE componenti SET
-                            nome=?,descrizione=?,marca=?,modello=?,cod_modello=?,
-                            colore=?,cilindrata=?,carburante=?,versione=?,
-                            anno_da=?,anno_a=?,intervallo=?,scorta_minima=?,
-                            note=?,modificato_il=datetime('now') WHERE id=?""",
-                            (nome,get(row,"descrizione"),get(row,"marca"),get(row,"modello"),
-                             get(row,"cod_modello"),get(row,"colore"),get(row,"cilindrata"),
-                             get(row,"carburante"),get(row,"versione"),
-                             anno_da,anno_a,get(row,"intervallo"),scorta,
-                             get(row,"nota"),comp_id))
+                        sets    = ", ".join(f"{k}=?" for k in campi)
+                        vals    = list(campi.values()) + [comp_id]
+                        conn.execute(
+                            f"UPDATE componenti SET {sets}, modificato_il=datetime('now') WHERE id=?",
+                            vals)
+                        aggiornati += 1
                     else:
-                        cur = conn.execute("""INSERT INTO componenti
-                            (codice,nome,descrizione,marca,modello,cod_modello,
-                             colore,cilindrata,carburante,versione,
-                             anno_da,anno_a,intervallo,scorta_minima,
-                             note,pubblicato,creato_da)
-                            VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,?)""",
-                            (codice,nome,get(row,"descrizione"),get(row,"marca"),
-                             get(row,"modello"),get(row,"cod_modello"),get(row,"colore"),
-                             get(row,"cilindrata"),get(row,"carburante"),get(row,"versione"),
-                             anno_da,anno_a,get(row,"intervallo"),scorta,
-                             get(row,"nota"),u.get("id")))
+                        campi["codice"] = codice
+                        campi["pubblicato"] = 0
+                        campi["creato_da"]  = u.get("id")
+                        cols_str = ", ".join(campi.keys())
+                        placeholders = ", ".join(["?"] * len(campi))
+                        cur = conn.execute(
+                            f"INSERT INTO componenti ({cols_str}) VALUES ({placeholders})",
+                            list(campi.values()))
                         comp_id = cur.lastrowid
                         conn.execute(
-                            "INSERT INTO magazzino(componente_id,scorta_minima) VALUES(?,?)",
+                            "INSERT OR IGNORE INTO magazzino(componente_id,scorta_minima) VALUES(?,?)",
                             (comp_id, scorta))
+                        importati += 1
 
+                    # Carico iniziale se giacenza > 0
                     if esistenza > 0:
-                        conn.execute("""INSERT INTO movimenti_magazzino
-                            (componente_id,tipo,quantita,quantita_prima,quantita_dopo,
-                             riferimento,utente_id)
-                            VALUES(?,?,?,?,?,?,?)""",
-                            (comp_id,"carico",esistenza,0,esistenza,"Import Excel",u.get("id")))
-
-                    importati += 1
+                        already = conn.execute(
+                            "SELECT id FROM movimenti_magazzino WHERE componente_id=? AND riferimento='Import Excel' LIMIT 1",
+                            (comp_id,)).fetchone()
+                        if not already:
+                            conn.execute("""INSERT INTO movimenti_magazzino
+                                (componente_id,tipo,quantita,quantita_prima,quantita_dopo,riferimento,utente_id)
+                                VALUES(?,?,?,?,?,?,?)""",
+                                (comp_id,"carico",esistenza,0,esistenza,"Import Excel",u.get("id")))
 
                 conn.commit()
             except Exception as e:
                 conn.rollback()
+                log.error(f"Import errore riga {row_n}: {e}")
                 return jsonify({"ok": False, "msg": f"Errore riga {row_n}: {e}"}), 500
             finally:
                 conn.close()
 
+        tot = importati + aggiornati
         return jsonify({"ok": True,
-            "msg": f"✅ Import completato: {importati} componenti, {saltati} saltati",
-            "importati": importati, "saltati": saltati})
+            "msg": f"✅ Import OK: {importati} nuovi, {aggiornati} aggiornati, {saltati} saltati su {tot} totali",
+            "importati": importati, "aggiornati": aggiornati, "saltati": saltati})
+
     except Exception as e:
+        log.error(f"Import lettura file: {e}")
         return jsonify({"ok": False, "msg": f"Errore lettura file: {e}"}), 500
+
 
 @app.route("/api/backup", methods=["POST"])
 @require_login
