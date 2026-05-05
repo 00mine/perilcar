@@ -666,7 +666,23 @@ function buildHeaderAndFilters() {
   fltRow.innerHTML = '';
 
   // Usa colonne visibili nell'ordine corrente
-  const visCols = getVisibleCols();
+  // Colonne fisse per stampa (indipendenti dalla configurazione visuale)
+  const PRINT_COLS = [
+    {key:'cmp',      label:'Cod.',          tipo:'cmp'},
+    {key:'articolo', label:'Descrizione',   tipo:'str'},
+    {key:'tipologia',label:'Tipologia',     tipo:'str'},
+    {key:'categoria',label:'Categoria',     tipo:'str'},
+    {key:'marca',    label:'Produttore',    tipo:'str'},
+    {key:'extra1',   label:'Extra 1',       tipo:'str'},
+    {key:'extra2',   label:'Extra 2',       tipo:'str'},
+    {key:'extra3',   label:'Extra 3',       tipo:'str'},
+    {key:'extra4',   label:'Extra 4',       tipo:'str'},
+    {key:'scorta',   label:'Scorta min.',   tipo:'num'},
+    {key:'esistenza',label:'Q.tà giacenza', tipo:'num'},
+    {key:'ubicazione',label:'Ubicazione',   tipo:'str'},
+    {key:'stato_magazzino',label:'Stato',   tipo:'str'},
+  ];
+  const visCols = PRINT_COLS;
   const totW = visCols.reduce((s,c)=>s+c.w, 0);
 
   // Imposta larghezze colonne in tutte le tabelle
