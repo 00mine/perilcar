@@ -288,8 +288,7 @@
       <button class="btn btn-blue"    onclick="showResoconto()">📊 Resoconto</button>
       <button class="btn btn-primary" onclick="openFormNuovo()">＋ Nuovo</button>
       <button class="btn btn-ghost"   onclick="goStorico()">📋 Storico</button>
-      <button class="btn btn-yellow"  onclick="openInventario()">📄 Inventario</button>
-      <button class="btn btn-purple"  onclick="openListaAcquisti()">🔍 Lista acquisti</button>
+
       <label class="btn btn-green" style="cursor:pointer">
         📥 Import Excel
         <input type="file" accept=".xlsx,.xls" id="inp-excel-import"
@@ -706,8 +705,14 @@ function buildHeaderAndFilters() {
     inp.dataset.key = key;
     // Ripristina valore filtro esistente
     if(_colFilters[key]) inp.value = _colFilters[key];
+    // Placeholder speciale per colonne numeriche
+    if(NUM_FILTER_COLS && NUM_FILTER_COLS.has(key)) {
+      inp.placeholder = '>0 <5…';
+      inp.title = 'Esempi: >5  <3  >=2  <=10  =0';
+      inp.style.fontFamily = 'var(--mono)';
+    }
     inp.addEventListener('input', () => {
-      const v = inp.value.trim().toLowerCase();
+      const v = inp.value.trim();
       if(v) _colFilters[key] = v;
       else delete _colFilters[key];
       applicaFiltri();
@@ -738,6 +743,29 @@ async function caricaDati() {
 }
 
 // ── FILTRI COLONNA ────────────────────────────────────────────────────
+// Colonne numeriche che supportano operatori <, >, <=, >=, =
+const NUM_FILTER_COLS = new Set(['esistenza','scorta','listino1','listino2','listino3',
+  'prezzo_forn','ord_multipli','gg_ordine','anno_da','anno_a']);
+
+function parseNumericFilter(expr, val) {
+  // Supporta: <3  >2  <=5  >=1  =0  3 (uguale esatto)
+  expr = expr.trim();
+  const m = expr.match(/^(<=|>=|<|>|=)?\s*(-?[\d.]+)$/);
+  if(!m) return String(val??'').toLowerCase().includes(expr.toLowerCase());
+  const op  = m[1] || '=';
+  const num = parseFloat(m[2]);
+  const v   = parseFloat(val??0);
+  if(isNaN(num)||isNaN(v)) return false;
+  switch(op) {
+    case '<':  return v <  num;
+    case '>':  return v >  num;
+    case '<=': return v <= num;
+    case '>=': return v >= num;
+    case '=':  return v === num;
+    default:   return v === num;
+  }
+}
+
 function applicaFiltri() {
   const keys = Object.keys(_colFilters);
   if(!keys.length) {
@@ -745,8 +773,12 @@ function applicaFiltri() {
   } else {
     _filt = _tutti.filter(r => {
       return keys.every(k => {
+        const expr = _colFilters[k];
+        if(NUM_FILTER_COLS.has(k)) {
+          return parseNumericFilter(expr, r[k]);
+        }
         const v = String(r[k] ?? '').toLowerCase();
-        return v.includes(_colFilters[k]);
+        return v.includes(expr);
       });
     });
   }
