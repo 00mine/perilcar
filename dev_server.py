@@ -729,9 +729,9 @@ def api_import_excel():
 
 
 @app.route("/api/magazzino/import-excel-stream", methods=["POST"])
-@require_login  
+@require_login
 def api_import_excel_stream():
-    """Import Excel con salvataggio file temporaneo per evitare timeout."""
+    """Import Excel - salva su disco locale poi processa per evitare timeout."""
     if "file" not in request.files:
         return jsonify({"ok": False, "msg": "Nessun file"}), 400
     f = request.files["file"]
@@ -741,16 +741,15 @@ def api_import_excel_stream():
     import openpyxl, tempfile, os as _os
     u = cu()
 
-    # Salva file su disco temporaneo
-    tmp = tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx')
-    f.save(tmp.name)
-    tmp.close()
+    # Salva su disco
+    tmp_path = str(ROOT / "db" / "_import_tmp.xlsx")
+    f.save(tmp_path)
+    log.info(f"File salvato: {tmp_path} ({_os.path.getsize(tmp_path)//1024}KB)")
 
     try:
-        wb   = openpyxl.load_workbook(tmp.name, data_only=True, read_only=True)
-        ws   = wb.active
-        
-        # Leggi intestazioni
+        wb = openpyxl.load_workbook(tmp_path, data_only=True, read_only=True)
+        ws = wb.active
+
         header_row = next(ws.iter_rows(min_row=1, max_row=1, values_only=True))
         header = [str(h or "").strip().lower() for h in header_row]
         col_map = {}
@@ -778,7 +777,7 @@ def api_import_excel_stream():
             except: return 0.0
 
         importati = 0; aggiornati = 0; saltati = 0; row_n = 1
-        BATCH = 500  # commit ogni 500 righe
+        BATCH = 200
 
         with db._write_lock:
             conn = db.get_connection()
@@ -794,7 +793,7 @@ def api_import_excel_stream():
                     esistenza = toint(row, "esistenza")
 
                     campi = {
-                        "nome": nome,
+                        "nome":           nome,
                         "tipologia":      get(row,"tipologia"),
                         "categoria":      get(row,"categoria"),
                         "sottocategoria": get(row,"sottocategoria"),
@@ -855,14 +854,12 @@ def api_import_excel_stream():
                             (comp_id,)).fetchone()
                         if not already:
                             conn.execute(
-                                """INSERT INTO movimenti_magazzino
-                                   (componente_id,tipo,quantita,quantita_prima,quantita_dopo,riferimento,utente_id)
-                                   VALUES(?,?,?,?,?,?,?)""",
+                                "INSERT INTO movimenti_magazzino (componente_id,tipo,quantita,quantita_prima,quantita_dopo,riferimento,utente_id) VALUES(?,?,?,?,?,?,?)",
                                 (comp_id,"carico",esistenza,0,esistenza,"Import Excel",u.get("id")))
 
-                    # Commit a blocchi
                     if row_n % BATCH == 0:
                         conn.commit()
+                        log.info(f"Import progress: riga {row_n}, nuovi={importati}, aggiornati={aggiornati}")
                         socketio.emit("import_progress", {
                             "processed": row_n-1,
                             "importati": importati,
@@ -873,15 +870,18 @@ def api_import_excel_stream():
                 wb.close()
             except Exception as e:
                 conn.rollback()
+                log.error(f"Import errore riga {row_n}: {e}")
                 return jsonify({"ok": False, "msg": f"Errore riga {row_n}: {e}"}), 500
             finally:
                 conn.close()
 
     finally:
-        _os.unlink(tmp.name)
+        try: _os.unlink(tmp_path)
+        except: pass
 
     tot = importati + aggiornati
     socketio.emit("import_done", {"importati": importati, "aggiornati": aggiornati, "saltati": saltati})
+    log.info(f"Import completato: {importati} nuovi, {aggiornati} aggiornati, {saltati} saltati")
     return jsonify({"ok": True,
         "msg": f"✅ Import OK: {importati} nuovi, {aggiornati} aggiornati, {saltati} saltati su {tot} totali",
         "importati": importati, "aggiornati": aggiornati, "saltati": saltati})

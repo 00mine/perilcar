@@ -869,7 +869,13 @@ async function importExcel(inp){
   const fd=new FormData();fd.append('file',file);
   try{
     fill.style.width='10%';
-    const r=await fetch('/api/magazzino/import-excel-stream',{method:'POST',body:fd});
+    // Timeout lungo per file grandi (5 minuti)
+    const controller = new AbortController();
+    const timeout = setTimeout(()=>controller.abort(), 300000);
+    const r=await fetch('/api/magazzino/import-excel-stream',{
+      method:'POST', body:fd, signal:controller.signal
+    });
+    clearTimeout(timeout);
     const res=await r.json();
     fill.style.width='100%';
     if(res.ok){
@@ -884,7 +890,11 @@ async function importExcel(inp){
   }catch(e){
     prog.style.display='none';
     msg.textContent='❌ Errore: '+e.message;
-    toast('Errore durante import: '+e.message,false);
+    if(e.name==='AbortError'){
+      toast('⏱ Timeout - il file è troppo grande. Contatta il supporto.',false);
+    }else{
+      toast('Errore durante import: '+e.message,false);
+    }
   }finally{
     _sock.off('import_progress',onProgress);
     _sock.off('import_done',onDone);
