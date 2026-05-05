@@ -387,8 +387,12 @@
         <input type="text" id="pan-nome" placeholder="Descrizione" readonly>
       </div>
       <span class="panel-lbl" style="margin-top:6px">Ubicazione</span>
-      <input type="text" id="pan-ubicazione" placeholder="—" readonly
-             style="background:var(--surface2);font-weight:600;color:var(--blue)">
+      <div style="display:flex;gap:5px;align-items:center">
+        <input type="text" id="pan-ubicazione" placeholder="es. Scaffale 5"
+               style="font-weight:600;color:var(--blue)">
+        <button class="btn btn-ghost" style="flex-shrink:0;font-size:11px;padding:5px 10px"
+                onclick="salvaUbicazione()" title="Salva ubicazione">💾</button>
+      </div>
     </div>
 
     <div class="panel-section">
@@ -975,6 +979,20 @@ async function conferma() {
     document.getElementById('cnt-scarichi').textContent = info.scarichi;
     document.getElementById('dt-carico').textContent  = info.ultima_data_carico?.slice(0,16)||'—';
     document.getElementById('dt-scarico').textContent = info.ultima_data_scarico?.slice(0,16)||'—';
+  }
+}
+
+// ── UBICAZIONE ───────────────────────────────────────────────────────
+async function salvaUbicazione() {
+  if(!_selId){ fb('Seleziona un componente',false); return; }
+  const ubicazione = document.getElementById('pan-ubicazione').value.trim();
+  const res = await apiFetch(`/api/magazzino/componenti/${_selId}`,
+    {method:'PUT', body:JSON.stringify({ubicazione})});
+  fb(res.ok ? '✅ Ubicazione salvata' : res.msg, res.ok);
+  if(res.ok) {
+    const row = _tutti.find(x=>x.componente_id===_selId);
+    if(row) row.ubicazione = ubicazione;
+    renderVirtual();
   }
 }
 
