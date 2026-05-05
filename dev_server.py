@@ -943,6 +943,93 @@ def api_import_excel_stream():
         "importati": importati, "aggiornati": aggiornati, "saltati": saltati})
 
 
+# ══════════════════════════════════════════════════════════════════════════════
+# ASSISTENTE AI — usa Claude API
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.route("/api/assistente", methods=["POST"])
+@require_login
+def api_assistente():
+    """
+    Assistente AI che risponde a domande sul magazzino.
+    Riceve una domanda in linguaggio naturale e risponde intelligentemente.
+    """
+    import urllib.request, json as _json
+
+    d        = request.json or {}
+    domanda  = (d.get("domanda") or "").strip()
+    if not domanda:
+        return jsonify({"ok": False, "msg": "Domanda vuota"}), 400
+
+    # Carica tutto il magazzino come contesto
+    componenti = db.fetchall("""
+        SELECT cmp, articolo, categoria, marca, modello,
+               cilindrata, carburante, versione, anno_da, anno_a,
+               colore, ubicazione, scorta, esistenza, extra1, extra2, extra3, extra4
+        FROM v_giacenza
+        ORDER BY articolo
+    """)
+
+    # Costruisci un indice compatto (max ~8000 token)
+    righe = []
+    for r in componenti:
+        parts = [f"{r['cmp']}|{r['articolo']}|ES:{r['esistenza']}|SC:{r['scorta']}"]
+        for k in ['marca','categoria','modello','cilindrata','carburante',
+                  'versione','anno_da','anno_a','colore','ubicazione',
+                  'extra1','extra2','extra3','extra4']:
+            v = r.get(k)
+            if v: parts.append(str(v))
+        righe.append(' '.join(parts))
+
+    magazzino_txt = '
+'.join(righe[:3000])  # max 3000 righe
+
+    system_prompt = f"""Sei un assistente esperto per un magazzino di autodemolizioni chiamato PerilCar.
+Hai accesso al magazzino completo. Rispondi SEMPRE in italiano, in modo conciso e diretto.
+
+REGOLE:
+1. Se ti chiedono se c'è un pezzo: cerca nel magazzino per codice, nome, marca, modello, categoria
+2. Indica sempre la giacenza attuale (ES = esistenza) e la scorta minima (SC)
+3. Se un pezzo non c'è o è sotto scorta, suggerisci pezzi COMPATIBILI (stessa categoria, marca simile, stesso cilindrata/carburante)
+4. Rispondi in 2-4 frasi massimo, sii pratico
+5. Se non trovi il pezzo, dillo chiaramente e suggerisci alternative
+
+MAGAZZINO ATTUALE (formato: CODICE|NOME|ES:giacenza|SC:scorta|altri dati):
+{magazzino_txt}
+
+Se il magazzino è vuoto o non caricato, dillo all'utente."""
+
+    payload = _json.dumps({
+        "model": "claude-sonnet-4-20250514",
+        "max_tokens": 400,
+        "system": system_prompt,
+        "messages": [{"role": "user", "content": domanda}]
+    }).encode()
+
+    req = urllib.request.Request(
+        "https://api.anthropic.com/v1/messages",
+        data=payload,
+        headers={
+            "Content-Type": "application/json",
+            "anthropic-version": "2023-06-01"
+        },
+        method="POST"
+    )
+
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            result = _json.loads(resp.read())
+            risposta = result["content"][0]["text"]
+            return jsonify({"ok": True, "risposta": risposta})
+    except urllib.error.HTTPError as e:
+        body = e.read().decode()
+        log.error(f"Assistente API error: {e.code} {body}")
+        return jsonify({"ok": False, "msg": f"Errore API: {e.code}"}), 500
+    except Exception as e:
+        log.error(f"Assistente error: {e}")
+        return jsonify({"ok": False, "msg": str(e)}), 500
+
+
 @app.route("/api/backup", methods=["POST"])
 @require_login
 def api_backup():

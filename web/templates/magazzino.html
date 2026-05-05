@@ -254,6 +254,29 @@
 .col-item .col-label{flex:1;font-size:12.5px;font-weight:500}
 .col-item .col-w{width:58px;padding:3px 6px;font-size:11px;text-align:center;
   font-family:var(--mono);border:1px solid var(--border);border-radius:4px;background:var(--surface)}
+.chat-messages{display:flex;flex-direction:column;gap:10px;
+  overflow-y:auto;flex:1;padding:4px 2px}
+.chat-msg{padding:10px 14px;border-radius:12px;max-width:85%;font-size:13px;line-height:1.5}
+.chat-msg.user{background:#7c3aed;color:#fff;align-self:flex-end;border-radius:12px 12px 2px 12px}
+.chat-msg.ai{background:var(--surface);border:1px solid var(--border);
+             color:var(--text);align-self:flex-start;border-radius:12px 12px 12px 2px}
+.chat-msg.ai.loading{color:var(--text3);font-style:italic}
+.chat-input-row{display:flex;gap:8px;align-items:center;padding-top:10px;
+                border-top:1px solid var(--border);flex-shrink:0}
+.chat-input-row input{flex:1;padding:10px 14px;border-radius:20px;
+                       border:1px solid var(--border);font-size:13px;
+                       font-family:var(--font);outline:none}
+.chat-input-row input:focus{border-color:#7c3aed}
+.btn-mic{width:40px;height:40px;border-radius:50%;border:none;
+         background:var(--surface2);cursor:pointer;font-size:18px;
+         flex-shrink:0;transition:.15s;display:flex;align-items:center;justify-content:center}
+.btn-mic:hover{background:#7c3aed;color:#fff}
+.btn-mic.recording{background:#dc2626;color:#fff;animation:pulse 1s infinite}
+.btn-send{width:40px;height:40px;border-radius:50%;border:none;
+          background:#7c3aed;color:#fff;cursor:pointer;font-size:18px;
+          flex-shrink:0;transition:.15s}
+.btn-send:hover{background:#6d28d9}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.1)}}
 #reload-badge{position:fixed;bottom:12px;left:12px;z-index:9999;
                   background:var(--green);color:#fff;padding:4px 10px;border-radius:20px;
                   font-size:10px;font-weight:600;opacity:0;transition:opacity .3s;pointer-events:none}
@@ -298,6 +321,11 @@
       <button class="btn btn-ghost" style="color:var(--red)" onclick="clearAllFilters()">✕ Pulisci filtri</button>
       <button class="btn btn-ghost" onclick="openModal('modal-colonne')" title="Gestisci colonne">⚙ Colonne</button>
       <button class="btn btn-ghost" onclick="stampaMagazzino()">🖨 Stampa</button>
+      <button class="btn btn-ghost" id="btn-assistente"
+              onclick="openModal('modal-assistente')"
+              style="background:#7c3aed;color:#fff;border-color:#7c3aed">
+        🤖 Assistente
+      </button>
     </div>
 
     <!-- Import progress -->
@@ -547,6 +575,71 @@
       <div id="colonne-list"
            style="max-height:60vh;overflow-y:auto;display:flex;flex-direction:column;gap:2px">
       </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- MODAL ASSISTENTE AI -->
+<div class="overlay hidden" id="modal-assistente">
+  <div class="modal" style="max-width:540px;height:600px;display:flex;flex-direction:column">
+    <div class="modal-hdr" style="flex-shrink:0">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-size:22px">🤖</span>
+        <div>
+          <h3 style="margin:0">Assistente PerilCar</h3>
+          <p style="font-size:11px;color:var(--text3);margin:0">
+            Chiedi qualsiasi cosa sul magazzino — a voce o per scritto
+          </p>
+        </div>
+      </div>
+      <button class="modal-close" onclick="closeAssistente()">×</button>
+    </div>
+
+    <div class="modal-body" style="flex:1;overflow:hidden;display:flex;flex-direction:column;padding:14px 16px;gap:0">
+
+      <!-- Suggerimenti rapidi -->
+      <div id="suggerimenti" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;flex-shrink:0">
+        <span style="font-size:11px;color:var(--text3);width:100%">Prova a chiedere:</span>
+        <button class="btn btn-ghost" style="font-size:11px;border-radius:20px"
+                onclick="inviaDomanda(this.textContent)">
+          Ho l'alternatore per la Fiat Punto?
+        </button>
+        <button class="btn btn-ghost" style="font-size:11px;border-radius:20px"
+                onclick="inviaDomanda(this.textContent)">
+          Quali pezzi sono sotto scorta?
+        </button>
+        <button class="btn btn-ghost" style="font-size:11px;border-radius:20px"
+                onclick="inviaDomanda(this.textContent)">
+          Hai il motorino per la Golf V diesel?
+        </button>
+      </div>
+
+      <!-- Messaggi chat -->
+      <div class="chat-messages" id="chat-messages">
+        <div class="chat-msg ai">
+          Ciao! 👋 Sono l'assistente del magazzino PerilCar.<br>
+          Dimmi quale pezzo cerchi — posso rispondere sia a voce che per scritto.
+          Parla nel microfono o scrivi qui sotto!
+        </div>
+      </div>
+
+      <!-- Input -->
+      <div class="chat-input-row">
+        <button class="btn-mic" id="btn-mic" onclick="toggleMicrofono()" title="Parla">
+          🎤
+        </button>
+        <input type="text" id="chat-input"
+               placeholder="Scrivi o usa il microfono..."
+               onkeydown="if(event.key==='Enter') inviaDomandaInput()">
+        <button class="btn-send" onclick="inviaDomandaInput()" title="Invia">
+          ➤
+        </button>
+      </div>
+
+      <!-- Stato voce -->
+      <div id="stato-voce" style="font-size:11px;color:var(--text3);
+           text-align:center;min-height:16px;padding:3px 0"></div>
     </div>
   </div>
 </div>
@@ -1448,6 +1541,161 @@ function stampaMagazzino() {
   setTimeout(function(){ w.print(); }, 500);
 }
 
+
+// ── ASSISTENTE AI ────────────────────────────────────────────────────
+let _riconoscimento = null;
+let _staRecordando  = false;
+let _voce_synth     = window.speechSynthesis;
+let _chat_aperta    = false;
+
+function closeAssistente() {
+  closeModal('modal-assistente');
+  fermaVoce();
+  fermaRiconoscimento();
+}
+
+// ── SINTESI VOCALE (risposta a voce) ────────────────────────────────
+function parla(testo) {
+  if(!_voce_synth) return;
+  _voce_synth.cancel();
+  var utt = new SpeechSynthesisUtterance(testo);
+  utt.lang = 'it-IT';
+  utt.rate = 1.0;
+  utt.pitch = 1.0;
+  // Cerca voce italiana
+  var voci = _voce_synth.getVoices();
+  var voce_it = voci.find(function(v){ return v.lang.startsWith('it'); });
+  if(voce_it) utt.voice = voce_it;
+  _voce_synth.speak(utt);
+}
+
+function fermaVoce() {
+  if(_voce_synth) _voce_synth.cancel();
+}
+
+// ── RICONOSCIMENTO VOCALE ────────────────────────────────────────────
+function toggleMicrofono() {
+  if(_staRecordando) {
+    fermaRiconoscimento();
+  } else {
+    avviaRiconoscimento();
+  }
+}
+
+function avviaRiconoscimento() {
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if(!SR) {
+    document.getElementById('stato-voce').textContent =
+      '⚠️ Riconoscimento vocale non supportato da questo browser. Usa Chrome.';
+    return;
+  }
+
+  _riconoscimento = new SR();
+  _riconoscimento.lang = 'it-IT';
+  _riconoscimento.continuous = false;
+  _riconoscimento.interimResults = true;
+
+  _riconoscimento.onstart = function() {
+    _staRecordando = true;
+    document.getElementById('btn-mic').classList.add('recording');
+    document.getElementById('stato-voce').textContent = '🔴 Sto ascoltando...';
+    fermaVoce();
+  };
+
+  _riconoscimento.onresult = function(event) {
+    var testo = '';
+    for(var i = event.resultIndex; i < event.results.length; i++) {
+      testo += event.results[i][0].transcript;
+    }
+    document.getElementById('chat-input').value = testo;
+    if(event.results[event.results.length-1].isFinal) {
+      document.getElementById('stato-voce').textContent = '✅ Riconosciuto: "' + testo + '"';
+    }
+  };
+
+  _riconoscimento.onend = function() {
+    _staRecordando = false;
+    document.getElementById('btn-mic').classList.remove('recording');
+    var testo = document.getElementById('chat-input').value.trim();
+    if(testo) {
+      document.getElementById('stato-voce').textContent = '';
+      inviaDomanda(testo);
+    } else {
+      document.getElementById('stato-voce').textContent = 'Nessun testo riconosciuto.';
+    }
+  };
+
+  _riconoscimento.onerror = function(e) {
+    _staRecordando = false;
+    document.getElementById('btn-mic').classList.remove('recording');
+    document.getElementById('stato-voce').textContent = '⚠️ Errore microfono: ' + e.error;
+  };
+
+  _riconoscimento.start();
+}
+
+function fermaRiconoscimento() {
+  if(_riconoscimento) {
+    _riconoscimento.stop();
+    _riconoscimento = null;
+  }
+  _staRecordando = false;
+  document.getElementById('btn-mic').classList.remove('recording');
+}
+
+// ── CHAT ─────────────────────────────────────────────────────────────
+function inviaDomandaInput() {
+  var testo = document.getElementById('chat-input').value.trim();
+  if(!testo) return;
+  inviaDomanda(testo);
+}
+
+async function inviaDomanda(domanda) {
+  if(!domanda) return;
+  document.getElementById('chat-input').value = '';
+  document.getElementById('stato-voce').textContent = '';
+  document.getElementById('suggerimenti').style.display = 'none';
+
+  // Aggiungi messaggio utente
+  aggiungiMessaggio(domanda, 'user');
+
+  // Messaggio loading
+  var loadId = 'load-' + Date.now();
+  aggiungiMessaggio('⏳ Sto cercando nel magazzino...', 'ai loading', loadId);
+
+  try {
+    var res = await apiFetch('/api/assistente', {
+      method: 'POST',
+      body: JSON.stringify({ domanda: domanda })
+    });
+
+    // Rimuovi loading
+    var loadEl = document.getElementById(loadId);
+    if(loadEl) loadEl.remove();
+
+    if(res.ok) {
+      aggiungiMessaggio(res.risposta, 'ai');
+      parla(res.risposta);
+    } else {
+      aggiungiMessaggio('❌ ' + (res.msg || 'Errore'), 'ai');
+    }
+  } catch(e) {
+    var loadEl2 = document.getElementById(loadId);
+    if(loadEl2) loadEl2.remove();
+    aggiungiMessaggio('❌ Errore di connessione: ' + e.message, 'ai');
+  }
+}
+
+function aggiungiMessaggio(testo, tipo, id) {
+  var div = document.createElement('div');
+  div.className = 'chat-msg ' + tipo;
+  if(id) div.id = id;
+  div.innerHTML = testo.replace(/
+/g, '<br>');
+  var container = document.getElementById('chat-messages');
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+}
 
 // ── INIT ─────────────────────────────────────────────────────────────
 // Override modal-colonne button
