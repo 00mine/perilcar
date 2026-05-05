@@ -944,69 +944,205 @@ def api_import_excel_stream():
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# ASSISTENTE AI — usa Claude API
+# ASSISTENTE AI — Ollama locale, sola lettura
 # ══════════════════════════════════════════════════════════════════════════════
+
+def build_contesto_magazzino():
+    """Costruisce un contesto ricco dal database per l'AI."""
+    import json as _j
+    ctx = {}
+
+    # 1. Giacenza attuale (tutti i pezzi)
+    pezzi = db.fetchall("""
+        SELECT cmp, articolo, categoria, marca, modello,
+               cilindrata, carburante, anno_da, anno_a,
+               colore, ubicazione, scorta, esistenza,
+               listino1, listino2, listino3,
+               extra1, extra2, extra3, extra4
+        FROM v_giacenza ORDER BY articolo
+    """)
+    ctx['totale_pezzi'] = len(pezzi)
+    ctx['pezzi_disponibili'] = sum(1 for p in pezzi if (p['esistenza'] or 0) > 0)
+    ctx['pezzi_sotto_scorta'] = sum(1 for p in pezzi if (p['scorta'] or 0) > 0 and (p['esistenza'] or 0) <= (p['scorta'] or 0))
+
+    # Indice compatto pezzi (per ricerca disponibilità)
+    righe_pezzi = []
+    for p in pezzi:
+        es = p['esistenza'] or 0
+        sc = p['scorta'] or 0
+        stato = "DISPONIBILE" if es > 0 else "ESAURITO"
+        scorta_alert = " (SOTTO SCORTA)" if sc > 0 and es <= sc else ""
+        parts = [f"{p['cmp']}|{p['articolo']}|{stato}{scorta_alert}|ES:{es}|SC:{sc}"]
+        for k in ['marca','categoria','modello','cilindrata','carburante',
+                  'anno_da','anno_a','colore','ubicazione','listino1','extra1','extra2']:
+            v = p.get(k)
+            if v and str(v).strip() not in ('','None','0','0.0'):
+                parts.append(f"{k}:{v}")
+        righe_pezzi.append(' '.join(parts))
+    ctx['indice_pezzi'] = '\n'.join(righe_pezzi[:4000])
+
+    # 2. Pezzi più venduti (scarichi) nell'ultimo mese
+    venduti_mese = db.fetchall("""
+        SELECT c.nome as articolo, c.marca, c.categoria,
+               COUNT(*) as num_movimenti,
+               SUM(m.quantita) as qty_totale
+        FROM movimenti_magazzino m
+        JOIN componenti c ON c.id = m.componente_id
+        WHERE m.tipo = 'scarico'
+          AND m.creato_il >= date('now', '-30 days')
+        GROUP BY m.componente_id
+        ORDER BY qty_totale DESC
+        LIMIT 20
+    """)
+    ctx['top_venduti_mese'] = [
+        f"{r['articolo']} ({r['marca'] or ''}) - {r['qty_totale']} pz scaricati"
+        for r in venduti_mese
+    ]
+
+    # 3. Pezzi più venduti nell'ultimo anno
+    venduti_anno = db.fetchall("""
+        SELECT c.nome as articolo, c.marca, c.categoria,
+               SUM(m.quantita) as qty_totale
+        FROM movimenti_magazzino m
+        JOIN componenti c ON c.id = m.componente_id
+        WHERE m.tipo = 'scarico'
+          AND m.creato_il >= date('now', '-365 days')
+        GROUP BY m.componente_id
+        ORDER BY qty_totale DESC
+        LIMIT 20
+    """)
+    ctx['top_venduti_anno'] = [
+        f"{r['articolo']} ({r['marca'] or ''}) - {r['qty_totale']} pz"
+        for r in venduti_anno
+    ]
+
+    # 4. Pezzi non movimentati da 6+ mesi (fermi)
+    fermi = db.fetchall("""
+        SELECT c.codice as cmp, c.nome as articolo, c.marca, c.categoria,
+               v.esistenza,
+               MAX(m.creato_il) as ultimo_movimento
+        FROM componenti c
+        JOIN v_giacenza v ON v.componente_id = c.id
+        LEFT JOIN movimenti_magazzino m ON m.componente_id = c.id
+        WHERE c.eliminato = 0 AND v.esistenza > 0
+        GROUP BY c.id
+        HAVING ultimo_movimento < date('now', '-180 days')
+           OR ultimo_movimento IS NULL
+        ORDER BY ultimo_movimento ASC
+        LIMIT 30
+    """)
+    ctx['pezzi_fermi_6mesi'] = [
+        f"{r['cmp']}|{r['articolo']} ({r['marca'] or ''}) - ES:{r['esistenza']} - ultimo mov:{(r['ultimo_movimento'] or 'mai')[:10]}"
+        for r in fermi
+    ]
+
+    # 5. Statistiche per categoria
+    categorie = db.fetchall("""
+        SELECT categoria,
+               COUNT(*) as num_articoli,
+               SUM(esistenza) as tot_giacenza
+        FROM v_giacenza
+        WHERE categoria IS NOT NULL AND categoria != ''
+        GROUP BY categoria
+        ORDER BY num_articoli DESC
+        LIMIT 20
+    """)
+    ctx['categorie'] = [
+        f"{r['categoria']}: {r['num_articoli']} articoli, {r['tot_giacenza']} pz totali"
+        for r in categorie
+    ]
+
+    # 6. Attività recente (ultimi 7 giorni)
+    recenti = db.fetchall("""
+        SELECT m.tipo, COUNT(*) as n, SUM(m.quantita) as qty
+        FROM movimenti_magazzino m
+        WHERE m.creato_il >= date('now', '-7 days')
+        GROUP BY m.tipo
+    """)
+    ctx['attivita_7gg'] = {r['tipo']: {'movimenti': r['n'], 'quantita': r['qty']} for r in recenti}
+
+    # 7. Valore stimato magazzino (basato su listino1)
+    valore = db.fetchone("""
+        SELECT SUM(v.esistenza * COALESCE(c.listino1, 0)) as valore_totale,
+               COUNT(CASE WHEN c.listino1 > 0 THEN 1 END) as pezzi_con_prezzo
+        FROM v_giacenza v
+        JOIN componenti c ON c.id = v.componente_id
+        WHERE v.esistenza > 0
+    """)
+    if valore:
+        ctx['valore_magazzino'] = {
+            'stima_euro': round(valore['valore_totale'] or 0, 2),
+            'pezzi_con_prezzo': valore['pezzi_con_prezzo'] or 0
+        }
+
+    return ctx
+
 
 @app.route("/api/assistente", methods=["POST"])
 @require_login
 def api_assistente():
-    """
-    Assistente AI che risponde a domande sul magazzino.
-    Riceve una domanda in linguaggio naturale e risponde intelligentemente.
-    """
-    import urllib.request, json as _json
+    import urllib.request, json as _j
 
-    d        = request.json or {}
-    domanda  = (d.get("domanda") or "").strip()
+    d       = request.json or {}
+    domanda = (d.get("domanda") or "").strip()
     if not domanda:
         return jsonify({"ok": False, "msg": "Domanda vuota"}), 400
 
-    # Carica tutto il magazzino come contesto
-    componenti = db.fetchall("""
-        SELECT cmp, articolo, categoria, marca, modello,
-               cilindrata, carburante, versione, anno_da, anno_a,
-               colore, ubicazione, scorta, esistenza, extra1, extra2, extra3, extra4
-        FROM v_giacenza
-        ORDER BY articolo
-    """)
+    # Costruisci contesto ricco
+    try:
+        ctx = build_contesto_magazzino()
+    except Exception as e:
+        log.error(f"Errore build contesto: {e}")
+        ctx = {'indice_pezzi': '', 'totale_pezzi': 0}
 
-    # Costruisci un indice compatto (max ~8000 token)
-    righe = []
-    for r in componenti:
-        parts = [f"{r['cmp']}|{r['articolo']}|ES:{r['esistenza']}|SC:{r['scorta']}"]
-        for k in ['marca','categoria','modello','cilindrata','carburante',
-                  'versione','anno_da','anno_a','colore','ubicazione',
-                  'extra1','extra2','extra3','extra4']:
-            v = r.get(k)
-            if v: parts.append(str(v))
-        righe.append(' '.join(parts))
+    system_prompt = f"""Sei PERI, l'assistente AI del magazzino PerilCar — un'autodemolizione italiana.
+Rispondi SEMPRE in italiano, in modo conciso, pratico e diretto. Max 5 frasi.
+Puoi SOLO leggere i dati — non puoi modificare il magazzino.
 
-    magazzino_txt = "\n".join(righe[:3000])  # max 3000 righe
+=== DATI MAGAZZINO AGGIORNATI ===
+Totale articoli: {ctx.get('totale_pezzi', 0)}
+Disponibili (ES>0): {ctx.get('pezzi_disponibili', 0)}
+Sotto scorta: {ctx.get('pezzi_sotto_scorta', 0)}
 
-    system_prompt = f"""Sei un assistente esperto per un magazzino di autodemolizioni chiamato PerilCar.
-Hai accesso al magazzino completo. Rispondi SEMPRE in italiano, in modo conciso e diretto.
+VALORE STIMATO MAGAZZINO:
+{ctx.get('valore_magazzino', {}).get('stima_euro', 'N/D')} EUR (su {ctx.get('valore_magazzino', {}).get('pezzi_con_prezzo', 0)} pezzi con prezzo)
 
-REGOLE:
-1. Se ti chiedono se c'è un pezzo: cerca nel magazzino per codice, nome, marca, modello, categoria
-2. Indica sempre la giacenza attuale (ES = esistenza) e la scorta minima (SC)
-3. Se un pezzo non c'è o è sotto scorta, suggerisci pezzi COMPATIBILI (stessa categoria, marca simile, stesso cilindrata/carburante)
-4. Rispondi in 2-4 frasi massimo, sii pratico
-5. Se non trovi il pezzo, dillo chiaramente e suggerisci alternative
+TOP VENDUTI ULTIMO MESE:
+{chr(10).join(ctx.get('top_venduti_mese', ['Nessun dato'])[:10])}
 
-MAGAZZINO ATTUALE (formato: CODICE|NOME|ES:giacenza|SC:scorta|altri dati):
-{magazzino_txt}
+TOP VENDUTI ULTIMO ANNO:
+{chr(10).join(ctx.get('top_venduti_anno', ['Nessun dato'])[:10])}
 
-Se il magazzino è vuoto o non caricato, dillo all'utente."""
+PEZZI FERMI DA 6+ MESI (in magazzino ma non venduti):
+{chr(10).join(ctx.get('pezzi_fermi_6mesi', ['Nessun dato'])[:15])}
 
-    # Usa Ollama (AI locale gratuita)
-    payload = _json.dumps({
+CATEGORIE:
+{chr(10).join(ctx.get('categorie', [])[:10])}
+
+ATTIVITA' ULTIMI 7 GIORNI:
+{str(ctx.get('attivita_7gg', {}))}
+
+INDICE COMPLETO PEZZI (CODICE|NOME|STATO|ES:giacenza|SC:scorta|altri dati):
+{ctx.get('indice_pezzi', 'Magazzino vuoto')}
+
+=== REGOLE ===
+1. Disponibilità pezzi: cerca nell'indice per nome, marca, modello, categoria, cilindrata
+2. Compatibilità: se un pezzo manca, suggerisci pezzi della stessa categoria/marca/cilindrata disponibili
+3. Pezzi più venduti: usa i dati TOP VENDUTI
+4. Pezzi fermi: usa la lista PEZZI FERMI
+5. Valore pezzo: se ha listino1, usalo come riferimento. Altrimenti stima in base a categoria e stato
+6. "Cosa recuperare da un'auto": elenca i pezzi tipicamente recuperabili di quella marca/modello presenti nel magazzino
+7. Ricambi da acquistare: segnala pezzi sotto scorta della categoria/marca richiesta
+8. Sei PERI, parla in prima persona, sii amichevole e professionale"""
+
+    payload = _j.dumps({
         "model": "llama3.2:1b",
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user",   "content": domanda}
         ],
         "stream": False,
-        "options": {"temperature": 0.3, "num_predict": 400}
+        "options": {"temperature": 0.3, "num_predict": 500}
     }).encode()
 
     req = urllib.request.Request(
@@ -1017,24 +1153,17 @@ Se il magazzino è vuoto o non caricato, dillo all'utente."""
     )
 
     try:
-        with urllib.request.urlopen(req, timeout=60) as resp:
-            result = _json.loads(resp.read())
+        with urllib.request.urlopen(req, timeout=90) as resp:
+            result = _j.loads(resp.read())
             risposta = result["message"]["content"]
             return jsonify({"ok": True, "risposta": risposta})
-    except urllib.error.URLError as e:
-        msg = "Ollama non è avviato. Apri il terminale e scrivi: ollama serve"
-        log.error(f"Ollama non raggiungibile: {e}")
-        return jsonify({"ok": False, "msg": msg}), 503
+    except urllib.error.URLError:
+        return jsonify({"ok": False,
+            "msg": "Ollama non avviato. Apri il terminale e scrivi: ollama serve"}), 503
     except Exception as e:
         log.error(f"Assistente error: {e}")
         return jsonify({"ok": False, "msg": str(e)}), 500
 
-
-@app.route("/api/backup", methods=["POST"])
-@require_login
-def api_backup():
-    path = db.backup()
-    return jsonify({"ok": True, "path": path})
 
 # ══════════════════════════════════════════════════════════════════════════════
 # HOT RELOAD

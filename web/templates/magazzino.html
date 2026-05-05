@@ -587,7 +587,7 @@
       <div style="display:flex;align-items:center;gap:10px">
         <span style="font-size:22px">🤖</span>
         <div>
-          <h3 style="margin:0">Assistente PerilCar</h3>
+          <h3 style="margin:0">🤖 PERI — Assistente PerilCar</h3>
           <p style="font-size:11px;color:var(--text3);margin:0">
             Chiedi qualsiasi cosa sul magazzino — a voce o per scritto
           </p>
@@ -599,28 +599,28 @@
     <div class="modal-body" style="flex:1;overflow:hidden;display:flex;flex-direction:column;padding:14px 16px;gap:0">
 
       <!-- Suggerimenti rapidi -->
-      <div id="suggerimenti" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;flex-shrink:0">
-        <span style="font-size:11px;color:var(--text3);width:100%">Prova a chiedere:</span>
-        <button class="btn btn-ghost" style="font-size:11px;border-radius:20px"
-                onclick="inviaDomanda(this.textContent)">
-          Ho l'alternatore per la Fiat Punto?
-        </button>
-        <button class="btn btn-ghost" style="font-size:11px;border-radius:20px"
-                onclick="inviaDomanda(this.textContent)">
-          Quali pezzi sono sotto scorta?
-        </button>
-        <button class="btn btn-ghost" style="font-size:11px;border-radius:20px"
-                onclick="inviaDomanda(this.textContent)">
-          Hai il motorino per la Golf V diesel?
-        </button>
+      <div id="suggerimenti" style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px;flex-shrink:0">
+        <span style="font-size:10px;color:var(--text3);width:100%;font-weight:600">💡 ESEMPI:</span>
+        <button class="btn btn-ghost" style="font-size:10.5px;border-radius:20px;padding:4px 10px"
+                onclick="inviaDomanda(this.textContent)">Hai l'alternatore per la Fiat Punto?</button>
+        <button class="btn btn-ghost" style="font-size:10.5px;border-radius:20px;padding:4px 10px"
+                onclick="inviaDomanda(this.textContent)">Quali pezzi non vendo da 6 mesi?</button>
+        <button class="btn btn-ghost" style="font-size:10.5px;border-radius:20px;padding:4px 10px"
+                onclick="inviaDomanda(this.textContent)">Cosa ho venduto di più questo mese?</button>
+        <button class="btn btn-ghost" style="font-size:10.5px;border-radius:20px;padding:4px 10px"
+                onclick="inviaDomanda(this.textContent)">Cosa recupero da una Golf V 1.9 TDI?</button>
+        <button class="btn btn-ghost" style="font-size:10.5px;border-radius:20px;padding:4px 10px"
+                onclick="inviaDomanda(this.textContent)">Qual è il valore stimato del magazzino?</button>
+        <button class="btn btn-ghost" style="font-size:10.5px;border-radius:20px;padding:4px 10px"
+                onclick="inviaDomanda(this.textContent)">Quali pezzi sono sotto scorta?</button>
       </div>
 
       <!-- Messaggi chat -->
       <div class="chat-messages" id="chat-messages">
         <div class="chat-msg ai">
-          Ciao! 👋 Sono l'assistente AI del magazzino PerilCar.<br>
-          Dimmi quale pezzo cerchi — rispondo in italiano su giacenze e compatibilità.
-          Parla nel microfono 🎤 o scrivi qui sotto!
+          Ciao! 👋 Sono <b>PERI</b>, l'assistente AI di PerilCar.<br>
+          Posso risponderti su disponibilità pezzi, vendite, compatibilità, valore magazzino e molto altro.
+          Parla 🎤 o scrivi!
         </div>
       </div>
 
