@@ -593,21 +593,29 @@
     </div>
 
     <!-- Toolbar azioni -->
-    <div style="padding:10px 20px;border-bottom:1px solid var(--border);
-                display:flex;gap:8px;flex-wrap:wrap;flex-shrink:0;background:var(--surface)">
-      <span style="font-size:11px;color:var(--text3);align-self:center;font-weight:600">AZIONI:</span>
-      <button class="btn btn-ghost" style="font-size:11.5px" onclick="evidenziaZero()">
-        🔴 Evidenzia giacenza 0
-      </button>
-      <button class="btn btn-ghost" style="font-size:11.5px" onclick="devidenziatutti()">
-        ⬜ Togli evidenziazioni
-      </button>
-      <button class="btn btn-ghost" style="font-size:11.5px" onclick="ripristinaRighe()">
-        ↺ Ripristina righe rimosse
-      </button>
-      <span style="font-size:11px;color:var(--text3);align-self:center;margin-left:8px">
-        💡 Clicca 🟡 per evidenziare · ✕ per rimuovere · Doppio click su una cella per modificarla
+    <div style="padding:8px 16px;border-bottom:1px solid var(--border);
+                display:flex;gap:6px;flex-wrap:wrap;flex-shrink:0;background:var(--surface);align-items:center">
+      <span style="font-size:11px;color:var(--text3);font-weight:600">RIGHE:</span>
+      <button class="btn btn-ghost" style="font-size:11px" onclick="evidenziaZero()">🔴 Evidenzia giacenza 0</button>
+      <button class="btn btn-ghost" style="font-size:11px" onclick="devidenziatutti()">⬜ Togli evidenziazioni</button>
+      <button class="btn btn-ghost" style="font-size:11px" onclick="ripristinaRighe()">↺ Ripristina rimosse</button>
+      <span style="color:var(--border);margin:0 4px">│</span>
+      <span style="font-size:11px;color:var(--text3);font-weight:600">COLONNE:</span>
+      <button class="btn btn-ghost" style="font-size:11px" onclick="toggleColonneStampa()">⚙ Seleziona colonne</button>
+      <span style="font-size:11px;color:var(--text3);align-self:center;margin-left:4px">
+        💡 🟡 evidenzia · ✕ rimuovi · clic su cella per modificare
       </span>
+    </div>
+
+    <!-- Pannello selezione colonne stampa (nascosto) -->
+    <div id="pannello-col-stampa" style="display:none;padding:10px 16px;
+         border-bottom:1px solid var(--border);background:#fffdf0;flex-shrink:0">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        <span style="font-size:11px;font-weight:700;color:var(--text2)">Seleziona colonne da stampare:</span>
+        <button class="btn btn-ghost" style="font-size:10px" onclick="colonneStampaTutte()">✅ Tutte</button>
+        <button class="btn btn-ghost" style="font-size:10px" onclick="colonneStampaDefault()">↺ Default</button>
+      </div>
+      <div id="col-stampa-list" style="display:flex;flex-wrap:wrap;gap:6px"></div>
     </div>
 
     <!-- Legenda colori -->
@@ -1650,6 +1658,42 @@ const _origBuildHeader = buildHeaderAndFilters;
 // Stato anteprima stampa
 var _stampaRighe = [];  // righe attuali nell'anteprima
 
+// Tutte le colonne disponibili per la stampa
+var STAMPA_TUTTE_COLS = [
+  {key:'cmp',            label:'Cod.',         default:true},
+  {key:'articolo',       label:'Descrizione',  default:true},
+  {key:'marca',          label:'Produttore',   default:true},
+  {key:'categoria',      label:'Categoria',    default:true},
+  {key:'nota',           label:'Note',         default:false},
+  {key:'extra1',         label:'Extra 1',      default:false},
+  {key:'extra2',         label:'Extra 2',      default:true},
+  {key:'extra3',         label:'Extra 3',      default:true},
+  {key:'extra4',         label:'Extra 4',      default:true},
+  {key:'scorta',         label:'Scorta min.',  default:true},
+  {key:'esistenza',      label:'Q.tà giacenza',default:true},
+  {key:'ubicazione',     label:'Ubicazione',   default:true},
+  {key:'stato_magazzino',label:'Stato',        default:true},
+  {key:'listino1',       label:'Listino 1',    default:false},
+  {key:'listino2',       label:'Listino 2',    default:false},
+  {key:'listino3',       label:'Listino 3',    default:false},
+  {key:'fornitore',      label:'Fornitore',    default:false},
+  {key:'modello',        label:'Modello',      default:false},
+  {key:'cilindrata',     label:'Cilindrata',   default:false},
+  {key:'carburante',     label:'Carburante',   default:false},
+  {key:'anno_da',        label:'Anno da',      default:false},
+  {key:'anno_a',         label:'Anno a',       default:false},
+];
+// Stato selezione colonne stampa
+var _stampaColSel = null;  // null = usa default
+
+function getColonneStampa() {
+  if(!_stampaColSel) {
+    _stampaColSel = {};
+    STAMPA_TUTTE_COLS.forEach(function(col){ _stampaColSel[col.key] = col.default; });
+  }
+  return STAMPA_TUTTE_COLS.filter(function(col){ return _stampaColSel[col.key]; });
+}
+
 function stampaMagazzino() {
   // Costruisci righe da _filt
   _stampaRighe = _filt.map(function(r) {
@@ -1692,8 +1736,8 @@ function renderAnteprimaStampa() {
     (filtriInfo ? ' &nbsp;·&nbsp; Filtri: ' + filtriInfo : '');
 
   // Tabella anteprima
-  var headers = ['','Cod.','Descrizione','Produttore','Categoria',
-                 'Extra 2','Extra 3','Extra 4','Scorta','Q.tà','Ubicazione','Stato'];
+  var colStampa = getColonneStampa();
+  var headers = [''].concat(colStampa.map(function(c){ return c.label; }));
 
   var html = '<table id="ant-table" style="width:100%;border-collapse:collapse;font-size:12px">';
   html += '<thead><tr>' + headers.map(function(h, i) {
@@ -1719,8 +1763,7 @@ function renderAnteprimaStampa() {
       'style="background:none;border:none;cursor:pointer;font-size:13px;color:#dc2626">✕</button>' +
       '</td>';
     // Dati
-    var campi = ['cmp','articolo','marca','categoria','extra2','extra3','extra4',
-                 'scorta','esistenza','ubicazione','stato_magazzino'];
+    var campi = getColonneStampa().map(function(c){ return c.key; });
     campi.forEach(function(k) {
       var v = r[k] !== undefined ? r[k] : '';
       var style = 'padding:5px 8px;border:1px solid #eee;';
@@ -1833,9 +1876,7 @@ function eseguiStampa() {
     +'<div class="leg-item"><div class="leg-box" style="background:#fff;border:1px solid #ccc"></div> Riga dispari</div>'
     +'</div>'
     +'<table><thead><tr>'
-    +'<th>Cod.</th><th>Descrizione</th><th>Produttore</th><th>Categoria</th>'
-    +'<th>Extra 2</th><th>Extra 3</th><th>Extra 4</th>'
-    +'<th>Scorta</th><th>Q.ta</th><th>Ubicazione</th><th>Stato</th>'
+    +colStampa.map(function(col){ return '<th>'+col.label+'</th>'; }).join('')
     +'</tr></thead><tbody>'+rows+'</tbody></table>'
     +'<div class="footer">'
     +'<span>PerilCar ERP - Magazzino</span>'
@@ -2103,6 +2144,54 @@ function annoApplica() {
 }
 
 
+
+// ── GESTIONE COLONNE STAMPA ──────────────────────────────────────────
+function toggleColonneStampa() {
+  var pannello = document.getElementById('pannello-col-stampa');
+  if(pannello.style.display === 'none') {
+    // Costruisci lista checkbox
+    var list = document.getElementById('col-stampa-list');
+    var sel = _stampaColSel || {};
+    list.innerHTML = STAMPA_TUTTE_COLS.map(function(col) {
+      var chk = (col.key in sel ? sel[col.key] : col.default) ? 'checked' : '';
+      return '<label style="display:flex;align-items:center;gap:5px;padding:4px 10px;'
+        +'background:#fff;border:1px solid var(--border);border-radius:6px;'
+        +'cursor:pointer;font-size:12px;white-space:nowrap">'
+        +'<input type="checkbox" data-key="'+col.key+'" '+chk
+        +' onchange="aggiornaSelezioneColStampa()" style="accent-color:var(--orange)">'
+        +'<span>'+col.label+'</span></label>';
+    }).join('');
+    pannello.style.display = 'block';
+  } else {
+    pannello.style.display = 'none';
+  }
+}
+
+function aggiornaSelezioneColStampa() {
+  if(!_stampaColSel) _stampaColSel = {};
+  document.querySelectorAll('#col-stampa-list input[type=checkbox]').forEach(function(inp) {
+    _stampaColSel[inp.dataset.key] = inp.checked;
+  });
+  renderAnteprimaStampa();
+}
+
+function colonneStampaTutte() {
+  if(!_stampaColSel) _stampaColSel = {};
+  STAMPA_TUTTE_COLS.forEach(function(col){ _stampaColSel[col.key] = true; });
+  document.querySelectorAll('#col-stampa-list input').forEach(function(inp){ inp.checked = true; });
+  renderAnteprimaStampa();
+}
+
+function colonneStampaDefault() {
+  _stampaColSel = {};
+  STAMPA_TUTTE_COLS.forEach(function(col){ _stampaColSel[col.key] = col.default; });
+  // Aggiorna checkbox
+  document.querySelectorAll('#col-stampa-list input[type=checkbox]').forEach(function(inp) {
+    var col = STAMPA_TUTTE_COLS.find(function(c){ return c.key === inp.dataset.key; });
+    inp.checked = col ? col.default : false;
+  });
+  renderAnteprimaStampa();
+}
 
 // ── FOCUS E CHIUSURA ANTEPRIMA ───────────────────────────────────────
 function chiudiAnteprima() {
