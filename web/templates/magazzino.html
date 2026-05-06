@@ -564,7 +564,7 @@
         <h3>🖨 Anteprima Stampa — Revisiona prima di stampare</h3>
         <div id="ant-info" style="font-size:11px;color:var(--text2);margin-top:3px"></div>
       </div>
-      <button class="modal-close" onclick="closeModal('modal-anteprima-stampa')">×</button>
+      <button class="modal-close" onclick="chiudiAnteprima()">×</button>
     </div>
 
     <!-- Toolbar azioni -->
@@ -608,7 +608,7 @@
 
     <!-- Footer azioni -->
     <div class="modal-ftr" style="flex-shrink:0">
-      <button class="btn btn-ghost" onclick="closeModal('modal-anteprima-stampa')">Annulla</button>
+      <button class="btn btn-ghost" onclick="chiudiAnteprima()">Annulla</button>
       <button class="btn btn-primary" onclick="eseguiStampa()" style="font-size:14px;padding:10px 28px">
         🖨 Stampa / Salva PDF
       </button>
@@ -1775,6 +1775,9 @@ function eseguiStampa() {
   w.document.write(html);
   w.document.close();
   setTimeout(function(){ w.print(); }, 600);
+  // Ripristina focus sulla pagina principale dopo la stampa
+  w.addEventListener('afterprint', function(){ window.focus(); ripristinaFocus(); });
+  setTimeout(function(){ window.focus(); ripristinaFocus(); }, 1500);
 }
 
 
@@ -1926,6 +1929,25 @@ function aggiungiMessaggio(testo, tipo, id) {
   var container = document.getElementById('chat-messages');
   container.appendChild(div);
   container.scrollTop = container.scrollHeight;
+}
+
+// ── FOCUS E CHIUSURA ANTEPRIMA ───────────────────────────────────────
+function chiudiAnteprima() {
+  closeModal('modal-anteprima-stampa');
+  ripristinaFocus();
+}
+
+function ripristinaFocus() {
+  // Riabilita tutti gli input filtro
+  document.querySelectorAll('th.col-filter input').forEach(function(inp) {
+    inp.disabled = false;
+    inp.style.pointerEvents = '';
+  });
+  // Riabilita scroll virtuale
+  var body = document.getElementById('tbl-body');
+  if(body) { body.style.pointerEvents = ''; body.focus && body.focus(); }
+  // Forza un re-render per sbloccare tutto
+  requestAnimationFrame(function(){ renderVirtual(); });
 }
 
 // ── INIT ─────────────────────────────────────────────────────────────
