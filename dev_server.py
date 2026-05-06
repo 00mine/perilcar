@@ -1195,39 +1195,34 @@ DATI REALI DAL DATABASE:
 
 Rispondi basandoti ESCLUSIVAMENTE sui dati sopra."""
 
-    payload = _j.dumps({
-        "model": "llama3.2:latest",
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user",   "content": user_msg}
-        ],
-        "stream": False,
-        "options": {"temperature": 0.1, "num_predict": 250, "num_ctx": 4096}
-    }).encode()
-
-    req = urllib.request.Request(
-        "http://localhost:11434/api/chat",
-        data=payload,
-        headers={"Content-Type": "application/json"},
-        method="POST"
-    )
-
+    # Prova a usare Ollama con timeout breve (30s)
+    # Se non risponde, restituisce comunque i dati DB
     try:
-        with urllib.request.urlopen(req, timeout=120) as resp:
+        payload = _j.dumps({
+            "model": "llama3.2:latest",
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user",   "content": user_msg}
+            ],
+            "stream": False,
+            "options": {"temperature": 0.1, "num_predict": 200, "num_ctx": 2048}
+        }).encode()
+
+        req = urllib.request.Request(
+            "http://localhost:11434/api/chat",
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="POST"
+        )
+        with urllib.request.urlopen(req, timeout=30) as resp:
             result = _j.loads(resp.read())
             risposta = result["message"]["content"]
-            # Aggiungi dati grezzi se risposta troppo vaga
-            return jsonify({"ok": True, "risposta": risposta, "dati": dati_reali})
-    except urllib.error.URLError:
-        # Se Ollama non risponde, restituisci almeno i dati grezzi formattati
-        return jsonify({"ok": True,
-            "risposta": "Dati dal magazzino:\n" + dati_reali,
-            "dati": dati_reali})
-    except Exception as e:
-        log.error(f"Assistente error: {e}")
-        return jsonify({"ok": True,
-            "risposta": "Ecco i dati trovati:\n" + dati_reali,
-            "dati": dati_reali})
+            return jsonify({"ok": True, "risposta": risposta})
+    except Exception:
+        # Fallback: restituisce dati DB direttamente, sempre funziona
+        pass
+
+    return jsonify({"ok": True, "risposta": dati_reali})
 
 
 # ══════════════════════════════════════════════════════════════════════════════

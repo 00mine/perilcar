@@ -809,7 +809,9 @@ function buildHeaderAndFilters() {
       const v = inp.value.trim();
       if(v) _colFilters[key] = v;
       else delete _colFilters[key];
-      applicaFiltri();
+      // Debounce: aspetta 350ms prima di filtrare per non bloccare il browser
+      clearTimeout(inp._debounce);
+      inp._debounce = setTimeout(() => applicaFiltri(), 350);
     });
     tf.appendChild(inp);
     fltRow.appendChild(tf);
@@ -862,32 +864,33 @@ function parseNumericFilter(expr, val) {
 
 function applicaFiltri() {
   const keys = Object.keys(_colFilters);
-  if(!keys.length) {
-    _filt = _tutti;
-  } else {
-    _filt = _tutti.filter(r => {
-      return keys.every(k => {
-        const expr = _colFilters[k];
-        if(NUM_FILTER_COLS.has(k)) {
-          return parseNumericFilter(expr, r[k]);
-        }
-        const v = String(r[k] ?? '').toLowerCase();
-        return v.includes(expr);
+
+  // Filtra in modo non bloccante
+  requestAnimationFrame(() => {
+    if(!keys.length) {
+      _filt = _tutti;
+    } else {
+      _filt = _tutti.filter(r => {
+        return keys.every(k => {
+          const expr = _colFilters[k];
+          if(NUM_FILTER_COLS.has(k)) return parseNumericFilter(expr, r[k]);
+          const v = String(r[k] ?? '').toLowerCase();
+          return v.includes(expr);
+        });
       });
-    });
-  }
+    }
 
-  // Applica sort
-  if(_sortCol) {
-    _filt = [..._filt].sort((a,b) => {
-      const va = a[_sortCol]??'', vb = b[_sortCol]??'';
-      return (va<vb?-1:va>vb?1:0) * _sortDir;
-    });
-  }
+    if(_sortCol) {
+      _filt = [..._filt].sort((a,b) => {
+        const va = a[_sortCol]??'', vb = b[_sortCol]??'';
+        return (va<vb?-1:va>vb?1:0) * _sortDir;
+      });
+    }
 
-  updateStatus();
-  resetVirtual();
-  renderVirtual();
+    updateStatus();
+    resetVirtual();
+    renderVirtual();
+  });
 }
 
 function clearAllFilters() {
@@ -949,8 +952,9 @@ function renderVirtual() {
     const sel = _selId===r.componente_id ? ' selected':'';
     const scar= bad ? ' scarso':'';
 
-    const cells = visCols.map(({key}) => {
-      const tipo = COL_TIPO[key] || 'str';
+    const cells = visCols.map(col => {
+      const key  = col.key;
+      const tipo = COL_TIPO[key] || col.tipo || 'str';  // fallback triplo
       const v = r[key] ?? '';
       if(tipo==='cmp')   return `<td><span class="cmp-chip">${esc(v)}</span></td>`;
       if(tipo==='files') {
@@ -1359,11 +1363,26 @@ let _colState = null;  // null = usa COLS default
 
 function getColState() {
   if(_colState) return _colState;
-  // Prima volta: carica da localStorage o usa default
   try {
     const saved = localStorage.getItem('perilcar_cols');
-    if(saved) { _colState = JSON.parse(saved); return _colState; }
-  } catch(e) {}
+    if(saved) {
+      const parsed = JSON.parse(saved);
+      // Rigenera tipo sempre da COLS originale (non da localStorage)
+      _colState = parsed.map(col => ({
+        ...col,
+        tipo: COL_TIPO[col.key] || 'str'
+      }));
+      // Aggiungi colonne nuove non presenti in localStorage
+      COLS.forEach(([key, label, w, tipo]) => {
+        if(!_colState.find(c => c.key === key)) {
+          _colState.push({key, label, w, tipo: tipo||'str', visible: true});
+        }
+      });
+      return _colState;
+    }
+  } catch(e) {
+    localStorage.removeItem('perilcar_cols');
+  }
   _colState = COLS.map(([key, label, w, tipo]) => ({key, label, w, tipo: tipo||'str', visible: true}));
   return _colState;
 }
