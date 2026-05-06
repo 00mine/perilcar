@@ -614,49 +614,48 @@ async function init() {
 
 function popolaSelects() {
   // Veicoli
-  const sv = document.getElementById('f-veicolo');
+  var sv = document.getElementById('f-veicolo');
   sv.innerHTML = '<option value="">— seleziona —</option>' +
-    _veicoli.map(v=>`<option value="${v.id}">${esc(v.marca)} ${esc(v.modello)} (${esc(v.targa||'—')})</option>`).join('');
+    _veicoli.map(function(v){ return '<option value="'+v.id+'">'+esc(v.marca)+' '+esc(v.modello)+' ('+esc(v.targa||'—')+')</option>'; }).join('');
 
-  // Anagrafiche
-  const opts = '<option value="">— seleziona —</option>' +
-    _anagrafiche.map(a=>`<option value="${a.id}">${esc(a.nominativo)}</option>`).join('');
+  var opts = '<option value="">— seleziona —</option>' +
+    _anagrafiche.map(function(a){ return '<option value="'+a.id+'">'+esc(a.nominativo)+'</option>'; }).join('');
   document.getElementById('f-proprietario').innerHTML = opts;
   document.getElementById('f-detentore').innerHTML    = opts;
 
   // Pezzi per sottrai ricambi
-  const sp = document.getElementById('sr-pezzo');
+  var sp = document.getElementById('sr-pezzo');
   sp.innerHTML = '<option value="">— seleziona pezzo —</option>' +
-    _componenti.map(c=>`<option value="${c.componente_id}">${esc(c.cmp)} - ${esc(c.articolo)}</option>`).join('');
+    _componenti.map(function(comp){ return '<option value="'+comp.componente_id+'">'+esc(comp.cmp)+' - '+esc(comp.articolo)+'</option>'; }).join('');
 }
 
 // ── TABELLA ───────────────────────────────────────────────────────────
 function renderTabella() {
   const tbody = document.getElementById('tbody');
   if(!_demolizioni.length) {
-    tbody.innerHTML = `<tr><td colspan="13" style="text-align:center;padding:40px;color:var(--text3)">Nessuna demolizione registrata</td></tr>`;
+    tbody.innerHTML = '<tr><td colspan="13" style="text-align:center;padding:40px;color:var(--text3)">Nessuna demolizione registrata</td></tr>';
     document.getElementById('s-tot').textContent = '0 demolizioni';
     return;
   }
-  tbody.innerHTML = _demolizioni.map(d => {
-    const sel = _selId===d.id ? ' selected':'';
-    return `<tr class="${sel}" onclick="selectRow(${d.id},this)" ondblclick="selectRow(${d.id},this)">
-      <td><span class="id-chip">${d.id}</span></td>
-      <td>${esc(d.reg_demolitori||'')}</td>
-      <td>${esc(d.pag_reg||'')}</td>
-      <td>${esc((d.data_presa_in_carico||'').slice(0,10))}</td>
-      <td>${esc(d.veicolo_str||'')}</td>
-      <td>${esc(d.proprietario_str||'')}</td>
-      <td>${esc(d.detentore_str||'')}</td>
-      <td class="num">${d.peso_effettivo_kg!=null?d.peso_effettivo_kg+' Kg':''}</td>
-      <td class="num">${d.peso_netto_kg!=null?d.peso_netto_kg+' Kg':''}</td>
-      <td>${esc(d.num_albatros||'')}</td>
-      <td>${esc(d.modalita_radiazione||'')}</td>
-      <td style="text-align:center">${d.targhe_consegnate?'✅':''}</td>
-      <td style="text-align:center">${d.carta_circolazione?'✅':''}</td>
-    </tr>`;
+  tbody.innerHTML = _demolizioni.map(function(d) {
+    var sel = _selId===d.id ? ' selected':'';
+    return '<tr class="'+sel+'" onclick="selectRow('+d.id+',this)" ondblclick="selectRow('+d.id+',this)">'
+      +'<td><span class="id-chip">'+d.id+'</span></td>'
+      +'<td>'+esc(d.reg_demolitori||'')+'</td>'
+      +'<td>'+esc(d.pag_reg||'')+'</td>'
+      +'<td>'+esc((d.data_presa_in_carico||'').slice(0,10))+'</td>'
+      +'<td>'+esc(d.veicolo_str||'')+'</td>'
+      +'<td>'+esc(d.proprietario_str||'')+'</td>'
+      +'<td>'+esc(d.detentore_str||'')+'</td>'
+      +'<td class="num">'+(d.peso_effettivo_kg!=null?d.peso_effettivo_kg+' Kg':'')+'</td>'
+      +'<td class="num">'+(d.peso_netto_kg!=null?d.peso_netto_kg+' Kg':'')+'</td>'
+      +'<td>'+esc(d.num_albatros||'')+'</td>'
+      +'<td>'+esc(d.modalita_radiazione||'')+'</td>'
+      +'<td style="text-align:center">'+(d.targhe_consegnate?'✅':'')+'</td>'
+      +'<td style="text-align:center">'+(d.carta_circolazione?'✅':'')+'</td>'
+      +'</tr>';
   }).join('');
-  document.getElementById('s-tot').textContent = `${_demolizioni.length} demolizioni`;
+  document.getElementById('s-tot').textContent = _demolizioni.length+' demolizioni';
 }
 
 // ── FORM ──────────────────────────────────────────────────────────────
@@ -722,7 +721,7 @@ async function salvaRecord() {
   const dati = getFormData();
   let res;
   if(_selId) {
-    res = await apiFetch(`/api/demolizioni/${_selId}`,{method:'PUT',body:JSON.stringify(dati)});
+    res = await apiFetch('/api/demolizioni/'+_selId,{method:'PUT',body:JSON.stringify(dati)});
   } else {
     res = await apiFetch('/api/demolizioni',{method:'POST',body:JSON.stringify(dati)});
     if(res.ok) { _selId = res.id; document.getElementById('f-id').value = res.id; }
@@ -734,7 +733,7 @@ async function salvaRecord() {
 async function eliminaRecord() {
   if(!_selId){ fb('Seleziona una demolizione',false); return; }
   if(!confirm('Eliminare questa demolizione?')) return;
-  const res = await apiFetch(`/api/demolizioni/${_selId}`,{method:'DELETE'});
+  const res = await apiFetch('/api/demolizioni/'+_selId,{method:'DELETE'});
   fb(res.ok?'Eliminata':'Errore',res.ok);
   if(res.ok){ _selId=null; nuovoRecord(); _demolizioni=await apiFetch('/api/demolizioni'); renderTabella(); }
 }
@@ -848,22 +847,22 @@ async function cercaCDP() {
     return;
   }
 
-  lista.innerHTML = risultati.map(d => `
-    <div onclick="selezionaCDP(${d.id})"
-         style="border:1px solid var(--border);border-radius:8px;padding:12px 16px;
-                margin-bottom:8px;cursor:pointer;transition:background .1s"
-         onmouseover="this.style.background='var(--surface)'"
-         onmouseout="this.style.background='#fff'">
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <strong>${esc(d.veicolo_str||'—')}</strong>
-        <span style="font-size:11px;color:var(--text3)">${esc((d.data_presa_in_carico||'').slice(0,10))}</span>
-      </div>
-      <div style="font-size:11px;color:var(--text2);margin-top:4px;display:flex;gap:16px">
-        <span>Proprietario: ${esc(d.proprietario_str||'—')}</span>
-        <span>Reg: ${esc(d.reg_demolitori||'—')} p.${esc(d.pag_reg||'—')}</span>
-        <span>Albatros: ${esc(d.num_albatros||'—')}</span>
-      </div>
-    </div>`).join('');
+  lista.innerHTML = risultati.map(function(d) {
+    return '<div onclick="selezionaCDP('+d.id+')"'
+      +' style="border:1px solid var(--border);border-radius:8px;padding:12px 16px;'
+      +'margin-bottom:8px;cursor:pointer;transition:background .1s"'
+      +' onmouseover="this.style.background='var(--surface)'"'
+      +' onmouseout="this.style.background='#fff'">'
+      +'<div style="display:flex;justify-content:space-between;align-items:center">'
+      +'<strong>'+esc(d.veicolo_str||'—')+'</strong>'
+      +'<span style="font-size:11px;color:var(--text3)">'+esc((d.data_presa_in_carico||'').slice(0,10))+'</span>'
+      +'</div>'
+      +'<div style="font-size:11px;color:var(--text2);margin-top:4px;display:flex;gap:16px">'
+      +'<span>Proprietario: '+esc(d.proprietario_str||'—')+'</span>'
+      +'<span>Reg: '+esc(d.reg_demolitori||'—')+' p.'+esc(d.pag_reg||'—')+'</span>'
+      +'<span>Albatros: '+esc(d.num_albatros||'—')+'</span>'
+      +'</div></div>';
+  }).join('');
 }
 
 function selezionaCDP(id) {
@@ -876,10 +875,22 @@ function selezionaCDP(id) {
 
 // ── SOTTRAI RICAMBI ───────────────────────────────────────────────────
 async function openSottrai() {
-  if(!_selId){ fb('Salva prima la demolizione',false); return; }
-  // Carica ricambi esistenti
-  _ricambi = await apiFetch(`/api/demolizioni/${_selId}/ricambi`);
-  const pesoEff = parseFloat(document.getElementById('f-peso-eff').value)||0;
+  // Se non ancora salvato, salva automaticamente
+  if(!_selId) {
+    const res = await apiFetch('/api/demolizioni',{method:'POST',body:JSON.stringify(getFormData())});
+    if(!res.ok){ fb(res.msg,false); return; }
+    _selId = res.id;
+    document.getElementById('f-id').value = res.id;
+    _demolizioni = await apiFetch('/api/demolizioni');
+    renderTabella();
+    toast('Demolizione salvata automaticamente');
+  } else {
+    // Aggiorna peso effettivo sul server prima di aprire
+    await apiFetch('/api/demolizioni/'+_selId,{method:'PUT',
+      body:JSON.stringify({peso_effettivo_kg:parseFloat(document.getElementById('f-peso-eff').value)||null})});
+  }
+  _ricambi = await apiFetch('/api/demolizioni/'+_selId+'/ricambi');
+  var pesoEff = parseFloat(document.getElementById('f-peso-eff').value)||0;
   document.getElementById('sr-peso-eff-show').textContent = pesoEff.toFixed(2)+' Kg';
   renderRicambi();
   openModal('modal-sottrai');
@@ -899,15 +910,14 @@ function renderRicambi() {
     tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:24px;color:var(--text3)">Nessun ricambio aggiunto</td></tr>';
     return;
   }
-  tbody.innerHTML = _ricambi.map(r => `
-    <tr>
-      <td>${esc(r.pezzo_nome||r.componente_id||'—')}</td>
-      <td class="num">${(r.peso_kg||0).toFixed(2)} Kg</td>
-      <td>${esc(r.note||'')}</td>
-      <td>
-        <button class="btn-del-r" onclick="rimuoviRicambio(${r.id})">−</button>
-      </td>
-    </tr>`).join('');
+  tbody.innerHTML = _ricambi.map(function(r) {
+    return '<tr>'
+      +'<td>'+esc(r.pezzo_nome||String(r.componente_id||'—'))+'</td>'
+      +'<td class="num">'+((r.peso_kg||0).toFixed(2))+' Kg</td>'
+      +'<td>'+esc(r.note||'')+'</td>'
+      +'<td><button class="btn-del-r" onclick="rimuoviRicambio('+r.id+')">−</button></td>'
+      +'</tr>';
+  }).join('');
 }
 
 async function aggiungiRicambio() {
@@ -916,11 +926,11 @@ async function aggiungiRicambio() {
   const peso = parseFloat(document.getElementById('sr-peso').value);
   const note = document.getElementById('sr-note').value;
   if(!peso||peso<=0){ toast('Inserisci un peso valido',false); return; }
-  const res = await apiFetch(`/api/demolizioni/${_selId}/ricambi`,{
+  const res = await apiFetch('/api/demolizioni/'+_selId+'/ricambi',{
     method:'POST', body:JSON.stringify({componente_id:cid||null, peso_kg:peso, note})
   });
   if(res.ok){
-    _ricambi = await apiFetch(`/api/demolizioni/${_selId}/ricambi`);
+    _ricambi = await apiFetch('/api/demolizioni/'+_selId+'/ricambi');
     document.getElementById('sr-peso').value='';
     document.getElementById('sr-note').value='';
     document.getElementById('sr-pezzo').value='';
@@ -933,9 +943,9 @@ async function aggiungiRicambio() {
 }
 
 async function rimuoviRicambio(rid) {
-  const res = await apiFetch(`/api/demolizioni/ricambi/${rid}`,{method:'DELETE'});
+  const res = await apiFetch('/api/demolizioni/ricambi/'+rid+',{method:"DELETE"}');
   if(res.ok){
-    _ricambi = await apiFetch(`/api/demolizioni/${_selId}/ricambi`);
+    _ricambi = await apiFetch('/api/demolizioni/'+_selId+'/ricambi');
     renderRicambi();
     const netto = Math.max(0,(parseFloat(document.getElementById('f-peso-eff').value)||0)
       - _ricambi.reduce((s,r)=>s+(parseFloat(r.peso_kg)||0),0));
