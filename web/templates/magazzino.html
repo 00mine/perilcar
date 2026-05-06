@@ -1642,7 +1642,7 @@ function renderAnteprimaStampa() {
       if(k === 'esistenza') style += 'text-align:center;font-weight:700;color:'+esc0Color+';';
       else if(k === 'scorta') style += 'text-align:center;';
       html += '<td contenteditable="true" ' +
-        'onblur="modificaRiga('+i+',''+k+'',this.textContent.trim())" ' +
+        'onblur="modificaRiga('+i+',\"'+k+'\",this.textContent.trim())" ' +
         'style="'+style+'">' + String(v) + '</td>';
     });
     html += '</tr>';
