@@ -208,11 +208,14 @@
     <div class="card">
       <div class="card-title">Generale</div>
 
-      <!-- ID + Data + Reg + Pag -->
-      <div style="display:grid;grid-template-columns:70px 160px 1fr 90px;gap:6px;margin-bottom:6px">
+      <!-- Riga 1: ID(v) | Data + icona | Reg.demolitori(v)(+) | Pag.Reg + icona -->
+      <div style="display:grid;grid-template-columns:140px 180px 1fr 160px;gap:8px;margin-bottom:10px;align-items:end">
         <div class="field">
           <label>ID</label>
-          <input type="text" id="f-id" readonly style="background:var(--surface2);color:var(--text3);font-family:var(--mono)">
+          <div class="input-group">
+            <input type="text" id="f-id" readonly style="background:var(--surface2);color:var(--text3);font-family:var(--mono)">
+            <button class="btn-v">▾</button>
+          </div>
         </div>
         <div class="field">
           <label>Data presa in carico</label>
@@ -220,16 +223,20 @@
         </div>
         <div class="field">
           <label>Reg. demolitori</label>
-          <input type="text" id="f-reg" placeholder="Numero">
+          <div class="input-group">
+            <input type="text" id="f-reg" placeholder="">
+            <button class="btn-v">▾</button>
+            <button class="btn-plus" onclick="">+</button>
+          </div>
         </div>
         <div class="field">
           <label>Pag. Reg.</label>
-          <input type="text" id="f-pag" placeholder="Pag.">
+          <input type="text" id="f-pag" placeholder="">
         </div>
       </div>
 
-      <!-- Veicolo -->
-      <div style="margin-bottom:6px">
+      <!-- Riga 2: Veicolo(v)(+) | Proprietario(v)(+) | Detentore(v)(+)(icona) -->
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px;align-items:end">
         <div class="field">
           <label>Veicolo</label>
           <div class="input-group">
@@ -238,14 +245,11 @@
             <button class="btn-plus" onclick="openModalNuovoVeicolo()">+</button>
           </div>
         </div>
-      </div>
-
-      <!-- Proprietario + Detentore -->
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
         <div class="field">
           <label>Proprietario</label>
           <div class="input-group">
             <select id="f-proprietario"><option value="">— seleziona —</option></select>
+            <button class="btn-v">▾</button>
             <button class="btn-plus" onclick="openModalNuovaAnagrafica('proprietario')">+</button>
           </div>
         </div>
@@ -253,32 +257,39 @@
           <label>Detentore</label>
           <div class="input-group">
             <select id="f-detentore"><option value="">— seleziona —</option></select>
+            <button class="btn-v">▾</button>
             <button class="btn-plus" onclick="openModalNuovaAnagrafica('detentore')">+</button>
           </div>
         </div>
       </div>
 
-      <!-- Ufficio + Concessionaria + Checkbox -->
-      <div style="display:grid;grid-template-columns:100px 1fr auto;gap:6px;align-items:end">
+      <!-- Riga 3: Ufficio Provinciale(v) | Concessionaria -->
+      <div style="display:grid;grid-template-columns:200px 260px;gap:8px;margin-bottom:10px;align-items:end">
         <div class="field">
-          <label>Ufficio Prov.</label>
-          <input type="text" id="f-ufficio" placeholder="es. VI">
+          <label>Ufficio Provinciale</label>
+          <div class="input-group">
+            <input type="text" id="f-ufficio" placeholder="">
+            <button class="btn-v">▾</button>
+          </div>
         </div>
         <div class="field">
           <label>Concessionaria</label>
           <input type="text" id="f-concessionaria">
         </div>
-        <div style="display:flex;gap:16px;padding-bottom:5px;flex-shrink:0">
-          <div class="check-row">
-            <input type="checkbox" id="f-targhe">
-            <label for="f-targhe">Targhe consegnate</label>
-          </div>
-          <div class="check-row">
-            <input type="checkbox" id="f-carta">
-            <label for="f-carta">Carta circ.</label>
-          </div>
+      </div>
+
+      <!-- Riga 4: Checkbox targhe + carta di circolazione -->
+      <div style="display:flex;gap:20px;align-items:center">
+        <div class="check-row" style="border:2px solid var(--text);border-radius:20px;padding:5px 14px;gap:10px">
+          <label for="f-targhe" style="font-weight:600;font-size:13px;cursor:pointer">targhe</label>
+          <input type="checkbox" id="f-targhe" style="width:18px;height:18px;accent-color:var(--orange)">
+        </div>
+        <div class="check-row" style="border:2px solid var(--text);border-radius:20px;padding:5px 14px;gap:10px">
+          <label for="f-carta" style="font-weight:600;font-size:13px;cursor:pointer">Carta di circolazione</label>
+          <input type="checkbox" id="f-carta" style="width:18px;height:18px;accent-color:var(--orange)">
         </div>
       </div>
+
     </div>
 
         <!-- Colonna destra: dati rottamazione + pulsanti -->
