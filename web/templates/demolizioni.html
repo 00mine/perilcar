@@ -505,56 +505,155 @@
 
 <!-- ══ MODAL NUOVO VEICOLO ══════════════════════════════════════════ -->
 <div class="overlay hidden" id="modal-veicolo">
-  <div class="modal" style="max-width:500px">
+  <div class="modal" style="max-width:720px">
     <div class="modal-hdr">
-      <h3>🚗 Nuovo Veicolo</h3>
+      <h3>🚗 Veicolo</h3>
       <button class="modal-close" onclick="closeModal('modal-veicolo')">×</button>
     </div>
     <div class="modal-body">
-      <div class="form-grid" style="gap:10px">
-        <div class="field"><label>Marca *</label><input type="text" id="v-marca" placeholder="es. Fiat"></div>
-        <div class="field"><label>Modello *</label><input type="text" id="v-modello" placeholder="es. Punto"></div>
-        <div class="field"><label>Targa</label><input type="text" id="v-targa" placeholder="es. AB123CD"></div>
+      <!-- Riga 1: ID Targa Telaio Classe -->
+      <div style="display:grid;grid-template-columns:80px 1fr 1fr 1fr;gap:8px;margin-bottom:10px">
+        <div class="field"><label>ID</label>
+          <input type="text" id="v-id" readonly style="background:var(--surface2);color:var(--text3);font-family:var(--mono)"></div>
+        <div class="field"><label>Targa</label><input type="text" id="v-targa"></div>
         <div class="field"><label>Telaio</label><input type="text" id="v-telaio"></div>
-        <div class="field"><label>Num. Motore</label><input type="text" id="v-motore"></div>
-        <div class="field"><label>Anno immatricolazione</label><input type="text" id="v-anno"></div>
         <div class="field"><label>Classe</label><input type="text" id="v-classe" placeholder="es. M1"></div>
-        <div class="field"><label>Colore</label><input type="text" id="v-colore"></div>
+      </div>
+      <!-- Riga 2: Marca Modello Anno Num.Motore -->
+      <div style="display:grid;grid-template-columns:1fr 1fr 100px 1fr;gap:8px;margin-bottom:10px">
+        <div class="field"><label>Marca</label><input type="text" id="v-marca"></div>
+        <div class="field"><label>Modello</label><input type="text" id="v-modello"></div>
+        <div class="field"><label>Anno</label><input type="text" id="v-anno"></div>
+        <div class="field"><label>Num. Motore</label><input type="text" id="v-motore"></div>
+      </div>
+      <!-- Riga 3: Note + Allegati -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div class="field"><label>Note</label><textarea id="v-note" rows="5"></textarea></div>
+        <div class="field"><label>Allegati</label>
+          <div style="border:1px solid var(--border);border-radius:var(--radius);height:108px;
+                      padding:8px;font-size:11px;color:var(--text3);cursor:pointer;background:#fff"
+               onclick="document.getElementById('v-allegati').click()">
+            📎 Clicca per allegare file
+            <input type="file" id="v-allegati" multiple style="display:none">
+          </div>
+        </div>
       </div>
     </div>
     <div class="modal-ftr">
-      <button class="btn btn-ghost" onclick="closeModal('modal-veicolo')">Annulla</button>
-      <button class="btn btn-primary" onclick="salvaVeicolo()">Salva</button>
+      <button class="btn btn-danger" onclick="closeModal('modal-veicolo')" style="margin-right:auto">Annulla</button>
+      <button class="btn btn-green" onclick="salvaVeicolo()">Conferma</button>
     </div>
   </div>
 </div>
 
-<!-- ══ MODAL NUOVA ANAGRAFICA ════════════════════════════════════════ -->
+<!-- ══ MODAL NUOVA ANAGRAFICA (Proprietario / Detentore) ════════════ -->
 <div class="overlay hidden" id="modal-anagrafica">
-  <div class="modal" style="max-width:480px">
+  <div class="modal" style="max-width:820px">
     <div class="modal-hdr">
-      <h3 id="ana-title">👤 Nuova Anagrafica</h3>
+      <h3 id="ana-title">👤 Proprietario</h3>
       <button class="modal-close" onclick="closeModal('modal-anagrafica')">×</button>
     </div>
-    <div class="modal-body">
-      <div class="form-grid" style="gap:10px">
-        <div class="field full"><label>Nominativo *</label><input type="text" id="a-nominativo"></div>
-        <div class="field"><label>CF / P.IVA</label><input type="text" id="a-cfpiva"></div>
-        <div class="field"><label>Tipo</label>
-          <select id="a-tipo">
-            <option value="privato">Privato</option>
-            <option value="azienda">Azienda</option>
-            <option value="ente">Ente pubblico</option>
-          </select>
+    <div class="modal-body" style="display:flex;flex-direction:column;gap:10px">
+
+      <!-- Riga 1: ID | Cognome/Denom. | Nome | Sesso(v) | Tipo Società(v) -->
+      <div style="display:grid;grid-template-columns:80px 1fr 1fr 120px 140px;gap:8px">
+        <div class="field"><label>ID</label>
+          <input type="text" id="a-id" readonly style="background:var(--surface2);color:var(--text3);font-family:var(--mono)"></div>
+        <div class="field"><label>Cognome/Denominazione</label><input type="text" id="a-cognome"></div>
+        <div class="field"><label>Nome</label><input type="text" id="a-nome"></div>
+        <div class="field"><label>Sesso</label>
+          <div class="input-group">
+            <select id="a-sesso">
+              <option value="">—</option>
+              <option value="M">M</option>
+              <option value="F">F</option>
+            </select>
+          </div>
         </div>
-        <div class="field"><label>Telefono</label><input type="text" id="a-telefono"></div>
-        <div class="field"><label>Email</label><input type="text" id="a-email"></div>
-        <div class="field full"><label>Indirizzo</label><input type="text" id="a-indirizzo"></div>
+        <div class="field"><label>Tipo di Società</label>
+          <div class="input-group">
+            <select id="a-tipo-societa">
+              <option value="">—</option>
+              <option value="SRL">SRL</option>
+              <option value="SPA">SPA</option>
+              <option value="SNC">SNC</option>
+              <option value="SAS">SAS</option>
+              <option value="Ditt.Ind.">Ditt. Ind.</option>
+            </select>
+          </div>
+        </div>
       </div>
+
+      <!-- Riga 2: Data nascita | Luogo nascita | Provincia | CF/PIVA -->
+      <div style="display:grid;grid-template-columns:150px 1fr 120px 1fr;gap:8px">
+        <div class="field"><label>Data di nascita</label><input type="date" id="a-data-nascita"></div>
+        <div class="field"><label>Luogo di Nascita</label><input type="text" id="a-luogo-nascita"></div>
+        <div class="field"><label>Provincia</label><input type="text" id="a-prov-nascita" placeholder="es. VI"></div>
+        <div class="field"><label>CF/PIVA</label><input type="text" id="a-cfpiva"></div>
+      </div>
+
+      <!-- Riga 3: Comune residenza(v) | Provincia | Via | Num.Civico | CAP -->
+      <div style="display:grid;grid-template-columns:1fr 100px 1fr 90px 80px;gap:8px">
+        <div class="field"><label>Comune di residenza</label>
+          <div class="input-group">
+            <input type="text" id="a-comune">
+            <button class="btn-v">▾</button>
+          </div>
+        </div>
+        <div class="field"><label>Provincia</label><input type="text" id="a-provincia" placeholder="es. VI"></div>
+        <div class="field"><label>Via</label><input type="text" id="a-via"></div>
+        <div class="field"><label>Num. Civico</label><input type="text" id="a-civico"></div>
+        <div class="field"><label>CAP</label><input type="text" id="a-cap"></div>
+      </div>
+
+      <!-- Riga 4: Tipo documento(v) | Num.documento | Rilasciato il | Rilasciato da(v) -->
+      <div style="display:grid;grid-template-columns:1fr 1fr 130px 1fr;gap:8px">
+        <div class="field"><label>Tipo di documento</label>
+          <div class="input-group">
+            <select id="a-tipo-doc">
+              <option value="">— seleziona —</option>
+              <option value="Carta d'identità">Carta d'identità</option>
+              <option value="Passaporto">Passaporto</option>
+              <option value="Patente">Patente</option>
+              <option value="Altro">Altro</option>
+            </select>
+          </div>
+        </div>
+        <div class="field"><label>Num. documento</label><input type="text" id="a-num-doc"></div>
+        <div class="field"><label>Rilasciato il</label><input type="date" id="a-data-doc"></div>
+        <div class="field"><label>Rilasciato da</label>
+          <div class="input-group">
+            <input type="text" id="a-rilasciato-da">
+            <button class="btn-v">▾</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Riga 5: Telefono | Cellulare | Fax | Email -->
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px">
+        <div class="field"><label>Telefono</label><input type="text" id="a-telefono"></div>
+        <div class="field"><label>Cellulare</label><input type="text" id="a-cellulare"></div>
+        <div class="field"><label>Fax</label><input type="text" id="a-fax"></div>
+        <div class="field"><label>E-mail</label><input type="text" id="a-email"></div>
+      </div>
+
+      <!-- Riga 6: Note | Allegati -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div class="field"><label>Note</label><input type="text" id="a-note"></div>
+        <div class="field"><label>Allegati</label>
+          <div style="border:1px solid var(--border);border-radius:var(--radius);
+                      padding:6px 10px;font-size:11px;color:var(--text3);cursor:pointer;background:#fff"
+               onclick="document.getElementById('a-allegati').click()">
+            📎 Clicca per allegare
+            <input type="file" id="a-allegati" multiple style="display:none">
+          </div>
+        </div>
+      </div>
+
     </div>
     <div class="modal-ftr">
-      <button class="btn btn-ghost" onclick="closeModal('modal-anagrafica')">Annulla</button>
-      <button class="btn btn-primary" onclick="salvaAnagrafica()">Salva</button>
+      <button class="btn btn-danger" onclick="closeModal('modal-anagrafica')" style="margin-right:auto">Annulla</button>
+      <button class="btn btn-green" onclick="salvaAnagrafica()">Conferma</button>
     </div>
   </div>
 </div>
@@ -743,8 +842,8 @@ function aggiornaPesoNetto() {
 
 // ── NUOVO VEICOLO ─────────────────────────────────────────────────────
 function openModalNuovoVeicolo() {
-  ['v-marca','v-modello','v-targa','v-telaio','v-motore','v-anno','v-classe','v-colore']
-    .forEach(id=>{ document.getElementById(id).value=''; });
+  ['v-id','v-marca','v-modello','v-targa','v-telaio','v-motore','v-anno','v-classe','v-note']
+    .forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
   openModal('modal-veicolo');
 }
 function openModalVeicolo() { openModal('modal-veicolo'); }
@@ -758,9 +857,9 @@ async function salvaVeicolo() {
     num_motore:document.getElementById('v-motore').value,
     anno_immatricolazione:document.getElementById('v-anno').value,
     classe:document.getElementById('v-classe').value,
-    colore:document.getElementById('v-colore').value,
+    note:document.getElementById('v-note').value,
   };
-  if(!dati.marca||!dati.modello){ toast('Inserisci almeno Marca e Modello',false); return; }
+  if(!dati.targa && !dati.telaio){ toast('Inserisci almeno Targa o Telaio',false); return; }
   const res = await apiFetch('/api/veicoli',{method:'POST',body:JSON.stringify(dati)});
   if(res.ok){
     _veicoli = await apiFetch('/api/veicoli');
@@ -774,25 +873,38 @@ async function salvaVeicolo() {
 // ── NUOVA ANAGRAFICA ──────────────────────────────────────────────────
 function openModalNuovaAnagrafica(target) {
   _anaTarget = target;
-  document.getElementById('ana-title').textContent =
-    '👤 Nuova Anagrafica — '+(target==='proprietario'?'Proprietario':'Detentore');
-  ['a-nominativo','a-cfpiva','a-telefono','a-email','a-indirizzo'].forEach(id=>{
-    document.getElementById(id).value='';
+  const titolo = target==='proprietario' ? '👤 Proprietario' : '👤 Detentore';
+  document.getElementById('ana-title').textContent = titolo;
+  ['a-id','a-cognome','a-nome','a-cfpiva','a-luogo-nascita','a-prov-nascita',
+   'a-comune','a-provincia','a-via','a-civico','a-cap','a-num-doc',
+   'a-rilasciato-da','a-telefono','a-cellulare','a-fax','a-email','a-note']
+    .forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+  ['a-sesso','a-tipo-societa','a-tipo-doc'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.value='';
   });
-  document.getElementById('a-tipo').value='privato';
+  ['a-data-nascita','a-data-doc'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.value='';
+  });
   openModal('modal-anagrafica');
 }
 
 async function salvaAnagrafica() {
+  const cognome = document.getElementById('a-cognome').value.trim();
+  const nome    = document.getElementById('a-nome').value.trim();
+  const nominativo = cognome + (nome ? ' '+nome : '');
   const dati = {
-    nominativo:document.getElementById('a-nominativo').value,
-    cf_piva:document.getElementById('a-cfpiva').value,
-    tipo:document.getElementById('a-tipo').value,
-    telefono:document.getElementById('a-telefono').value,
-    email:document.getElementById('a-email').value,
-    indirizzo:document.getElementById('a-indirizzo').value,
+    nominativo: nominativo,
+    cf_piva:    document.getElementById('a-cfpiva').value,
+    tipo:       document.getElementById('a-sesso').value || 'privato',
+    telefono:   document.getElementById('a-telefono').value,
+    email:      document.getElementById('a-email').value,
+    indirizzo:  (document.getElementById('a-via').value||'') + ' ' +
+                (document.getElementById('a-civico').value||'') + ', ' +
+                (document.getElementById('a-comune').value||'') + ' ' +
+                (document.getElementById('a-cap').value||'') + ' ' +
+                (document.getElementById('a-provincia').value||''),
   };
-  if(!dati.nominativo){ toast('Inserisci il nominativo',false); return; }
+  if(!cognome){ toast('Inserisci almeno il Cognome/Denominazione',false); return; }
   const res = await apiFetch('/api/anagrafiche',{method:'POST',body:JSON.stringify(dati)});
   if(res.ok){
     _anagrafiche = await apiFetch('/api/anagrafiche');
