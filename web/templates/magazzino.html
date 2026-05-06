@@ -1701,9 +1701,21 @@ function eseguiStampa() {
     : '';
 
   var rows = righe.map(function(r, i) {
-    var bg    = r.evidenziato ? '#fff3cd' : (r.esistenza===0 ? '#ffe0e0' : (i%2===0?'#fff':'#f9f9f9'));
-    var eCol  = r.esistenza === 0 ? '#dc2626' : '#16a34a';
-    return '<tr style="background:'+bg+'">'
+    // Righe alternate bianco/grigio chiaro
+    // Giacenza 0 → grigio scuro evidenziato
+    // Evidenziato manualmente → giallo
+    var bg, fontColor = '#111', fontWeight = 'normal';
+    if(r.esistenza === 0) {
+      bg = '#b0b0b0';          // grigio scuro per giacenza 0
+      fontWeight = 'bold';
+    } else if(r.evidenziato) {
+      bg = '#fff3cd';          // giallo per evidenziato manuale
+    } else {
+      bg = i%2===0 ? '#ffffff' : '#e8e8e8';  // bianco/grigio chiaro alternati
+    }
+    var eCol = r.esistenza === 0 ? '#fff' : '#16a34a';
+    var eFW  = r.esistenza === 0 ? 'bold' : 'bold';
+    return '<tr style="background:'+bg+';color:'+fontColor+';font-weight:'+fontWeight+'">'
       +'<td>'+String(r.cmp||'')+'</td>'
       +'<td>'+String(r.articolo||'')+'</td>'
       +'<td>'+String(r.marca||'')+'</td>'
@@ -1712,7 +1724,7 @@ function eseguiStampa() {
       +'<td>'+String(r.extra3||'')+'</td>'
       +'<td>'+String(r.extra4||'')+'</td>'
       +'<td style="text-align:center">'+String(r.scorta||0)+'</td>'
-      +'<td style="text-align:center;font-weight:700;color:'+eCol+'">'+String(r.esistenza||0)+'</td>'
+      +'<td style="text-align:center;font-weight:bold;color:'+eCol+'">'+String(r.esistenza||0)+'</td>'
       +'<td>'+String(r.ubicazione||'')+'</td>'
       +'<td>'+String(r.stato_magazzino||'')+'</td>'
       +'</tr>';
@@ -1742,8 +1754,10 @@ function eseguiStampa() {
     +'<div class="meta">Generato il '+new Date().toLocaleString('it-IT')+' - Ing. Carmine Perillo'
     +(filtriInfo?' &nbsp;|&nbsp; Filtri: '+filtriInfo:'')+'</div>'
     +'<div class="legenda">'
-    +'<div class="leg-item"><div class="leg-box" style="background:#ffe0e0"></div> Giacenza 0</div>'
+    +'<div class="leg-item"><div class="leg-box" style="background:#b0b0b0"></div> Giacenza = 0</div>'
     +'<div class="leg-item"><div class="leg-box" style="background:#fff3cd"></div> Evidenziato</div>'
+    +'<div class="leg-item"><div class="leg-box" style="background:#e8e8e8"></div> Riga pari</div>'
+    +'<div class="leg-item"><div class="leg-box" style="background:#fff;border:1px solid #ccc"></div> Riga dispari</div>'
     +'</div>'
     +'<table><thead><tr>'
     +'<th>Cod.</th><th>Descrizione</th><th>Produttore</th><th>Categoria</th>'
