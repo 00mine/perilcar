@@ -1586,52 +1586,68 @@ function avviaRiconoscimento() {
   var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if(!SR) {
     document.getElementById('stato-voce').textContent =
-      '⚠️ Riconoscimento vocale non supportato da questo browser. Usa Chrome.';
+      '⚠️ Usa Chrome o Edge per il microfono.';
     return;
   }
 
-  _riconoscimento = new SR();
-  _riconoscimento.lang = 'it-IT';
-  _riconoscimento.continuous = false;
-  _riconoscimento.interimResults = true;
+  // Richiedi permesso microfono esplicitamente
+  navigator.mediaDevices.getUserMedia({audio: true})
+  .then(function(stream) {
+    stream.getTracks().forEach(function(t){ t.stop(); }); // rilascia subito
 
-  _riconoscimento.onstart = function() {
-    _staRecordando = true;
-    document.getElementById('btn-mic').classList.add('recording');
-    document.getElementById('stato-voce').textContent = '🔴 Sto ascoltando...';
-    fermaVoce();
-  };
+    _riconoscimento = new SR();
+    _riconoscimento.lang = 'it-IT';
+    _riconoscimento.continuous = false;
+    _riconoscimento.interimResults = true;
+    _riconoscimento.maxAlternatives = 1;
 
-  _riconoscimento.onresult = function(event) {
-    var testo = '';
-    for(var i = event.resultIndex; i < event.results.length; i++) {
-      testo += event.results[i][0].transcript;
-    }
-    document.getElementById('chat-input').value = testo;
-    if(event.results[event.results.length-1].isFinal) {
-      document.getElementById('stato-voce').textContent = '✅ Riconosciuto: "' + testo + '"';
-    }
-  };
+    _riconoscimento.onstart = function() {
+      _staRecordando = true;
+      document.getElementById('btn-mic').classList.add('recording');
+      document.getElementById('stato-voce').textContent = '🔴 Parla ora...';
+      fermaVoce();
+    };
 
-  _riconoscimento.onend = function() {
-    _staRecordando = false;
-    document.getElementById('btn-mic').classList.remove('recording');
-    var testo = document.getElementById('chat-input').value.trim();
-    if(testo) {
-      document.getElementById('stato-voce').textContent = '';
-      inviaDomanda(testo);
-    } else {
-      document.getElementById('stato-voce').textContent = 'Nessun testo riconosciuto.';
-    }
-  };
+    _riconoscimento.onresult = function(event) {
+      var testo = '';
+      for(var i = event.resultIndex; i < event.results.length; i++) {
+        testo += event.results[i][0].transcript;
+      }
+      document.getElementById('chat-input').value = testo;
+      document.getElementById('stato-voce').textContent = '🎤 ' + testo;
+    };
 
-  _riconoscimento.onerror = function(e) {
-    _staRecordando = false;
-    document.getElementById('btn-mic').classList.remove('recording');
-    document.getElementById('stato-voce').textContent = '⚠️ Errore microfono: ' + e.error;
-  };
+    _riconoscimento.onend = function() {
+      _staRecordando = false;
+      document.getElementById('btn-mic').classList.remove('recording');
+      var testo = document.getElementById('chat-input').value.trim();
+      if(testo) {
+        document.getElementById('stato-voce').textContent = '';
+        inviaDomanda(testo);
+      } else {
+        document.getElementById('stato-voce').textContent = '⚠️ Non ho sentito nulla. Riprova.';
+      }
+    };
 
-  _riconoscimento.start();
+    _riconoscimento.onerror = function(e) {
+      _staRecordando = false;
+      document.getElementById('btn-mic').classList.remove('recording');
+      var msgs = {
+        'not-allowed': 'Permesso microfono negato. Clicca il lucchetto in alto e abilita il microfono.',
+        'no-speech':   'Nessun suono rilevato. Parla più vicino al microfono.',
+        'network':     'Errore di rete nel riconoscimento vocale.',
+        'aborted':     'Riconoscimento annullato.'
+      };
+      document.getElementById('stato-voce').textContent = '⚠️ ' + (msgs[e.error] || 'Errore: ' + e.error);
+    };
+
+    _riconoscimento.start();
+  })
+  .catch(function(err) {
+    document.getElementById('stato-voce').textContent =
+      '⚠️ Microfono non accessibile: ' + err.message +
+      '. Clicca il lucchetto 🔒 nel browser e abilita il microfono.';
+  });
 }
 
 function fermaRiconoscimento() {

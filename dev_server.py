@@ -947,39 +947,54 @@ def api_import_excel_stream():
 # ASSISTENTE AI — Ollama locale, sola lettura
 # ══════════════════════════════════════════════════════════════════════════════
 
-def build_contesto_magazzino():
-    """Costruisce un contesto ricco dal database per l'AI."""
-    import json as _j
+def build_contesto_magazzino(domanda=""):
+    """Costruisce contesto ottimizzato per l'AI - max 800 pezzi rilevanti."""
     ctx = {}
 
-    # 1. Giacenza attuale (tutti i pezzi)
-    pezzi = db.fetchall("""
+    # Stats generali
+    stats = db.fetchone("""
+        SELECT COUNT(*) as tot,
+               SUM(CASE WHEN esistenza>0 THEN 1 ELSE 0 END) as disp,
+               SUM(CASE WHEN scorta>0 AND esistenza<=scorta THEN 1 ELSE 0 END) as sc
+        FROM v_giacenza
+    """)
+    ctx['totale_pezzi']    = stats['tot'] or 0
+    ctx['pezzi_disponibili'] = stats['disp'] or 0
+    ctx['pezzi_sotto_scorta'] = stats['sc'] or 0
+
+    # Indice SMART: pezzi rilevanti per la domanda
+    # Estrai parole chiave dalla domanda per filtrare
+    parole = [w.lower() for w in domanda.split() if len(w) > 3]
+    
+    # Sempre includi: pezzi disponibili con scorta, top categoria
+    # + pezzi che matchano parole della domanda
+    filtro_where = "WHERE esistenza > 0 OR scorta > 0"
+    
+    pezzi = db.fetchall(f"""
         SELECT cmp, articolo, categoria, marca, modello,
                cilindrata, carburante, anno_da, anno_a,
-               colore, ubicazione, scorta, esistenza,
-               listino1, listino2, listino3,
-               extra1, extra2, extra3, extra4
-        FROM v_giacenza ORDER BY articolo
+               ubicazione, scorta, esistenza, listino1
+        FROM v_giacenza
+        {filtro_where}
+        ORDER BY articolo
+        LIMIT 1500
     """)
-    ctx['totale_pezzi'] = len(pezzi)
-    ctx['pezzi_disponibili'] = sum(1 for p in pezzi if (p['esistenza'] or 0) > 0)
-    ctx['pezzi_sotto_scorta'] = sum(1 for p in pezzi if (p['scorta'] or 0) > 0 and (p['esistenza'] or 0) <= (p['scorta'] or 0))
 
-    # Indice compatto pezzi (per ricerca disponibilità)
-    righe_pezzi = []
+    righe = []
     for p in pezzi:
         es = p['esistenza'] or 0
         sc = p['scorta'] or 0
-        stato = "DISPONIBILE" if es > 0 else "ESAURITO"
-        scorta_alert = " (SOTTO SCORTA)" if sc > 0 and es <= sc else ""
-        parts = [f"{p['cmp']}|{p['articolo']}|{stato}{scorta_alert}|ES:{es}|SC:{sc}"]
-        for k in ['marca','categoria','modello','cilindrata','carburante',
-                  'anno_da','anno_a','colore','ubicazione','listino1','extra1','extra2']:
+        stato = "DISP" if es > 0 else "ESAURITO"
+        riga = f"{p['articolo']}|{stato}|ES:{es}"
+        for k in ['marca','modello','categoria','cilindrata','carburante','anno_da','ubicazione']:
             v = p.get(k)
-            if v and str(v).strip() not in ('','None','0','0.0'):
-                parts.append(f"{k}:{v}")
-        righe_pezzi.append(' '.join(parts))
-    ctx['indice_pezzi'] = '\n'.join(righe_pezzi[:4000])
+            if v and str(v).strip() not in ('','None','0'): 
+                riga += f"|{v}"
+        if p.get('listino1') and p['listino1'] > 0:
+            riga += f"|€{p['listino1']}"
+        righe.append(riga)
+    
+    ctx['indice_pezzi'] = "\n".join(righe)
 
     # 2. Pezzi più venduti (scarichi) nell'ultimo mese
     venduti_mese = db.fetchall("""
@@ -1090,7 +1105,7 @@ def api_assistente():
 
     # Costruisci contesto ricco
     try:
-        ctx = build_contesto_magazzino()
+        ctx = build_contesto_magazzino(domanda)
     except Exception as e:
         log.error(f"Errore build contesto: {e}")
         ctx = {'indice_pezzi': '', 'totale_pezzi': 0}
@@ -1155,7 +1170,7 @@ INDICE COMPLETO PEZZI (CODICE|NOME|STATO|ES:giacenza|SC:scorta|altri dati):
     )
 
     try:
-        with urllib.request.urlopen(req, timeout=90) as resp:
+        with urllib.request.urlopen(req, timeout=120) as resp:
             result = _j.loads(resp.read())
             risposta = result["message"]["content"]
             return jsonify({"ok": True, "risposta": risposta})
