@@ -890,28 +890,43 @@ function buildHeaderAndFilters() {
     const tf = document.createElement('th');
     tf.className = 'col-filter';
     tf.style.width = w+'px';
-    const inp = document.createElement('input');
-    inp.type = 'text';
-    inp.placeholder = '…';
-    inp.id = `flt-${key}`;
-    inp.dataset.key = key;
-    // Ripristina valore filtro esistente
-    if(_colFilters[key]) inp.value = _colFilters[key];
-    // Placeholder speciale per colonne numeriche
-    if(NUM_FILTER_COLS && NUM_FILTER_COLS.has(key)) {
-      inp.placeholder = '>0 <5…';
-      inp.title = 'Esempi: >5  <3  >=2  <=10  =0';
-      inp.style.fontFamily = 'var(--mono)';
+
+    // Colonne con dropdown multi-selezione
+    const DROPDOWN_COLS = new Set(['extra4','anno_da','anno_a']);
+    if(DROPDOWN_COLS.has(key)) {
+      const wrap = document.createElement('div');
+      wrap.className = 'anno-filter-wrap';
+      const btn = document.createElement('button');
+      btn.className = 'anno-filter-btn';
+      btn.id = 'anno-btn-' + key;
+      const selCount = (_annoSelezioni[key] || []).length;
+      btn.innerHTML = selCount > 0
+        ? '<span>'+selCount+' sel.</span><span class="badge">'+selCount+'</span>'
+        : '<span style="color:var(--text3);font-size:10px">filtra</span><span style="font-size:10px">▾</span>';
+      btn.onclick = (e) => { e.stopPropagation(); annoDdApri(key, btn); };
+      wrap.appendChild(btn);
+      tf.appendChild(wrap);
+    } else {
+      // Input testo normale
+      const inp = document.createElement('input');
+      inp.type = 'text';
+      inp.placeholder = NUM_FILTER_COLS.has(key) ? '>0 <5…' : '…';
+      inp.id = 'flt-' + key;
+      inp.dataset.key = key;
+      if(_colFilters[key]) inp.value = _colFilters[key];
+      if(NUM_FILTER_COLS.has(key)) {
+        inp.title = 'Esempi: >5  <3  >=2  <=10  =0';
+        inp.style.fontFamily = 'var(--mono)';
+      }
+      inp.addEventListener('input', () => {
+        const v = inp.value.trim();
+        if(v) _colFilters[key] = v;
+        else delete _colFilters[key];
+        clearTimeout(inp._debounce);
+        inp._debounce = setTimeout(() => applicaFiltri(), 350);
+      });
+      tf.appendChild(inp);
     }
-    inp.addEventListener('input', () => {
-      const v = inp.value.trim();
-      if(v) _colFilters[key] = v;
-      else delete _colFilters[key];
-      // Debounce: aspetta 350ms prima di filtrare per non bloccare il browser
-      clearTimeout(inp._debounce);
-      inp._debounce = setTimeout(() => applicaFiltri(), 350);
-    });
-    tf.appendChild(inp);
     fltRow.appendChild(tf);
   });
 
