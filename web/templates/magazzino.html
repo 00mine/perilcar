@@ -892,10 +892,20 @@ function buildHeaderAndFilters() {
 }
 
 // ── CARICA DATI ──────────────────────────────────────────────────────
+let _caricando = false;
 async function caricaDati() {
-  document.getElementById('s-tot').textContent = 'Caricamento...';
-  _tutti = await apiFetch('/api/magazzino/componenti');
-  applicaFiltri();
+  if(_caricando) return;
+  _caricando = true;
+  document.getElementById('s-tot').textContent = '⏳ Caricamento...';
+  document.getElementById('tbl-tbody').innerHTML =
+    '<tr><td colspan="99" style="text-align:center;padding:40px;color:var(--text3)">' +
+    '⏳ Caricamento dati in corso...</td></tr>';
+  try {
+    _tutti = await apiFetch('/api/magazzino/componenti');
+    applicaFiltri();
+  } finally {
+    _caricando = false;
+  }
 }
 
 // ── FILTRI COLONNA ────────────────────────────────────────────────────
@@ -1015,32 +1025,38 @@ function renderVirtual() {
   const slice = _filt.slice(startRow, endRow);
   const visCols = getVisibleCols(); // Calcolato UNA volta fuori dal loop
 
-  tbody.innerHTML = slice.map((r, i) => {
-    const ri = startRow + i;
-    const es  = r.esistenza ?? 0;
-    const sc  = r.scorta    ?? 0;
-    const bad = sc>0 && es<=sc;
-    const sel = _selId===r.componente_id ? ' selected':'';
-    const scar= bad ? ' scarso':'';
+  // Rendering ottimizzato senza template literals
+  var htmlParts = [];
+  for(var si=0; si<slice.length; si++) {
+    var r   = slice[si];
+    var ri  = startRow + si;
+    var es  = r.esistenza != null ? r.esistenza : 0;
+    var sc  = r.scorta    != null ? r.scorta    : 0;
+    var bad = sc>0 && es<=sc;
+    var cls = (_selId===r.componente_id?' selected':'') + (bad?' scarso':'');
 
-    const cells = visCols.map(col => {
-      const key  = col.key;
-      const tipo = COL_TIPO[key] || col.tipo || 'str';  // fallback triplo
-      const v = r[key] ?? '';
-      if(tipo==='cmp')   return `<td><span class="cmp-chip">${esc(v)}</span></td>`;
-      if(tipo==='files') {
-        const cnt = v ? String(v).split('|').filter(Boolean).length : 0;
-        return `<td class="num">${cnt>0?'📎'+cnt:''}</td>`;
+    var cells = '';
+    for(var ci=0; ci<visCols.length; ci++) {
+      var col  = visCols[ci];
+      var key  = col.key;
+      var tipo = COL_TIPO[key] || col.tipo || 'str';
+      var v    = r[key] != null ? r[key] : '';
+      if(tipo==='cmp') {
+        cells += '<td><span class="cmp-chip">'+esc(String(v))+'</span></td>';
+      } else if(tipo==='files') {
+        var cnt = v ? String(v).split('|').filter(Boolean).length : 0;
+        cells += '<td class="num">'+(cnt>0?'📎'+cnt:'')+'</td>';
+      } else if(tipo==='num') {
+        if(key==='esistenza') cells += '<td class="num '+(bad?'val-bad':'val-ok')+'">'+v+'</td>';
+        else cells += '<td class="num">'+(v||'')+'</td>';
+      } else {
+        var sv = esc(String(v));
+        cells += '<td title="'+sv+'">'+sv+'</td>';
       }
-      if(tipo==='num') {
-        if(key==='esistenza') {
-          const cl = bad ? 'val-bad':'val-ok';
-          return `<td class="num ${cl}">${v}</td>`;
-        }
-        return `<td class="num">${v||''}</td>`;
-      }
-      return `<td title="${esc(String(v))}">${esc(String(v))}</td>`;
-    }).join(''); // fine visCols.map
+    }
+    htmlParts.push('<tr class="'+cls+'" data-id="'+r.componente_id+'" style="height:'+ROW_H+'px">'+cells+'</tr>');
+  }
+  tbody.innerHTML = htmlParts.join(''); // fine visCols.map
 
     return `<tr class="${sel}${scar}" data-id="${r.componente_id}"
               style="height:${ROW_H}px">${cells}</tr>`;

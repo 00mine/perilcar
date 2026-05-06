@@ -20,6 +20,11 @@ from flask_socketio import SocketIO
 
 app = Flask(__name__, template_folder="web/templates", static_folder="web/static")
 app.secret_key = "perilcar-dev-secret-2024"
+
+@app.route('/favicon.ico')
+def favicon():
+    return '', 204  # No content - evita errori 404
+
 app.config["MAX_CONTENT_LENGTH"] = 200 * 1024 * 1024
 
 @app.after_request
