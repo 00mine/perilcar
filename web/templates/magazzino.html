@@ -1497,18 +1497,24 @@ function stampaAcquisti(){
 // Stato colonne: array di {key, label, w, visible} nell'ordine corrente
 let _colState = null;  // null = usa COLS default
 
+const COLS_SCHEMA_VER = '1.9.1';  // incrementa quando cambia la struttura colonne
+
 function getColState() {
   if(_colState) return _colState;
   try {
+    // Se versione schema cambiata, resetta localStorage
+    const savedVer = localStorage.getItem('perilcar_cols_ver');
+    if(savedVer !== COLS_SCHEMA_VER) {
+      localStorage.removeItem('perilcar_cols');
+      localStorage.setItem('perilcar_cols_ver', COLS_SCHEMA_VER);
+    }
     const saved = localStorage.getItem('perilcar_cols');
     if(saved) {
       const parsed = JSON.parse(saved);
-      // Rigenera tipo sempre da COLS originale (non da localStorage)
       _colState = parsed.map(col => ({
         ...col,
         tipo: COL_TIPO[col.key] || 'str'
       }));
-      // Aggiungi colonne nuove non presenti in localStorage
       COLS.forEach(([key, label, w, tipo]) => {
         if(!_colState.find(c => c.key === key)) {
           _colState.push({key, label, w, tipo: tipo||'str', visible: true});
