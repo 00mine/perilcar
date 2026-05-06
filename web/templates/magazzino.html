@@ -985,17 +985,24 @@ function parseNumericFilter(expr, val) {
   }
 }
 
-function matchFiltro(expr, val, isNum) {
-  // Supporta valori multipli separati da virgola: 2008,2009,1999
+function matchFiltro(expr, val, isNum, key) {
+  const v = String(val ?? '').toLowerCase();
+  const e = expr.toLowerCase().trim();
+
+  // Supporta valori multipli separati da virgola
   if(expr.includes(',')) {
-    const valori = expr.split(',').map(v => v.trim()).filter(Boolean);
-    return valori.some(v => {
-      if(isNum) return parseNumericFilter(v, val);
-      return String(val ?? '').toLowerCase().includes(v.toLowerCase());
+    const valori = expr.split(',').map(x => x.trim()).filter(Boolean);
+    return valori.some(x => {
+      if(isNum) return parseNumericFilter(x, val);
+      // Per descrizione usa startsWith su ogni valore
+      if(key === 'articolo') return v.startsWith(x.toLowerCase());
+      return v.includes(x.toLowerCase());
     });
   }
   if(isNum) return parseNumericFilter(expr, val);
-  return String(val ?? '').toLowerCase().includes(expr.toLowerCase());
+  // Descrizione: cerca dall'inizio
+  if(key === 'articolo') return v.startsWith(e);
+  return v.includes(e);
 }
 
 function applicaFiltri() {
@@ -1009,7 +1016,7 @@ function applicaFiltri() {
       _filt = _tutti.filter(r => {
         return keys.every(k => {
           const expr = _colFilters[k];
-          return matchFiltro(expr, r[k], NUM_FILTER_COLS.has(k));
+          return matchFiltro(expr, r[k], NUM_FILTER_COLS.has(k), k);
         });
       });
     }
