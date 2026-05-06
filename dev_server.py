@@ -966,19 +966,48 @@ def build_contesto_magazzino(domanda=""):
     # Estrai parole chiave dalla domanda per filtrare
     parole = [w.lower() for w in domanda.split() if len(w) > 3]
     
-    # Sempre includi: pezzi disponibili con scorta, top categoria
-    # + pezzi che matchano parole della domanda
-    filtro_where = "WHERE esistenza > 0 OR scorta > 0"
+    # Ricerca mirata: prima cerca pezzi che matchano la domanda
+    # poi aggiunge pezzi disponibili generici
+    import re as _re
     
-    pezzi = db.fetchall(f"""
+    # Estrai termini di ricerca dalla domanda (parole > 3 chars)
+    termini = [w for w in _re.findall(r"[a-zA-ZÀ-ž]+", domanda) if len(w) > 3]
+    
+    pezzi_rilevanti = []
+    visti = set()
+    
+    # 1. Cerca pezzi che matchano i termini della domanda
+    for termine in termini[:4]:
+        matches = db.fetchall("""
+            SELECT cmp, articolo, categoria, marca, modello,
+                   cilindrata, carburante, anno_da, anno_a,
+                   ubicazione, scorta, esistenza, listino1
+            FROM v_giacenza
+            WHERE (articolo LIKE ? OR marca LIKE ? OR modello LIKE ? 
+                   OR categoria LIKE ? OR extra1 LIKE ? OR extra2 LIKE ?)
+            LIMIT 50
+        """, [f"%{termine}%"]*6)
+        for p in matches:
+            if p["cmp"] not in visti:
+                pezzi_rilevanti.append(p)
+                visti.add(p["cmp"])
+    
+    # 2. Aggiunge top 50 disponibili come contesto generale
+    generici = db.fetchall("""
         SELECT cmp, articolo, categoria, marca, modello,
                cilindrata, carburante, anno_da, anno_a,
                ubicazione, scorta, esistenza, listino1
         FROM v_giacenza
-        {filtro_where}
+        WHERE esistenza > 0
         ORDER BY articolo
-        LIMIT 1500
+        LIMIT 50
     """)
+    for p in generici:
+        if p["cmp"] not in visti:
+            pezzi_rilevanti.append(p)
+            visti.add(p["cmp"])
+    
+    pezzi = pezzi_rilevanti[:200]
 
     righe = []
     for p in pezzi:
@@ -1153,13 +1182,13 @@ INDICE COMPLETO PEZZI (CODICE|NOME|STATO|ES:giacenza|SC:scorta|altri dati):
 8. Sei PERI, parla in prima persona, sii amichevole e professionale"""
 
     payload = _j.dumps({
-        "model": "llama3.2",
+        "model": "qwen2.5:0.5b",
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user",   "content": domanda}
         ],
         "stream": False,
-        "options": {"temperature": 0.1, "num_predict": 300, "num_ctx": 8192}
+        "options": {"temperature": 0.1, "num_predict": 200, "num_ctx": 4096}
     }).encode()
 
     req = urllib.request.Request(
@@ -1170,7 +1199,7 @@ INDICE COMPLETO PEZZI (CODICE|NOME|STATO|ES:giacenza|SC:scorta|altri dati):
     )
 
     try:
-        with urllib.request.urlopen(req, timeout=120) as resp:
+        with urllib.request.urlopen(req, timeout=180) as resp:
             result = _j.loads(resp.read())
             risposta = result["message"]["content"]
             return jsonify({"ok": True, "risposta": risposta})
