@@ -1231,6 +1231,185 @@ Rispondi basandoti ESCLUSIVAMENTE sui dati sopra."""
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════════════════════════
+# DEMOLIZIONI
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.route("/demolizioni")
+@require_login
+def page_demolizioni():
+    return render_template("demolizioni.html", user=cu())
+
+@app.route("/api/demolizioni", methods=["GET"])
+@require_login
+def api_demolizioni_list():
+    rows = db.fetchall("""
+        SELECT d.*,
+               COALESCE(v.marca||' '||v.modello||' ('||v.targa||')', '') AS veicolo_str,
+               COALESCE(p.nominativo, '') AS proprietario_str,
+               COALESCE(det.nominativo, '') AS detentore_str
+        FROM demolizioni d
+        LEFT JOIN veicoli v ON v.id = d.veicolo_id
+        LEFT JOIN anagrafiche p ON p.id = d.proprietario_id
+        LEFT JOIN anagrafiche det ON det.id = d.detentore_id
+        ORDER BY d.data_presa_in_carico DESC
+    """)
+    return jsonify([dict(r) for r in rows])
+
+@app.route("/api/demolizioni", methods=["POST"])
+@require_login
+def api_demolizioni_crea():
+    u = cu()
+    d = request.json or {}
+    campi = ["data_presa_in_carico","reg_demolitori","pag_reg","veicolo_id",
+             "proprietario_id","detentore_id","ufficio_provinciale",
+             "targhe_consegnate","carta_circolazione","concessionaria",
+             "peso_effettivo_kg","peso_netto_kg","modalita_radiazione",
+             "num_albatros","certificato_id","note"]
+    vals = [d.get(k) for k in campi] + [u.get("id")]
+    try:
+        with db._write_lock:
+            conn = db.get_connection()
+            cur = conn.execute(
+                "INSERT INTO demolizioni ("+",".join(campi)+",creato_da) VALUES ("
+                +",".join(["?"]*len(campi))+",?)", vals)
+            conn.commit(); conn.close()
+        return jsonify({"ok": True, "id": cur.lastrowid, "msg": "Demolizione salvata"})
+    except Exception as e:
+        return jsonify({"ok": False, "msg": str(e)}), 500
+
+@app.route("/api/demolizioni/<int:did>", methods=["PUT"])
+@require_login
+def api_demolizioni_update(did):
+    d = request.json or {}
+    campi = ["data_presa_in_carico","reg_demolitori","pag_reg","veicolo_id",
+             "proprietario_id","detentore_id","ufficio_provinciale",
+             "targhe_consegnate","carta_circolazione","concessionaria",
+             "peso_effettivo_kg","peso_netto_kg","modalita_radiazione",
+             "num_albatros","certificato_id","note"]
+    try:
+        with db._write_lock:
+            conn = db.get_connection()
+            sets = ", ".join(f"{k}=?" for k in campi if k in d)
+            vals = [d[k] for k in campi if k in d] + [did]
+            conn.execute(f"UPDATE demolizioni SET {sets} WHERE id=?", vals)
+            conn.commit(); conn.close()
+        return jsonify({"ok": True, "msg": "Aggiornata"})
+    except Exception as e:
+        return jsonify({"ok": False, "msg": str(e)}), 500
+
+@app.route("/api/demolizioni/<int:did>", methods=["DELETE"])
+@require_login
+def api_demolizioni_delete(did):
+    try:
+        with db._write_lock:
+            conn = db.get_connection()
+            conn.execute("DELETE FROM ricambi_sottratti WHERE demolizione_id=?", (did,))
+            conn.execute("DELETE FROM demolizioni WHERE id=?", (did,))
+            conn.commit(); conn.close()
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "msg": str(e)}), 500
+
+@app.route("/api/demolizioni/<int:did>/ricambi", methods=["GET"])
+@require_login
+def api_ricambi_get(did):
+    rows = db.fetchall("""
+        SELECT r.*, COALESCE(c.nome,'') AS pezzo_nome
+        FROM ricambi_sottratti r
+        LEFT JOIN componenti c ON c.id = r.componente_id
+        WHERE r.demolizione_id=?
+    """, (did,))
+    return jsonify([dict(r) for r in rows])
+
+@app.route("/api/demolizioni/<int:did>/ricambi", methods=["POST"])
+@require_login
+def api_ricambi_add(did):
+    d = request.json or {}
+    try:
+        with db._write_lock:
+            conn = db.get_connection()
+            conn.execute(
+                "INSERT INTO ricambi_sottratti (demolizione_id,componente_id,peso_kg,note) VALUES (?,?,?,?)",
+                (did, d.get("componente_id"), d.get("peso_kg"), d.get("note")))
+            tot = conn.execute(
+                "SELECT COALESCE(SUM(peso_kg),0) as t FROM ricambi_sottratti WHERE demolizione_id=?",
+                (did,)).fetchone()["t"]
+            conn.execute(
+                "UPDATE demolizioni SET peso_netto_kg=MAX(0, COALESCE(peso_effettivo_kg,0)-?) WHERE id=?",
+                (tot, did))
+            conn.commit(); conn.close()
+        return jsonify({"ok": True, "msg": "Ricambio aggiunto"})
+    except Exception as e:
+        return jsonify({"ok": False, "msg": str(e)}), 500
+
+@app.route("/api/demolizioni/ricambi/<int:rid>", methods=["DELETE"])
+@require_login
+def api_ricambi_del(rid):
+    try:
+        with db._write_lock:
+            conn = db.get_connection()
+            row = conn.execute("SELECT * FROM ricambi_sottratti WHERE id=?", (rid,)).fetchone()
+            conn.execute("DELETE FROM ricambi_sottratti WHERE id=?", (rid,))
+            if row:
+                tot = conn.execute(
+                    "SELECT COALESCE(SUM(peso_kg),0) as t FROM ricambi_sottratti WHERE demolizione_id=?",
+                    (row["demolizione_id"],)).fetchone()["t"]
+                conn.execute(
+                    "UPDATE demolizioni SET peso_netto_kg=MAX(0,COALESCE(peso_effettivo_kg,0)-?) WHERE id=?",
+                    (tot, row["demolizione_id"]))
+            conn.commit(); conn.close()
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "msg": str(e)}), 500
+
+@app.route("/api/anagrafiche", methods=["GET"])
+@require_login
+def api_anagrafiche():
+    rows = db.fetchall("SELECT * FROM anagrafiche ORDER BY nominativo")
+    return jsonify([dict(r) for r in rows])
+
+@app.route("/api/anagrafiche", methods=["POST"])
+@require_login
+def api_anagrafiche_crea():
+    d = request.json or {}
+    try:
+        with db._write_lock:
+            conn = db.get_connection()
+            cur = conn.execute(
+                "INSERT INTO anagrafiche (nominativo,cf_piva,tipo,telefono,email,indirizzo) VALUES (?,?,?,?,?,?)",
+                (d.get("nominativo"), d.get("cf_piva"), d.get("tipo","privato"),
+                 d.get("telefono"), d.get("email"), d.get("indirizzo")))
+            conn.commit(); conn.close()
+        return jsonify({"ok": True, "id": cur.lastrowid, "msg": "Anagrafica salvata",
+                        "nominativo": d.get("nominativo")})
+    except Exception as e:
+        return jsonify({"ok": False, "msg": str(e)}), 500
+
+@app.route("/api/veicoli", methods=["GET"])
+@require_login
+def api_veicoli():
+    rows = db.fetchall("SELECT * FROM veicoli ORDER BY marca, modello")
+    return jsonify([dict(r) for r in rows])
+
+@app.route("/api/veicoli", methods=["POST"])
+@require_login
+def api_veicoli_crea():
+    d = request.json or {}
+    try:
+        with db._write_lock:
+            conn = db.get_connection()
+            cur = conn.execute(
+                "INSERT INTO veicoli (marca,modello,targa,telaio,num_motore,anno_immatricolazione,classe,colore) VALUES (?,?,?,?,?,?,?,?)",
+                (d.get("marca"), d.get("modello"), d.get("targa"), d.get("telaio"),
+                 d.get("num_motore"), d.get("anno_immatricolazione"), d.get("classe"), d.get("colore")))
+            conn.commit(); conn.close()
+        return jsonify({"ok": True, "id": cur.lastrowid, "msg": "Veicolo salvato",
+                        "label": f"{d.get('marca','')} {d.get('modello','')} ({d.get('targa','')})"})
+    except Exception as e:
+        return jsonify({"ok": False, "msg": str(e)}), 500
+
+
 # HOT RELOAD
 # ══════════════════════════════════════════════════════════════════════════════
 

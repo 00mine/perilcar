@@ -311,6 +311,63 @@ class DatabaseManager:
         LEFT JOIN movimenti_magazzino m ON m.componente_id = c.id
         WHERE c.eliminato = 0
         GROUP BY c.id;
+
+
+        -- Tabelle Demolizioni
+        CREATE TABLE IF NOT EXISTS anagrafiche (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            nominativo  TEXT    NOT NULL,
+            cf_piva     TEXT,
+            tipo        TEXT    DEFAULT 'privato',
+            telefono    TEXT,
+            email       TEXT,
+            indirizzo   TEXT,
+            creato_il   TEXT    DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS veicoli (
+            id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+            marca                 TEXT,
+            modello               TEXT,
+            targa                 TEXT,
+            telaio                TEXT,
+            num_motore            TEXT,
+            anno_immatricolazione TEXT,
+            classe                TEXT,
+            colore                TEXT,
+            creato_il             TEXT DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS demolizioni (
+            id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+            data_presa_in_carico  TEXT,
+            reg_demolitori        TEXT,
+            pag_reg               TEXT,
+            veicolo_id            INTEGER REFERENCES veicoli(id),
+            proprietario_id       INTEGER REFERENCES anagrafiche(id),
+            detentore_id          INTEGER REFERENCES anagrafiche(id),
+            ufficio_provinciale   TEXT,
+            targhe_consegnate     INTEGER DEFAULT 0,
+            carta_circolazione    INTEGER DEFAULT 0,
+            concessionaria        TEXT,
+            peso_effettivo_kg     REAL,
+            peso_netto_kg         REAL,
+            modalita_radiazione   TEXT,
+            num_albatros          TEXT,
+            certificato_id        TEXT,
+            note                  TEXT,
+            creato_da             INTEGER,
+            creato_il             TEXT DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS ricambi_sottratti (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            demolizione_id  INTEGER NOT NULL REFERENCES demolizioni(id),
+            componente_id   INTEGER REFERENCES componenti(id),
+            peso_kg         REAL,
+            note            TEXT,
+            creato_il       TEXT DEFAULT (datetime('now'))
+        );
         """)
 
     def _migrate_schema(self, conn: sqlite3.Connection):

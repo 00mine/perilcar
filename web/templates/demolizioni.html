@@ -1,0 +1,951 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Demolizioni — PerilCar ERP</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono&display=swap" rel="stylesheet">
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{
+      --bg:#fff;--surface:#f7f8fa;--surface2:#eef0f4;--border:#dde1e8;
+      --orange:#e94c00;--orange2:#ff6b35;--blue:#3a5bd9;--blue2:#5a7bf0;
+      --green:#16a34a;--green2:#22c55e;--red:#dc2626;--cyan:#0ea5e9;
+      --text:#111827;--text2:#4b5563;--text3:#9ca3af;
+      --radius:8px;--font:'DM Sans',system-ui,sans-serif;--mono:'DM Mono',monospace;
+      --shadow:0 1px 4px rgba(0,0,0,.08),0 4px 16px rgba(0,0,0,.06);
+    }
+    body{font-family:var(--font);background:var(--bg);color:var(--text);
+         font-size:13px;height:100vh;overflow:hidden;display:flex;flex-direction:column}
+
+    /* TOPBAR */
+    .topbar{height:50px;flex-shrink:0;background:#fff;border-bottom:1px solid var(--border);
+            display:flex;align-items:center;padding:0 16px;gap:10px;
+            box-shadow:0 1px 3px rgba(0,0,0,.06)}
+    .topbar-logo{font-weight:700;font-size:17px}.topbar-logo span{color:var(--orange)}
+    .nav-link{padding:5px 12px;border-radius:6px;font-size:12.5px;font-weight:500;
+              text-decoration:none;color:var(--text2);transition:.15s}
+    .nav-link:hover{background:var(--surface2)}.nav-link.active{background:var(--orange);color:#fff}
+    .topbar-right{margin-left:auto;display:flex;align-items:center;gap:10px}
+    .user-chip{font-size:12px;color:var(--text2);background:var(--surface);
+               border:1px solid var(--border);padding:4px 10px;border-radius:20px}
+    .btn-logout{font-size:12px;padding:5px 12px;border-radius:6px;border:1px solid var(--border);
+                background:#fff;color:var(--text2);cursor:pointer;font-family:var(--font)}
+    .btn-logout:hover{background:#fee2e2;color:var(--red)}
+
+    /* LAYOUT */
+    .main{flex:1;overflow:hidden;display:flex;flex-direction:column;padding:12px 16px 8px;gap:10px}
+    .title-row{display:flex;align-items:center;gap:10px}
+    .btn-back{width:34px;height:34px;border-radius:8px;border:1px solid var(--border);
+              background:#fff;font-size:16px;font-weight:700;cursor:pointer;
+              display:flex;align-items:center;justify-content:center;
+              text-decoration:none;color:var(--text);transition:.15s;flex-shrink:0}
+    .btn-back:hover{background:var(--surface2)}
+    .page-title{font-size:22px;font-weight:700;letter-spacing:-.5px}
+
+    /* FORM PRINCIPALE */
+    .form-area{display:grid;grid-template-columns:1fr 260px;gap:12px;flex-shrink:0}
+
+    .card{background:#fff;border:1px solid var(--border);border-radius:12px;
+          padding:16px;box-shadow:var(--shadow)}
+    .card-title{font-size:11px;font-weight:700;color:var(--text3);
+                text-transform:uppercase;letter-spacing:.8px;margin-bottom:12px}
+
+    .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    .form-grid.cols3{grid-template-columns:1fr 1fr 1fr}
+    .form-grid.cols1{grid-template-columns:1fr}
+    .field{display:flex;flex-direction:column;gap:3px}
+    .field label{font-size:11px;color:var(--text2);font-weight:500}
+    .field.full{grid-column:1/-1}
+
+    input[type=text],input[type=number],input[type=date],select,textarea{
+      font-family:var(--font);font-size:12px;background:#fff;
+      border:1px solid var(--border);border-radius:var(--radius);
+      padding:6px 10px;color:var(--text);outline:none;width:100%;transition:border-color .15s}
+    input:focus,select:focus,textarea:focus{border-color:var(--blue)}
+    textarea{resize:vertical;min-height:56px}
+
+    /* Input con bottoni V e + */
+    .input-group{display:flex;gap:4px;align-items:center}
+    .input-group input,.input-group select{flex:1;min-width:0}
+    .btn-v{height:30px;padding:0 10px;border-radius:20px;border:1px solid var(--border);
+           background:var(--surface);color:var(--text2);cursor:pointer;font-size:11px;
+           font-family:var(--font);font-weight:600;white-space:nowrap;transition:.15s}
+    .btn-v:hover{background:var(--surface2);border-color:var(--blue);color:var(--blue)}
+    .btn-plus{width:28px;height:28px;border-radius:50%;border:none;background:var(--orange);
+              color:#fff;cursor:pointer;font-size:16px;font-weight:700;
+              display:flex;align-items:center;justify-content:center;transition:.15s;flex-shrink:0}
+    .btn-plus:hover{background:var(--orange2)}
+
+    /* Checkbox stilizzato */
+    .check-row{display:flex;align-items:center;gap:8px;padding:4px 0}
+    .check-row input[type=checkbox]{width:18px;height:18px;accent-color:var(--orange);cursor:pointer}
+    .check-row label{font-size:12px;font-weight:500;cursor:pointer}
+
+    /* Card dati rottamazione */
+    .rott-card{display:flex;flex-direction:column;gap:10px}
+    .rott-field{display:flex;flex-direction:column;gap:3px}
+    .rott-field label{font-size:11px;color:var(--text2);font-weight:600}
+    .rott-val{font-size:20px;font-weight:700;font-family:var(--mono);
+              color:var(--text);padding:4px 0}
+    .rott-val span{font-size:12px;font-weight:400;color:var(--text3);margin-left:4px}
+
+    /* Pulsanti azione destra */
+    .action-btns{display:flex;flex-direction:column;gap:8px;justify-content:flex-start;padding-top:28px}
+    .btn-action{padding:12px 20px;border-radius:10px;border:none;font-size:13px;font-weight:700;
+                font-family:var(--font);cursor:pointer;transition:.15s;text-align:center}
+    .btn-cdp{background:var(--cyan);color:#fff}.btn-cdp:hover{background:#38bdf8}
+    .btn-sottrai{background:var(--green);color:#fff}.btn-sottrai:hover{background:var(--green2)}
+
+    /* Azioni toolbar */
+    .actions{display:flex;gap:6px;flex-shrink:0}
+    .btn{display:inline-flex;align-items:center;gap:4px;padding:6px 12px;
+         border-radius:var(--radius);font-size:12px;font-weight:600;cursor:pointer;
+         border:none;font-family:var(--font);transition:.15s;white-space:nowrap}
+    .btn-primary{background:var(--orange);color:#fff}.btn-primary:hover{background:var(--orange2)}
+    .btn-ghost{background:#fff;color:var(--text2);border:1px solid var(--border)}
+    .btn-ghost:hover{background:var(--surface2)}
+    .btn-danger{background:#fff;color:var(--red);border:1px solid #fca5a5}
+    .btn-danger:hover{background:#fee2e2}
+    .btn-green{background:var(--green);color:#fff}.btn-green:hover{background:var(--green2)}
+
+    /* TABELLA */
+    .table-wrap{flex:1;overflow:auto;border:1px solid var(--border);border-radius:10px;
+                background:#fff;box-shadow:var(--shadow)}
+    table{width:100%;border-collapse:collapse;min-width:1000px}
+    thead th{position:sticky;top:0;z-index:5;background:var(--surface);color:var(--text2);
+             font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;
+             padding:8px 10px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap}
+    tbody tr{border-bottom:1px solid #f3f4f6;cursor:pointer;transition:background .1s}
+    tbody tr:hover{background:#fafafa}
+    tbody tr.selected{background:#fff7f4;outline:2px solid var(--orange);outline-offset:-1px}
+    tbody td{padding:7px 10px;font-size:12px}
+    td.num{text-align:center;font-family:var(--mono)}
+    .id-chip{display:inline-block;font-family:var(--mono);font-size:10px;background:#fff3ee;
+             color:var(--orange);border:1px solid #ffd0b5;padding:1px 6px;border-radius:4px}
+
+    .status-bar{font-size:11px;color:var(--text3);flex-shrink:0}
+
+    /* MODAL */
+    .overlay{position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.4);
+             display:flex;align-items:center;justify-content:center;padding:16px}
+    .overlay.hidden{display:none}
+    .modal{background:#fff;border-radius:16px;width:100%;max-height:92vh;
+           overflow-y:auto;box-shadow:0 24px 64px rgba(0,0,0,.2)}
+    .modal-hdr{display:flex;align-items:center;justify-content:space-between;
+               padding:16px 20px;border-bottom:1px solid var(--border);
+               position:sticky;top:0;background:#fff;z-index:10}
+    .modal-hdr h3{font-size:16px;font-weight:700}
+    .modal-close{background:none;border:none;font-size:24px;cursor:pointer;
+                 color:var(--text3);line-height:1}
+    .modal-close:hover{color:var(--text)}
+    .modal-body{padding:20px}
+    .modal-ftr{display:flex;justify-content:flex-end;gap:8px;padding:14px 20px;
+               border-top:1px solid var(--border);position:sticky;bottom:0;background:#fff}
+
+    /* CDP form */
+    .cdp-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+    .cdp-col{display:flex;flex-direction:column;gap:10px}
+    .cdp-section-title{font-size:11px;font-weight:700;color:var(--text3);
+                       text-transform:uppercase;letter-spacing:.8px;
+                       padding-bottom:6px;border-bottom:1px solid var(--border)}
+
+    /* Sottrai ricambi */
+    .sr-form{background:var(--surface);border-radius:10px;padding:14px;margin-bottom:14px;
+             display:grid;grid-template-columns:2fr 1fr 2fr auto;gap:10px;align-items:end}
+
+    .ricambi-table{width:100%;border-collapse:collapse}
+    .ricambi-table th{padding:7px 10px;background:var(--surface);font-size:10px;
+                      font-weight:700;text-transform:uppercase;letter-spacing:.5px;
+                      color:var(--text2);border-bottom:1px solid var(--border);text-align:left}
+    .ricambi-table td{padding:7px 10px;border-bottom:1px solid #f3f4f6;font-size:12px}
+    .ricambi-table tr:last-child td{border-bottom:none}
+    .btn-del-r{width:28px;height:28px;border-radius:50%;border:none;background:#fee2e2;
+               color:var(--red);cursor:pointer;font-size:16px;font-weight:700;
+               display:flex;align-items:center;justify-content:center;transition:.15s}
+    .btn-del-r:hover{background:var(--red);color:#fff}
+    .peso-totale{font-weight:700;font-size:14px;color:var(--orange);font-family:var(--mono)}
+
+    /* TOAST */
+    .toast{position:fixed;bottom:18px;right:18px;z-index:9999;padding:10px 16px;
+           border-radius:10px;font-size:13px;font-weight:600;
+           box-shadow:0 4px 20px rgba(0,0,0,.12);animation:toastIn .2s ease}
+    .toast-ok{background:#fff;color:var(--green);border:1px solid #bbf7d0}
+    .toast-err{background:#fff;color:var(--red);border:1px solid #fca5a5}
+    @keyframes toastIn{from{transform:translateY(8px);opacity:0}to{opacity:1}}
+    .feedback{font-size:11px;min-height:16px;font-weight:500;padding:2px 0;text-align:center}
+    .feedback.ok{color:var(--green)}.feedback.err{color:var(--red)}
+  </style>
+</head>
+<body>
+
+<header class="topbar">
+  <span class="topbar-logo">Peril<span>Car</span></span>
+  <nav style="display:flex;gap:4px;margin-left:12px">
+    <a href="/dashboard" class="nav-link">🏠 Home</a>
+    <a href="/magazzino" class="nav-link">📦 Magazzino</a>
+    <a href="/storico"   class="nav-link">📋 Storico</a>
+    <a href="/demolizioni" class="nav-link active">🚗 Demolizioni</a>
+  </nav>
+  <div class="topbar-right">
+    <span class="user-chip">👤 {{ user.username }}</span>
+    <button class="btn-logout" onclick="logout()">Esci</button>
+  </div>
+</header>
+
+<div class="main">
+  <div class="title-row">
+    <a href="/dashboard" class="btn-back">‹</a>
+    <span class="page-title">DEMOLIZIONI</span>
+  </div>
+
+  <!-- FORM PRINCIPALE -->
+  <div class="form-area">
+
+    <!-- Card Generale -->
+    <div class="card">
+      <div class="card-title">Generale</div>
+      <div class="form-grid cols3" style="gap:10px">
+
+        <div class="field">
+          <label>ID</label>
+          <input type="text" id="f-id" readonly style="background:var(--surface2);color:var(--text3);font-family:var(--mono)">
+        </div>
+
+        <div class="field">
+          <label>Data presa in carico</label>
+          <input type="date" id="f-data">
+        </div>
+
+        <div class="field">
+          <label>Reg. demolitori</label>
+          <input type="text" id="f-reg" placeholder="Num. registro">
+        </div>
+
+        <div class="field full">
+          <label>Pag. Reg.</label>
+          <input type="text" id="f-pag" placeholder="Pagina registro">
+        </div>
+
+        <!-- Veicolo -->
+        <div class="field full">
+          <label>Veicolo</label>
+          <div class="input-group">
+            <select id="f-veicolo">
+              <option value="">— seleziona —</option>
+            </select>
+            <button class="btn-v" onclick="openModalVeicolo()">▾</button>
+            <button class="btn-plus" onclick="openModalNuovoVeicolo()" title="Nuovo veicolo">+</button>
+          </div>
+        </div>
+
+        <!-- Proprietario -->
+        <div class="field">
+          <label>Proprietario</label>
+          <div class="input-group">
+            <select id="f-proprietario">
+              <option value="">— seleziona —</option>
+            </select>
+            <button class="btn-plus" onclick="openModalNuovaAnagrafica('proprietario')" title="Nuova anagrafica">+</button>
+          </div>
+        </div>
+
+        <!-- Detentore -->
+        <div class="field">
+          <label>Detentore</label>
+          <div class="input-group">
+            <select id="f-detentore">
+              <option value="">— seleziona —</option>
+            </select>
+            <button class="btn-plus" onclick="openModalNuovaAnagrafica('detentore')" title="Nuova anagrafica">+</button>
+          </div>
+        </div>
+
+        <!-- Ufficio Provinciale -->
+        <div class="field">
+          <label>Ufficio Provinciale</label>
+          <input type="text" id="f-ufficio" placeholder="es. VI, PD, VE...">
+        </div>
+
+        <!-- Concessionaria -->
+        <div class="field">
+          <label>Concessionaria</label>
+          <input type="text" id="f-concessionaria">
+        </div>
+
+        <!-- Checkbox -->
+        <div class="field" style="grid-column:1/-1;display:flex;gap:24px;padding-top:4px">
+          <div class="check-row">
+            <input type="checkbox" id="f-targhe">
+            <label for="f-targhe">Targhe consegnate</label>
+          </div>
+          <div class="check-row">
+            <input type="checkbox" id="f-carta">
+            <label for="f-carta">Carta di circolazione</label>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Colonna destra: dati rottamazione + pulsanti -->
+    <div style="display:flex;flex-direction:column;gap:10px">
+
+      <!-- Card Dati Rottamazione -->
+      <div class="card rott-card">
+        <div class="card-title">Dati rottamazione</div>
+
+        <div class="rott-field">
+          <label>Peso Effettivo</label>
+          <div style="display:flex;align-items:center;gap:6px">
+            <span style="font-size:12px;color:var(--text3);font-weight:600">Kg</span>
+            <input type="number" id="f-peso-eff" placeholder="0.00" step="0.01"
+                   oninput="aggiornaPesoNetto()">
+          </div>
+        </div>
+
+        <div class="rott-field">
+          <label>Peso netto (da ricambi)</label>
+          <div style="display:flex;align-items:center;gap:6px">
+            <span style="font-size:12px;color:var(--text3);font-weight:600">Kg</span>
+            <input type="number" id="f-peso-netto" placeholder="0.00" step="0.01" readonly
+                   style="background:var(--surface2);font-family:var(--mono);font-weight:700;color:var(--orange)">
+          </div>
+        </div>
+
+        <div class="rott-field">
+          <label>Modalità Radiazione</label>
+          <select id="f-modalita">
+            <option value="">— seleziona —</option>
+            <option value="Rottamazione">Rottamazione</option>
+            <option value="Demolizione">Demolizione</option>
+            <option value="Esportazione">Esportazione</option>
+            <option value="Furto">Furto</option>
+            <option value="Altro">Altro</option>
+          </select>
+        </div>
+
+        <div class="rott-field">
+          <label>Num. Albatros</label>
+          <input type="text" id="f-albatros" placeholder="Numero certificato">
+        </div>
+
+      </div>
+
+      <!-- Pulsanti azione -->
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <button class="btn-action btn-cdp" onclick="openCDP()">🔍 Cerca CDP</button>
+        <button class="btn-action btn-sottrai" onclick="openSottrai()">⚖ Sottrai ricambi</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Toolbar -->
+  <div class="actions">
+    <button class="btn btn-primary" onclick="salvaRecord()">💾 Salva</button>
+    <button class="btn btn-ghost"   onclick="nuovoRecord()">＋ Nuovo</button>
+    <button class="btn btn-danger"  onclick="eliminaRecord()">🗑 Elimina</button>
+    <div class="feedback" id="feedback" style="margin-left:8px;align-self:center"></div>
+  </div>
+
+  <!-- Tabella elenco demolizioni -->
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Reg. Demolitori</th>
+          <th>Pag. Reg.</th>
+          <th>Data presa in carico</th>
+          <th>Veicolo</th>
+          <th>Proprietario</th>
+          <th>Detentore</th>
+          <th>Peso effettivo</th>
+          <th>Peso netto</th>
+          <th>Num. Albatros</th>
+          <th>Modalità Radiazione</th>
+          <th>Targhe</th>
+          <th>Carta Circ.</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+
+  <div class="status-bar" id="s-tot">Caricamento...</div>
+</div>
+
+<!-- ══ MODAL CERCA CDP ══════════════════════════════════════════════ -->
+<div class="overlay hidden" id="modal-cdp">
+  <div class="modal" style="max-width:860px">
+    <div class="modal-hdr">
+      <h3>🔍 Cerca CDP</h3>
+      <button class="modal-close" onclick="closeModal('modal-cdp')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="cdp-grid">
+        <!-- Colonna sinistra -->
+        <div class="cdp-col">
+          <div class="cdp-section-title">Dati ricerca</div>
+          <div class="field"><label>Data da</label><input type="date" id="cdp-data-da"></div>
+          <div class="field"><label>Data a</label><input type="date" id="cdp-data-a"></div>
+          <div class="field"><label>Classe Veicolo</label><input type="text" id="cdp-classe" placeholder="es. M1, N1..."></div>
+          <div class="field"><label>Marca</label><input type="text" id="cdp-marca" placeholder="es. Fiat"></div>
+          <div class="field"><label>Modello</label><input type="text" id="cdp-modello" placeholder="es. Punto"></div>
+          <div class="field"><label>Targa</label><input type="text" id="cdp-targa" placeholder="es. AB123CD"></div>
+          <div class="field"><label>Telaio</label><input type="text" id="cdp-telaio"></div>
+          <div class="field"><label>Proprietario</label><input type="text" id="cdp-proprietario"></div>
+          <div class="field"><label>Detentore</label><input type="text" id="cdp-detentore"></div>
+          <div class="field"><label>CF/PIVA Proprietario</label><input type="text" id="cdp-cf-prop"></div>
+          <div class="field"><label>CF/PIVA Detentore</label><input type="text" id="cdp-cf-det"></div>
+        </div>
+        <!-- Colonna destra -->
+        <div class="cdp-col">
+          <div class="cdp-section-title">Demolito</div>
+          <div class="field"><label>Reg. demolitori</label><input type="text" id="cdp-reg"></div>
+          <div class="field"><label>Pag. Reg. da</label><input type="text" id="cdp-pag-da"></div>
+          <div class="field"><label>Pag. Reg. a</label><input type="text" id="cdp-pag-a"></div>
+          <div class="field"><label>Reg. demolitori 2</label><input type="text" id="cdp-reg2"></div>
+          <div class="field"><label>Pag. Reg. 2 da</label><input type="text" id="cdp-pag2-da"></div>
+          <div class="field"><label>Pag. Reg. 2 a</label><input type="text" id="cdp-pag2-a"></div>
+          <div class="field"><label>Concessionaria</label><input type="text" id="cdp-conc"></div>
+          <div class="field"><label>Anno immatricolazione</label><input type="text" id="cdp-anno-imm"></div>
+          <div class="field"><label>Num. Motore</label><input type="text" id="cdp-motore"></div>
+        </div>
+      </div>
+
+      <!-- Risultati CDP -->
+      <div id="cdp-risultati" style="margin-top:16px;display:none">
+        <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;
+                    letter-spacing:.8px;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--border)">
+          Risultati ricerca
+        </div>
+        <div id="cdp-lista"></div>
+      </div>
+    </div>
+    <div class="modal-ftr">
+      <button class="btn btn-ghost" onclick="closeModal('modal-cdp')">Annulla</button>
+      <button class="btn" style="background:var(--cyan);color:#fff" onclick="cercaCDP()">🔍 Cerca</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL SOTTRAI RICAMBI ════════════════════════════════════════ -->
+<div class="overlay hidden" id="modal-sottrai">
+  <div class="modal" style="max-width:700px">
+    <div class="modal-hdr">
+      <div>
+        <h3>⚖ Sottrai Ricambi</h3>
+        <p style="font-size:11px;color:var(--text3);margin-top:2px">
+          Aggiungi i ricambi smontati per calcolare il peso netto
+        </p>
+      </div>
+      <button class="modal-close" onclick="closeModal('modal-sottrai')">×</button>
+    </div>
+    <div class="modal-body">
+
+      <!-- Form aggiunta ricambio -->
+      <div class="sr-form">
+        <div class="field">
+          <label>Pezzo</label>
+          <select id="sr-pezzo">
+            <option value="">— seleziona dal magazzino —</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Peso (Kg)</label>
+          <input type="number" id="sr-peso" placeholder="0.00" step="0.01" min="0">
+        </div>
+        <div class="field">
+          <label>Note</label>
+          <input type="text" id="sr-note" placeholder="Note opzionali">
+        </div>
+        <button class="btn btn-green" onclick="aggiungiRicambio()" style="height:34px;align-self:flex-end">
+          + Aggiungi
+        </button>
+      </div>
+
+      <!-- Riepilogo peso -->
+      <div style="display:flex;align-items:center;gap:16px;padding:10px 0;border-bottom:1px solid var(--border);margin-bottom:12px">
+        <div style="font-size:12px;color:var(--text2)">
+          Peso effettivo: <b id="sr-peso-eff-show" style="font-family:var(--mono)">— Kg</b>
+        </div>
+        <div style="font-size:12px;color:var(--text2)">
+          Totale sottratto: <b id="sr-tot-sottratto" class="peso-totale">0.00 Kg</b>
+        </div>
+        <div style="font-size:12px;color:var(--text2)">
+          Peso netto: <b id="sr-peso-netto-show" style="font-family:var(--mono);color:var(--orange)">— Kg</b>
+        </div>
+      </div>
+
+      <!-- Tabella ricambi -->
+      <div style="overflow:auto;max-height:320px">
+        <table class="ricambi-table">
+          <thead>
+            <tr>
+              <th>Pezzo</th>
+              <th>Peso (Kg)</th>
+              <th>Note</th>
+              <th style="width:40px"></th>
+            </tr>
+          </thead>
+          <tbody id="sr-tbody">
+            <tr><td colspan="4" style="text-align:center;padding:24px;color:var(--text3)">
+              Nessun ricambio aggiunto
+            </td></tr>
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+    <div class="modal-ftr">
+      <button class="btn btn-ghost" onclick="closeModal('modal-sottrai')">Chiudi</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL NUOVO VEICOLO ══════════════════════════════════════════ -->
+<div class="overlay hidden" id="modal-veicolo">
+  <div class="modal" style="max-width:500px">
+    <div class="modal-hdr">
+      <h3>🚗 Nuovo Veicolo</h3>
+      <button class="modal-close" onclick="closeModal('modal-veicolo')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid" style="gap:10px">
+        <div class="field"><label>Marca *</label><input type="text" id="v-marca" placeholder="es. Fiat"></div>
+        <div class="field"><label>Modello *</label><input type="text" id="v-modello" placeholder="es. Punto"></div>
+        <div class="field"><label>Targa</label><input type="text" id="v-targa" placeholder="es. AB123CD"></div>
+        <div class="field"><label>Telaio</label><input type="text" id="v-telaio"></div>
+        <div class="field"><label>Num. Motore</label><input type="text" id="v-motore"></div>
+        <div class="field"><label>Anno immatricolazione</label><input type="text" id="v-anno"></div>
+        <div class="field"><label>Classe</label><input type="text" id="v-classe" placeholder="es. M1"></div>
+        <div class="field"><label>Colore</label><input type="text" id="v-colore"></div>
+      </div>
+    </div>
+    <div class="modal-ftr">
+      <button class="btn btn-ghost" onclick="closeModal('modal-veicolo')">Annulla</button>
+      <button class="btn btn-primary" onclick="salvaVeicolo()">Salva</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL NUOVA ANAGRAFICA ════════════════════════════════════════ -->
+<div class="overlay hidden" id="modal-anagrafica">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-hdr">
+      <h3 id="ana-title">👤 Nuova Anagrafica</h3>
+      <button class="modal-close" onclick="closeModal('modal-anagrafica')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid" style="gap:10px">
+        <div class="field full"><label>Nominativo *</label><input type="text" id="a-nominativo"></div>
+        <div class="field"><label>CF / P.IVA</label><input type="text" id="a-cfpiva"></div>
+        <div class="field"><label>Tipo</label>
+          <select id="a-tipo">
+            <option value="privato">Privato</option>
+            <option value="azienda">Azienda</option>
+            <option value="ente">Ente pubblico</option>
+          </select>
+        </div>
+        <div class="field"><label>Telefono</label><input type="text" id="a-telefono"></div>
+        <div class="field"><label>Email</label><input type="text" id="a-email"></div>
+        <div class="field full"><label>Indirizzo</label><input type="text" id="a-indirizzo"></div>
+      </div>
+    </div>
+    <div class="modal-ftr">
+      <button class="btn btn-ghost" onclick="closeModal('modal-anagrafica')">Annulla</button>
+      <button class="btn btn-primary" onclick="salvaAnagrafica()">Salva</button>
+    </div>
+  </div>
+</div>
+
+<script>
+io().on('reload', () => { setTimeout(()=>window.location.reload(),500); });
+
+// ── STATO ────────────────────────────────────────────────────────────
+let _demolizioni = [];
+let _anagrafiche = [];
+let _veicoli     = [];
+let _componenti  = [];
+let _selId       = null;
+let _anaTarget   = null;  // 'proprietario' | 'detentore'
+let _ricambi     = [];    // ricambi del record corrente
+
+// ── UTILS ────────────────────────────────────────────────────────────
+async function apiFetch(url, opts={}) {
+  opts.headers = {'Content-Type':'application/json',...(opts.headers||{})};
+  const r = await fetch(url, opts); return r.json();
+}
+function esc(s){ return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function toast(msg, ok=true) {
+  document.querySelectorAll('.toast').forEach(e=>e.remove());
+  const d=document.createElement('div');
+  d.className='toast '+(ok?'toast-ok':'toast-err');
+  d.textContent=msg; document.body.appendChild(d);
+  setTimeout(()=>d.remove(),3500);
+}
+function fb(msg,ok=true){
+  const el=document.getElementById('feedback');
+  el.textContent=msg; el.className='feedback '+(ok?'ok':'err');
+  setTimeout(()=>{el.textContent='';el.className='feedback';},4000);
+}
+async function logout(){ await apiFetch('/api/logout',{method:'POST'}); window.location.href='/login'; }
+function closeModal(id){ document.getElementById(id).classList.add('hidden'); }
+function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
+document.querySelectorAll('.overlay').forEach(o=>{
+  o.addEventListener('click',e=>{ if(e.target===o) o.classList.add('hidden'); });
+});
+
+// ── CARICA DATI ───────────────────────────────────────────────────────
+async function init() {
+  [_demolizioni, _anagrafiche, _veicoli] = await Promise.all([
+    apiFetch('/api/demolizioni'),
+    apiFetch('/api/anagrafiche'),
+    apiFetch('/api/veicoli'),
+  ]);
+  _componenti = await apiFetch('/api/magazzino/componenti');
+  popolaSelects();
+  renderTabella();
+}
+
+function popolaSelects() {
+  // Veicoli
+  const sv = document.getElementById('f-veicolo');
+  sv.innerHTML = '<option value="">— seleziona —</option>' +
+    _veicoli.map(v=>`<option value="${v.id}">${esc(v.marca)} ${esc(v.modello)} (${esc(v.targa||'—')})</option>`).join('');
+
+  // Anagrafiche
+  const opts = '<option value="">— seleziona —</option>' +
+    _anagrafiche.map(a=>`<option value="${a.id}">${esc(a.nominativo)}</option>`).join('');
+  document.getElementById('f-proprietario').innerHTML = opts;
+  document.getElementById('f-detentore').innerHTML    = opts;
+
+  // Pezzi per sottrai ricambi
+  const sp = document.getElementById('sr-pezzo');
+  sp.innerHTML = '<option value="">— seleziona pezzo —</option>' +
+    _componenti.map(c=>`<option value="${c.componente_id}">${esc(c.cmp)} - ${esc(c.articolo)}</option>`).join('');
+}
+
+// ── TABELLA ───────────────────────────────────────────────────────────
+function renderTabella() {
+  const tbody = document.getElementById('tbody');
+  if(!_demolizioni.length) {
+    tbody.innerHTML = `<tr><td colspan="13" style="text-align:center;padding:40px;color:var(--text3)">Nessuna demolizione registrata</td></tr>`;
+    document.getElementById('s-tot').textContent = '0 demolizioni';
+    return;
+  }
+  tbody.innerHTML = _demolizioni.map(d => {
+    const sel = _selId===d.id ? ' selected':'';
+    return `<tr class="${sel}" onclick="selectRow(${d.id},this)" ondblclick="selectRow(${d.id},this)">
+      <td><span class="id-chip">${d.id}</span></td>
+      <td>${esc(d.reg_demolitori||'')}</td>
+      <td>${esc(d.pag_reg||'')}</td>
+      <td>${esc((d.data_presa_in_carico||'').slice(0,10))}</td>
+      <td>${esc(d.veicolo_str||'')}</td>
+      <td>${esc(d.proprietario_str||'')}</td>
+      <td>${esc(d.detentore_str||'')}</td>
+      <td class="num">${d.peso_effettivo_kg!=null?d.peso_effettivo_kg+' Kg':''}</td>
+      <td class="num">${d.peso_netto_kg!=null?d.peso_netto_kg+' Kg':''}</td>
+      <td>${esc(d.num_albatros||'')}</td>
+      <td>${esc(d.modalita_radiazione||'')}</td>
+      <td style="text-align:center">${d.targhe_consegnate?'✅':''}</td>
+      <td style="text-align:center">${d.carta_circolazione?'✅':''}</td>
+    </tr>`;
+  }).join('');
+  document.getElementById('s-tot').textContent = `${_demolizioni.length} demolizioni`;
+}
+
+// ── FORM ──────────────────────────────────────────────────────────────
+function selectRow(id, el) {
+  _selId = id;
+  document.querySelectorAll('#tbody tr').forEach(r=>r.classList.remove('selected'));
+  if(el) el.classList.add('selected');
+  const d = _demolizioni.find(x=>x.id===id);
+  if(!d) return;
+  document.getElementById('f-id').value     = d.id;
+  document.getElementById('f-data').value   = (d.data_presa_in_carico||'').slice(0,10);
+  document.getElementById('f-reg').value    = d.reg_demolitori||'';
+  document.getElementById('f-pag').value    = d.pag_reg||'';
+  document.getElementById('f-veicolo').value      = d.veicolo_id||'';
+  document.getElementById('f-proprietario').value = d.proprietario_id||'';
+  document.getElementById('f-detentore').value    = d.detentore_id||'';
+  document.getElementById('f-ufficio').value      = d.ufficio_provinciale||'';
+  document.getElementById('f-concessionaria').value = d.concessionaria||'';
+  document.getElementById('f-targhe').checked = !!d.targhe_consegnate;
+  document.getElementById('f-carta').checked  = !!d.carta_circolazione;
+  document.getElementById('f-peso-eff').value  = d.peso_effettivo_kg||'';
+  document.getElementById('f-peso-netto').value= d.peso_netto_kg||'';
+  document.getElementById('f-modalita').value  = d.modalita_radiazione||'';
+  document.getElementById('f-albatros').value  = d.num_albatros||'';
+}
+
+function nuovoRecord() {
+  _selId = null;
+  document.querySelectorAll('#tbody tr').forEach(r=>r.classList.remove('selected'));
+  ['f-id','f-data','f-reg','f-pag','f-ufficio','f-concessionaria',
+   'f-peso-eff','f-peso-netto','f-albatros'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.value='';
+  });
+  document.getElementById('f-veicolo').value='';
+  document.getElementById('f-proprietario').value='';
+  document.getElementById('f-detentore').value='';
+  document.getElementById('f-modalita').value='';
+  document.getElementById('f-targhe').checked=false;
+  document.getElementById('f-carta').checked=false;
+  document.getElementById('f-data').value = new Date().toISOString().slice(0,10);
+}
+
+function getFormData() {
+  return {
+    data_presa_in_carico: document.getElementById('f-data').value||null,
+    reg_demolitori:       document.getElementById('f-reg').value||null,
+    pag_reg:              document.getElementById('f-pag').value||null,
+    veicolo_id:           document.getElementById('f-veicolo').value||null,
+    proprietario_id:      document.getElementById('f-proprietario').value||null,
+    detentore_id:         document.getElementById('f-detentore').value||null,
+    ufficio_provinciale:  document.getElementById('f-ufficio').value||null,
+    concessionaria:       document.getElementById('f-concessionaria').value||null,
+    targhe_consegnate:    document.getElementById('f-targhe').checked?1:0,
+    carta_circolazione:   document.getElementById('f-carta').checked?1:0,
+    peso_effettivo_kg:    parseFloat(document.getElementById('f-peso-eff').value)||null,
+    peso_netto_kg:        parseFloat(document.getElementById('f-peso-netto').value)||null,
+    modalita_radiazione:  document.getElementById('f-modalita').value||null,
+    num_albatros:         document.getElementById('f-albatros').value||null,
+  };
+}
+
+async function salvaRecord() {
+  const dati = getFormData();
+  let res;
+  if(_selId) {
+    res = await apiFetch(`/api/demolizioni/${_selId}`,{method:'PUT',body:JSON.stringify(dati)});
+  } else {
+    res = await apiFetch('/api/demolizioni',{method:'POST',body:JSON.stringify(dati)});
+    if(res.ok) { _selId = res.id; document.getElementById('f-id').value = res.id; }
+  }
+  fb(res.msg, res.ok);
+  if(res.ok) { _demolizioni = await apiFetch('/api/demolizioni'); renderTabella(); }
+}
+
+async function eliminaRecord() {
+  if(!_selId){ fb('Seleziona una demolizione',false); return; }
+  if(!confirm('Eliminare questa demolizione?')) return;
+  const res = await apiFetch(`/api/demolizioni/${_selId}`,{method:'DELETE'});
+  fb(res.ok?'Eliminata':'Errore',res.ok);
+  if(res.ok){ _selId=null; nuovoRecord(); _demolizioni=await apiFetch('/api/demolizioni'); renderTabella(); }
+}
+
+function aggiornaPesoNetto() {
+  const eff = parseFloat(document.getElementById('f-peso-eff').value)||0;
+  const sottratto = _ricambi.reduce((s,r)=>s+(parseFloat(r.peso_kg)||0),0);
+  const netto = Math.max(0, eff - sottratto);
+  document.getElementById('f-peso-netto').value = netto.toFixed(2);
+}
+
+// ── NUOVO VEICOLO ─────────────────────────────────────────────────────
+function openModalNuovoVeicolo() {
+  ['v-marca','v-modello','v-targa','v-telaio','v-motore','v-anno','v-classe','v-colore']
+    .forEach(id=>{ document.getElementById(id).value=''; });
+  openModal('modal-veicolo');
+}
+function openModalVeicolo() { openModal('modal-veicolo'); }
+
+async function salvaVeicolo() {
+  const dati = {
+    marca:document.getElementById('v-marca').value,
+    modello:document.getElementById('v-modello').value,
+    targa:document.getElementById('v-targa').value,
+    telaio:document.getElementById('v-telaio').value,
+    num_motore:document.getElementById('v-motore').value,
+    anno_immatricolazione:document.getElementById('v-anno').value,
+    classe:document.getElementById('v-classe').value,
+    colore:document.getElementById('v-colore').value,
+  };
+  if(!dati.marca||!dati.modello){ toast('Inserisci almeno Marca e Modello',false); return; }
+  const res = await apiFetch('/api/veicoli',{method:'POST',body:JSON.stringify(dati)});
+  if(res.ok){
+    _veicoli = await apiFetch('/api/veicoli');
+    popolaSelects();
+    document.getElementById('f-veicolo').value = res.id;
+    closeModal('modal-veicolo');
+    toast(res.msg);
+  } else toast(res.msg,false);
+}
+
+// ── NUOVA ANAGRAFICA ──────────────────────────────────────────────────
+function openModalNuovaAnagrafica(target) {
+  _anaTarget = target;
+  document.getElementById('ana-title').textContent =
+    '👤 Nuova Anagrafica — '+(target==='proprietario'?'Proprietario':'Detentore');
+  ['a-nominativo','a-cfpiva','a-telefono','a-email','a-indirizzo'].forEach(id=>{
+    document.getElementById(id).value='';
+  });
+  document.getElementById('a-tipo').value='privato';
+  openModal('modal-anagrafica');
+}
+
+async function salvaAnagrafica() {
+  const dati = {
+    nominativo:document.getElementById('a-nominativo').value,
+    cf_piva:document.getElementById('a-cfpiva').value,
+    tipo:document.getElementById('a-tipo').value,
+    telefono:document.getElementById('a-telefono').value,
+    email:document.getElementById('a-email').value,
+    indirizzo:document.getElementById('a-indirizzo').value,
+  };
+  if(!dati.nominativo){ toast('Inserisci il nominativo',false); return; }
+  const res = await apiFetch('/api/anagrafiche',{method:'POST',body:JSON.stringify(dati)});
+  if(res.ok){
+    _anagrafiche = await apiFetch('/api/anagrafiche');
+    popolaSelects();
+    if(_anaTarget) document.getElementById('f-'+_anaTarget).value = res.id;
+    closeModal('modal-anagrafica');
+    toast(res.msg);
+  } else toast(res.msg,false);
+}
+
+// ── CERCA CDP ─────────────────────────────────────────────────────────
+function openCDP() { openModal('modal-cdp'); }
+
+async function cercaCDP() {
+  const filtri = {
+    data_da:     document.getElementById('cdp-data-da').value,
+    data_a:      document.getElementById('cdp-data-a').value,
+    classe:      document.getElementById('cdp-classe').value,
+    marca:       document.getElementById('cdp-marca').value,
+    modello:     document.getElementById('cdp-modello').value,
+    targa:       document.getElementById('cdp-targa').value,
+    telaio:      document.getElementById('cdp-telaio').value,
+    proprietario:document.getElementById('cdp-proprietario').value,
+    detentore:   document.getElementById('cdp-detentore').value,
+    reg:         document.getElementById('cdp-reg').value,
+    pag_da:      document.getElementById('cdp-pag-da').value,
+    pag_a:       document.getElementById('cdp-pag-a').value,
+  };
+
+  // Filtra demolizioni localmente
+  let risultati = _demolizioni.filter(d => {
+    if(filtri.marca && !d.veicolo_str?.toLowerCase().includes(filtri.marca.toLowerCase())) return false;
+    if(filtri.modello && !d.veicolo_str?.toLowerCase().includes(filtri.modello.toLowerCase())) return false;
+    if(filtri.proprietario && !d.proprietario_str?.toLowerCase().includes(filtri.proprietario.toLowerCase())) return false;
+    if(filtri.detentore && !d.detentore_str?.toLowerCase().includes(filtri.detentore.toLowerCase())) return false;
+    if(filtri.reg && !d.reg_demolitori?.toLowerCase().includes(filtri.reg.toLowerCase())) return false;
+    if(filtri.data_da && (d.data_presa_in_carico||'') < filtri.data_da) return false;
+    if(filtri.data_a  && (d.data_presa_in_carico||'') > filtri.data_a)  return false;
+    return true;
+  });
+
+  const div = document.getElementById('cdp-risultati');
+  const lista = document.getElementById('cdp-lista');
+  div.style.display = 'block';
+
+  if(!risultati.length) {
+    lista.innerHTML = '<p style="color:var(--text3);text-align:center;padding:20px">Nessun risultato trovato</p>';
+    return;
+  }
+
+  lista.innerHTML = risultati.map(d => `
+    <div onclick="selezionaCDP(${d.id})"
+         style="border:1px solid var(--border);border-radius:8px;padding:12px 16px;
+                margin-bottom:8px;cursor:pointer;transition:background .1s"
+         onmouseover="this.style.background='var(--surface)'"
+         onmouseout="this.style.background='#fff'">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <strong>${esc(d.veicolo_str||'—')}</strong>
+        <span style="font-size:11px;color:var(--text3)">${esc((d.data_presa_in_carico||'').slice(0,10))}</span>
+      </div>
+      <div style="font-size:11px;color:var(--text2);margin-top:4px;display:flex;gap:16px">
+        <span>Proprietario: ${esc(d.proprietario_str||'—')}</span>
+        <span>Reg: ${esc(d.reg_demolitori||'—')} p.${esc(d.pag_reg||'—')}</span>
+        <span>Albatros: ${esc(d.num_albatros||'—')}</span>
+      </div>
+    </div>`).join('');
+}
+
+function selezionaCDP(id) {
+  // Porta il record selezionato nel form principale
+  const rows = document.querySelectorAll('#tbody tr');
+  rows.forEach(r=>{ if(parseInt(r.children[0]?.textContent)===id) r.click(); });
+  closeModal('modal-cdp');
+  toast('Demolizione n.'+id+' caricata');
+}
+
+// ── SOTTRAI RICAMBI ───────────────────────────────────────────────────
+async function openSottrai() {
+  if(!_selId){ fb('Salva prima la demolizione',false); return; }
+  // Carica ricambi esistenti
+  _ricambi = await apiFetch(`/api/demolizioni/${_selId}/ricambi`);
+  const pesoEff = parseFloat(document.getElementById('f-peso-eff').value)||0;
+  document.getElementById('sr-peso-eff-show').textContent = pesoEff.toFixed(2)+' Kg';
+  renderRicambi();
+  openModal('modal-sottrai');
+}
+
+function renderRicambi() {
+  const tbody = document.getElementById('sr-tbody');
+  const tot = _ricambi.reduce((s,r)=>s+(parseFloat(r.peso_kg)||0),0);
+  const pesoEff = parseFloat(document.getElementById('f-peso-eff').value)||0;
+  const netto = Math.max(0, pesoEff - tot);
+
+  document.getElementById('sr-tot-sottratto').textContent = tot.toFixed(2)+' Kg';
+  document.getElementById('sr-peso-netto-show').textContent = netto.toFixed(2)+' Kg';
+  document.getElementById('f-peso-netto').value = netto.toFixed(2);
+
+  if(!_ricambi.length) {
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:24px;color:var(--text3)">Nessun ricambio aggiunto</td></tr>';
+    return;
+  }
+  tbody.innerHTML = _ricambi.map(r => `
+    <tr>
+      <td>${esc(r.pezzo_nome||r.componente_id||'—')}</td>
+      <td class="num">${(r.peso_kg||0).toFixed(2)} Kg</td>
+      <td>${esc(r.note||'')}</td>
+      <td>
+        <button class="btn-del-r" onclick="rimuoviRicambio(${r.id})">−</button>
+      </td>
+    </tr>`).join('');
+}
+
+async function aggiungiRicambio() {
+  if(!_selId){ toast('Salva prima la demolizione',false); return; }
+  const cid  = document.getElementById('sr-pezzo').value;
+  const peso = parseFloat(document.getElementById('sr-peso').value);
+  const note = document.getElementById('sr-note').value;
+  if(!peso||peso<=0){ toast('Inserisci un peso valido',false); return; }
+  const res = await apiFetch(`/api/demolizioni/${_selId}/ricambi`,{
+    method:'POST', body:JSON.stringify({componente_id:cid||null, peso_kg:peso, note})
+  });
+  if(res.ok){
+    _ricambi = await apiFetch(`/api/demolizioni/${_selId}/ricambi`);
+    document.getElementById('sr-peso').value='';
+    document.getElementById('sr-note').value='';
+    document.getElementById('sr-pezzo').value='';
+    renderRicambi();
+    // Aggiorna anche il campo peso netto nel form principale
+    const netto = Math.max(0,(parseFloat(document.getElementById('f-peso-eff').value)||0)
+      - _ricambi.reduce((s,r)=>s+(parseFloat(r.peso_kg)||0),0));
+    document.getElementById('f-peso-netto').value = netto.toFixed(2);
+  } else toast(res.msg,false);
+}
+
+async function rimuoviRicambio(rid) {
+  const res = await apiFetch(`/api/demolizioni/ricambi/${rid}`,{method:'DELETE'});
+  if(res.ok){
+    _ricambi = await apiFetch(`/api/demolizioni/${_selId}/ricambi`);
+    renderRicambi();
+    const netto = Math.max(0,(parseFloat(document.getElementById('f-peso-eff').value)||0)
+      - _ricambi.reduce((s,r)=>s+(parseFloat(r.peso_kg)||0),0));
+    document.getElementById('f-peso-netto').value = netto.toFixed(2);
+  }
+}
+
+// ── INIT ─────────────────────────────────────────────────────────────
+nuovoRecord();
+init();
+</script>
+</body>
+</html>
