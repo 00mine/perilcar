@@ -1056,11 +1056,7 @@ function renderVirtual() {
     }
     htmlParts.push('<tr class="'+cls+'" data-id="'+r.componente_id+'" style="height:'+ROW_H+'px">'+cells+'</tr>');
   }
-  tbody.innerHTML = htmlParts.join(''); // fine visCols.map
-
-    return `<tr class="${sel}${scar}" data-id="${r.componente_id}"
-              style="height:${ROW_H}px">${cells}</tr>`;
-  }).join('');
+  tbody.innerHTML = htmlParts.join('');
 
   // Event delegation per click
   tbody.onclick = (e) => {
