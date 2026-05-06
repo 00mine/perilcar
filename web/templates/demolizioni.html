@@ -49,21 +49,21 @@
     .form-area{display:grid;grid-template-columns:1fr 260px;gap:12px;flex-shrink:0}
 
     .card{background:#fff;border:1px solid var(--border);border-radius:12px;
-          padding:16px;box-shadow:var(--shadow)}
-    .card-title{font-size:11px;font-weight:700;color:var(--text3);
-                text-transform:uppercase;letter-spacing:.8px;margin-bottom:12px}
+          padding:12px;box-shadow:var(--shadow)}
+    .card-title{font-size:10px;font-weight:700;color:var(--text3);
+                text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px}
 
-    .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
     .form-grid.cols3{grid-template-columns:1fr 1fr 1fr}
     .form-grid.cols1{grid-template-columns:1fr}
     .field{display:flex;flex-direction:column;gap:3px}
-    .field label{font-size:11px;color:var(--text2);font-weight:500}
+    .field label{font-size:10.5px;color:var(--text2);font-weight:500;margin-bottom:1px}
     .field.full{grid-column:1/-1}
 
     input[type=text],input[type=number],input[type=date],select,textarea{
       font-family:var(--font);font-size:12px;background:#fff;
       border:1px solid var(--border);border-radius:var(--radius);
-      padding:6px 10px;color:var(--text);outline:none;width:100%;transition:border-color .15s}
+      padding:4px 8px;color:var(--text);outline:none;width:100%;transition:border-color .15s}
     input:focus,select:focus,textarea:focus{border-color:var(--blue)}
     textarea{resize:vertical;min-height:56px}
 
@@ -274,6 +274,10 @@
           <label>Concessionaria</label>
           <input type="text" id="f-concessionaria">
         </div>
+        <div class="field">
+          <label>Num. Albatros</label>
+          <input type="text" id="f-albatros" placeholder="Numero certificato">
+        </div>
 
         <!-- Checkbox -->
         <div class="field" style="grid-column:1/-1;display:flex;gap:24px;padding-top:4px">
@@ -327,10 +331,7 @@
           </select>
         </div>
 
-        <div class="rott-field">
-          <label>Num. Albatros</label>
-          <input type="text" id="f-albatros" placeholder="Numero certificato">
-        </div>
+
 
       </div>
 
