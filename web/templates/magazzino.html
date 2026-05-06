@@ -277,6 +277,31 @@
           flex-shrink:0;transition:.15s}
 .btn-send:hover{background:#6d28d9}
 @keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.1)}}
+.anno-filter-wrap{position:relative;display:inline-block;width:100%}
+.anno-filter-btn{width:100%;padding:3px 6px;font-size:11px;font-family:var(--mono);
+  background:var(--surface);border:1px solid var(--border);border-radius:4px;
+  color:var(--text);cursor:pointer;text-align:left;display:flex;
+  align-items:center;justify-content:space-between;gap:2px;outline:none}
+.anno-filter-btn:focus,.anno-filter-btn.active{border-color:var(--blue);background:#fff}
+.anno-filter-btn .badge{background:var(--orange);color:#fff;border-radius:10px;
+  font-size:9px;padding:1px 5px;font-family:var(--font);font-weight:700}
+.anno-dropdown{position:fixed;z-index:9999;background:#fff;border:1px solid var(--border);
+  border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,.15);min-width:180px;
+  max-height:320px;overflow:hidden;display:flex;flex-direction:column}
+.anno-dropdown.hidden{display:none}
+.anno-dd-header{padding:8px 10px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.anno-dd-header span{font-size:11px;font-weight:600;color:var(--text2)}
+.anno-dd-tutti{font-size:11px;color:var(--blue);cursor:pointer;font-weight:600;
+  background:none;border:none;font-family:var(--font)}
+.anno-dd-tutti:hover{text-decoration:underline}
+.anno-dd-list{overflow-y:auto;flex:1;padding:4px 0}
+.anno-dd-item{display:flex;align-items:center;gap:8px;padding:5px 12px;
+  cursor:pointer;font-size:12px;transition:background .1s}
+.anno-dd-item:hover{background:var(--surface)}
+.anno-dd-item input{width:14px;height:14px;accent-color:var(--orange);cursor:pointer}
+.anno-dd-footer{padding:6px 10px;border-top:1px solid var(--border);
+  display:flex;gap:6px;flex-shrink:0}
 #reload-badge{position:fixed;bottom:12px;left:12px;z-index:9999;
                   background:var(--green);color:#fff;padding:4px 10px;border-radius:20px;
                   font-size:10px;font-weight:600;opacity:0;transition:opacity .3s;pointer-events:none}
@@ -701,6 +726,19 @@
       <div id="stato-voce" style="font-size:11px;color:var(--text3);
            text-align:center;min-height:16px;padding:3px 0"></div>
     </div>
+  </div>
+</div>
+
+<!-- DROPDOWN ANNI FILTRO -->
+<div id="anno-dropdown" class="anno-dropdown hidden">
+  <div class="anno-dd-header">
+    <span>📅 Filtra per anno</span>
+    <button class="anno-dd-tutti" onclick="annoSelTutti()">Tutti</button>
+  </div>
+  <div class="anno-dd-list" id="anno-dd-list"></div>
+  <div class="anno-dd-footer">
+    <button class="btn btn-ghost" style="flex:1;font-size:11px" onclick="annoDdChiudi()">Chiudi</button>
+    <button class="btn btn-primary" style="flex:1;font-size:11px" onclick="annoApplica()">Applica</button>
   </div>
 </div>
 
@@ -1929,6 +1967,116 @@ function aggiungiMessaggio(testo, tipo, id) {
   var container = document.getElementById('chat-messages');
   container.appendChild(div);
   container.scrollTop = container.scrollHeight;
+}
+
+// ── DROPDOWN ANNI / VALORI ──────────────────────────────────────────
+var _annoSelezioni = {};  // {key: [val1, val2, ...]}
+var _annoDdKey = null;    // colonna attualmente aperta
+
+function annoDdApri(key, btnEl) {
+  // Chiudi se già aperto sulla stessa colonna
+  const dd = document.getElementById('anno-dropdown');
+  if(_annoDdKey === key && !dd.classList.contains('hidden')) {
+    annoDdChiudi(); return;
+  }
+  _annoDdKey = key;
+
+  // Raccogli valori unici dalla colonna
+  const valoriSet = new Set();
+  _tutti.forEach(function(r) {
+    const v = r[key];
+    if(v != null && String(v).trim() !== '') valoriSet.add(String(v).trim());
+  });
+  const valori = Array.from(valoriSet).sort(function(a,b){
+    const na = parseFloat(a), nb = parseFloat(b);
+    if(!isNaN(na) && !isNaN(nb)) return na - nb;
+    return a.localeCompare(b);
+  });
+
+  const selezionati = new Set(_annoSelezioni[key] || []);
+  const list = document.getElementById('anno-dd-list');
+  list.innerHTML = valori.map(function(v) {
+    const chk = selezionati.has(v) ? 'checked' : '';
+    return '<label class="anno-dd-item">' +
+      '<input type="checkbox" value="'+v+'" '+chk+'>' +
+      '<span>'+v+'</span>' +
+      '</label>';
+  }).join('');
+
+  // Posiziona il dropdown sotto il bottone
+  const rect = btnEl.getBoundingClientRect();
+  dd.style.top  = (rect.bottom + 4) + 'px';
+  dd.style.left = rect.left + 'px';
+  dd.style.width = Math.max(180, rect.width) + 'px';
+
+  dd.classList.remove('hidden');
+  btnEl.classList.add('active');
+
+  // Chiudi cliccando fuori
+  setTimeout(function() {
+    document.addEventListener('click', _annoDdOutsideClick, {once: true});
+  }, 10);
+}
+
+function _annoDdOutsideClick(e) {
+  const dd = document.getElementById('anno-dropdown');
+  if(!dd.contains(e.target)) annoDdChiudi();
+  else document.addEventListener('click', _annoDdOutsideClick, {once: true});
+}
+
+function annoDdChiudi() {
+  const dd = document.getElementById('anno-dropdown');
+  dd.classList.add('hidden');
+  if(_annoDdKey) {
+    const btn = document.getElementById('anno-btn-' + _annoDdKey);
+    if(btn) btn.classList.remove('active');
+  }
+  _annoDdKey = null;
+}
+
+function annoSelTutti() {
+  const list = document.getElementById('anno-dd-list');
+  const checks = list.querySelectorAll('input[type=checkbox]');
+  const tuttiChecked = Array.from(checks).every(function(c){ return c.checked; });
+  checks.forEach(function(c){ c.checked = !tuttiChecked; });
+}
+
+function annoApplica() {
+  if(!_annoDdKey) return;
+  const list = document.getElementById('anno-dd-list');
+  const checks = list.querySelectorAll('input[type=checkbox]:checked');
+  const valori = Array.from(checks).map(function(c){ return c.value; });
+  _annoSelezioni[_annoDdKey] = valori;
+
+  // Aggiorna _colFilters con i valori selezionati (virgola-separati)
+  if(valori.length > 0) {
+    _colFilters[_annoDdKey] = valori.join(',');
+  } else {
+    delete _colFilters[_annoDdKey];
+  }
+
+  // Aggiorna testo del bottone
+  const btn = document.getElementById('anno-btn-' + _annoDdKey);
+  if(btn) {
+    btn.innerHTML = valori.length > 0
+      ? '<span>'+valori.length+' selezionati</span><span class="badge">'+valori.length+'</span>'
+      : '<span style="color:var(--text3)">…</span><span>▾</span>';
+  }
+
+  annoDdChiudi();
+  applicaFiltri();
+}
+
+// Override clearAllFilters per resettare anche i dropdown
+const _origClearFilters = clearAllFilters;
+function clearAllFilters() {
+  _annoSelezioni = {};
+  // Resetta tutti i bottoni dropdown
+  document.querySelectorAll('.anno-filter-btn').forEach(function(btn) {
+    btn.innerHTML = '<span style="color:var(--text3)">…</span><span>▾</span>';
+    btn.classList.remove('active');
+  });
+  _origClearFilters();
 }
 
 // ── FOCUS E CHIUSURA ANTEPRIMA ───────────────────────────────────────
