@@ -862,6 +862,19 @@ function parseNumericFilter(expr, val) {
   }
 }
 
+function matchFiltro(expr, val, isNum) {
+  // Supporta valori multipli separati da virgola: 2008,2009,1999
+  if(expr.includes(',')) {
+    const valori = expr.split(',').map(v => v.trim()).filter(Boolean);
+    return valori.some(v => {
+      if(isNum) return parseNumericFilter(v, val);
+      return String(val ?? '').toLowerCase().includes(v.toLowerCase());
+    });
+  }
+  if(isNum) return parseNumericFilter(expr, val);
+  return String(val ?? '').toLowerCase().includes(expr.toLowerCase());
+}
+
 function applicaFiltri() {
   const keys = Object.keys(_colFilters);
 
@@ -873,9 +886,7 @@ function applicaFiltri() {
       _filt = _tutti.filter(r => {
         return keys.every(k => {
           const expr = _colFilters[k];
-          if(NUM_FILTER_COLS.has(k)) return parseNumericFilter(expr, r[k]);
-          const v = String(r[k] ?? '').toLowerCase();
-          return v.includes(expr);
+          return matchFiltro(expr, r[k], NUM_FILTER_COLS.has(k));
         });
       });
     }
