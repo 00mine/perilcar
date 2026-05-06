@@ -944,182 +944,220 @@ def api_import_excel_stream():
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# ASSISTENTE AI — Ollama locale, sola lettura
+# ASSISTENTE AI — DB cerca i dati, AI formula la risposta
 # ══════════════════════════════════════════════════════════════════════════════
 
-def build_contesto_magazzino(domanda=""):
-    """Costruisce contesto ottimizzato per l'AI - max 800 pezzi rilevanti."""
-    ctx = {}
+import re as _re
 
-    # Stats generali
-    stats = db.fetchone("""
-        SELECT COUNT(*) as tot,
-               SUM(CASE WHEN esistenza>0 THEN 1 ELSE 0 END) as disp,
-               SUM(CASE WHEN scorta>0 AND esistenza<=scorta THEN 1 ELSE 0 END) as sc
-        FROM v_giacenza
-    """)
-    ctx['totale_pezzi']    = stats['tot'] or 0
-    ctx['pezzi_disponibili'] = stats['disp'] or 0
-    ctx['pezzi_sotto_scorta'] = stats['sc'] or 0
+def cerca_nel_db(domanda):
+    """
+    Interpreta la domanda e interroga direttamente il DB.
+    Restituisce dati REALI e accurati.
+    """
+    d = domanda.lower()
+    risultati = {}
 
-    # Indice SMART: pezzi rilevanti per la domanda
-    # Estrai parole chiave dalla domanda per filtrare
-    parole = [w.lower() for w in domanda.split() if len(w) > 3]
-    
-    # Ricerca mirata: prima cerca pezzi che matchano la domanda
-    # poi aggiunge pezzi disponibili generici
-    import re as _re
-    
-    # Estrai termini di ricerca dalla domanda (parole > 3 chars)
-    termini = [w for w in _re.findall(r"[a-zA-ZÀ-ž]+", domanda) if len(w) > 3]
-    
-    pezzi_rilevanti = []
-    visti = set()
-    
-    # 1. Cerca pezzi che matchano i termini della domanda
-    for termine in termini[:4]:
-        matches = db.fetchall("""
-            SELECT cmp, articolo, categoria, marca, modello,
-                   cilindrata, carburante, anno_da, anno_a,
-                   ubicazione, scorta, esistenza, listino1
+    # ── DISPONIBILITÀ PEZZO ──────────────────────────────────────────
+    # Estrai termini di ricerca (parole > 3 chars che non siano parole comuni)
+    stop_words = {'hai','avete','avere','pezzo','pezzi','magazzino','disponibile',
+                  'disponibili','quanti','quante','cerco','cerca','serve','hanno',
+                  'questo','quella','quello','degli','delle','della','sono','cosa',
+                  'come','dove','quando','qual','dici','dirmi','dimmi','voglio'}
+    termini = [w for w in _re.findall(r'[a-zA-ZÀ-ÿ]+', d)
+               if len(w) > 3 and w not in stop_words]
+
+    if termini:
+        # Cerca pezzi che matchano i termini
+        conditions = " OR ".join(["(articolo LIKE ? OR marca LIKE ? OR modello LIKE ? OR categoria LIKE ? OR extra1 LIKE ? OR extra2 LIKE ?)"] * len(termini))
+        params = []
+        for t in termini:
+            params.extend([f"%{t}%"] * 6)
+
+        pezzi_trovati = db.fetchall(f"""
+            SELECT cmp, articolo, marca, modello, categoria,
+                   esistenza, scorta, ubicazione, listino1,
+                   cilindrata, carburante, anno_da, anno_a
             FROM v_giacenza
-            WHERE (articolo LIKE ? OR marca LIKE ? OR modello LIKE ? 
-                   OR categoria LIKE ? OR extra1 LIKE ? OR extra2 LIKE ?)
-            LIMIT 50
-        """, [f"%{termine}%"]*6)
-        for p in matches:
-            if p["cmp"] not in visti:
-                pezzi_rilevanti.append(p)
-                visti.add(p["cmp"])
-    
-    # 2. Aggiunge top 50 disponibili come contesto generale
-    generici = db.fetchall("""
-        SELECT cmp, articolo, categoria, marca, modello,
-               cilindrata, carburante, anno_da, anno_a,
-               ubicazione, scorta, esistenza, listino1
-        FROM v_giacenza
-        WHERE esistenza > 0
-        ORDER BY articolo
-        LIMIT 50
-    """)
-    for p in generici:
-        if p["cmp"] not in visti:
-            pezzi_rilevanti.append(p)
-            visti.add(p["cmp"])
-    
-    pezzi = pezzi_rilevanti[:200]
+            WHERE {conditions}
+            ORDER BY esistenza DESC
+            LIMIT 30
+        """, params)
+        risultati['pezzi_trovati'] = pezzi_trovati
 
-    righe = []
-    for p in pezzi:
-        es = p['esistenza'] or 0
-        sc = p['scorta'] or 0
-        stato = "DISP" if es > 0 else "ESAURITO"
-        riga = f"{p['articolo']}|{stato}|ES:{es}"
-        for k in ['marca','modello','categoria','cilindrata','carburante','anno_da','ubicazione']:
-            v = p.get(k)
-            if v and str(v).strip() not in ('','None','0'): 
-                riga += f"|{v}"
-        if p.get('listino1') and p['listino1'] > 0:
-            riga += f"|€{p['listino1']}"
-        righe.append(riga)
-    
-    ctx['indice_pezzi'] = "\n".join(righe)
+    # ── SOTTO SCORTA ─────────────────────────────────────────────────
+    if any(w in d for w in ['scorta','mancano','esauriti','finiti','ordinare','acquistare']):
+        sotto = db.fetchall("""
+            SELECT cmp, articolo, marca, categoria, esistenza, scorta
+            FROM v_giacenza
+            WHERE scorta > 0 AND esistenza <= scorta
+            ORDER BY (scorta - esistenza) DESC
+            LIMIT 20
+        """)
+        risultati['sotto_scorta'] = sotto
 
-    # 2. Pezzi più venduti (scarichi) nell'ultimo mese
-    venduti_mese = db.fetchall("""
-        SELECT c.nome as articolo, c.marca, c.categoria,
-               COUNT(*) as num_movimenti,
-               SUM(m.quantita) as qty_totale
-        FROM movimenti_magazzino m
-        JOIN componenti c ON c.id = m.componente_id
-        WHERE m.tipo = 'scarico'
-          AND m.creato_il >= date('now', '-30 days')
-        GROUP BY m.componente_id
-        ORDER BY qty_totale DESC
-        LIMIT 20
-    """)
-    ctx['top_venduti_mese'] = [
-        f"{r['articolo']} ({r['marca'] or ''}) - {r['qty_totale']} pz scaricati"
-        for r in venduti_mese
-    ]
+    # ── PIÙ VENDUTI ───────────────────────────────────────────────────
+    periodo = 30
+    if any(w in d for w in ['anno','annuale','12 mesi']):
+        periodo = 365
+    elif any(w in d for w in ['settimana','7 giorni']):
+        periodo = 7
+    elif any(w in d for w in ['trimestre','3 mesi']):
+        periodo = 90
 
-    # 3. Pezzi più venduti nell'ultimo anno
-    venduti_anno = db.fetchall("""
-        SELECT c.nome as articolo, c.marca, c.categoria,
-               SUM(m.quantita) as qty_totale
-        FROM movimenti_magazzino m
-        JOIN componenti c ON c.id = m.componente_id
-        WHERE m.tipo = 'scarico'
-          AND m.creato_il >= date('now', '-365 days')
-        GROUP BY m.componente_id
-        ORDER BY qty_totale DESC
-        LIMIT 20
-    """)
-    ctx['top_venduti_anno'] = [
-        f"{r['articolo']} ({r['marca'] or ''}) - {r['qty_totale']} pz"
-        for r in venduti_anno
-    ]
+    if any(w in d for w in ['venduti','venduto','scaricati','vendite','vendo','vende',
+                             'vendono','richiesti','richiesto','popolare']):
+        venduti = db.fetchall(f"""
+            SELECT c.nome as articolo, c.marca, c.categoria,
+                   SUM(m.quantita) as qty, COUNT(*) as n_vendite
+            FROM movimenti_magazzino m
+            JOIN componenti c ON c.id = m.componente_id
+            WHERE m.tipo = 'scarico'
+              AND m.creato_il >= date('now', '-{periodo} days')
+            GROUP BY m.componente_id
+            ORDER BY qty DESC
+            LIMIT 15
+        """)
+        risultati['piu_venduti'] = venduti
+        risultati['periodo_giorni'] = periodo
 
-    # 4. Pezzi non movimentati da 6+ mesi (fermi)
-    fermi = db.fetchall("""
-        SELECT c.codice as cmp, c.nome as articolo, c.marca, c.categoria,
-               v.esistenza,
-               MAX(m.creato_il) as ultimo_movimento
-        FROM componenti c
-        JOIN v_giacenza v ON v.componente_id = c.id
-        LEFT JOIN movimenti_magazzino m ON m.componente_id = c.id
-        WHERE c.eliminato = 0 AND v.esistenza > 0
-        GROUP BY c.id
-        HAVING ultimo_movimento < date('now', '-180 days')
-           OR ultimo_movimento IS NULL
-        ORDER BY ultimo_movimento ASC
-        LIMIT 30
-    """)
-    ctx['pezzi_fermi_6mesi'] = [
-        f"{r['cmp']}|{r['articolo']} ({r['marca'] or ''}) - ES:{r['esistenza']} - ultimo mov:{(r['ultimo_movimento'] or 'mai')[:10]}"
-        for r in fermi
-    ]
+    # ── PEZZI FERMI ───────────────────────────────────────────────────
+    if any(w in d for w in ['fermi','fermo','mesi','venduto','movimentati',
+                             'giacciono','stagnanti','invenduti']):
+        mesi = 6
+        if '12' in d or 'anno' in d: mesi = 12
+        elif '3' in d or 'trimestre' in d: mesi = 3
 
-    # 5. Statistiche per categoria
-    categorie = db.fetchall("""
-        SELECT categoria,
-               COUNT(*) as num_articoli,
-               SUM(esistenza) as tot_giacenza
-        FROM v_giacenza
-        WHERE categoria IS NOT NULL AND categoria != ''
-        GROUP BY categoria
-        ORDER BY num_articoli DESC
-        LIMIT 20
-    """)
-    ctx['categorie'] = [
-        f"{r['categoria']}: {r['num_articoli']} articoli, {r['tot_giacenza']} pz totali"
-        for r in categorie
-    ]
+        fermi = db.fetchall(f"""
+            SELECT c.codice as cmp, c.nome as articolo, c.marca, c.categoria,
+                   v.esistenza,
+                   MAX(m.creato_il) as ultimo_movimento
+            FROM componenti c
+            JOIN v_giacenza v ON v.componente_id = c.id
+            LEFT JOIN movimenti_magazzino m ON m.componente_id = c.id
+            WHERE c.eliminato = 0 AND v.esistenza > 0
+            GROUP BY c.id
+            HAVING (ultimo_movimento IS NULL
+                    OR ultimo_movimento < date('now', '-{mesi*30} days'))
+            ORDER BY v.esistenza DESC
+            LIMIT 20
+        """)
+        risultati['pezzi_fermi'] = fermi
+        risultati['mesi_fermi'] = mesi
 
-    # 6. Attività recente (ultimi 7 giorni)
-    recenti = db.fetchall("""
-        SELECT m.tipo, COUNT(*) as n, SUM(m.quantita) as qty
-        FROM movimenti_magazzino m
-        WHERE m.creato_il >= date('now', '-7 days')
-        GROUP BY m.tipo
-    """)
-    ctx['attivita_7gg'] = {r['tipo']: {'movimenti': r['n'], 'quantita': r['qty']} for r in recenti}
+    # ── VALORE MAGAZZINO ──────────────────────────────────────────────
+    if any(w in d for w in ['valore','vale','stimato','stima','patrimonio','soldi','euro']):
+        valore = db.fetchone("""
+            SELECT
+                SUM(v.esistenza * COALESCE(c.listino1, 0)) as valore_totale,
+                COUNT(CASE WHEN c.listino1 > 0 THEN 1 END) as con_prezzo,
+                COUNT(*) as totale,
+                SUM(v.esistenza) as pezzi_totali
+            FROM v_giacenza v
+            JOIN componenti c ON c.id = v.componente_id
+            WHERE v.esistenza > 0
+        """)
+        risultati['valore'] = valore
 
-    # 7. Valore stimato magazzino (basato su listino1)
-    valore = db.fetchone("""
-        SELECT SUM(v.esistenza * COALESCE(c.listino1, 0)) as valore_totale,
-               COUNT(CASE WHEN c.listino1 > 0 THEN 1 END) as pezzi_con_prezzo
-        FROM v_giacenza v
-        JOIN componenti c ON c.id = v.componente_id
-        WHERE v.esistenza > 0
-    """)
-    if valore:
-        ctx['valore_magazzino'] = {
-            'stima_euro': round(valore['valore_totale'] or 0, 2),
-            'pezzi_con_prezzo': valore['pezzi_con_prezzo'] or 0
-        }
+    # ── STATISTICHE GENERALI ──────────────────────────────────────────
+    if any(w in d for w in ['quanti','totale','statistiche','riepilogo',
+                             'magazzino','articoli','componenti']):
+        stats = db.fetchone("""
+            SELECT COUNT(*) as tot,
+                   SUM(CASE WHEN esistenza > 0 THEN 1 ELSE 0 END) as disp,
+                   SUM(CASE WHEN scorta > 0 AND esistenza <= scorta THEN 1 ELSE 0 END) as sc,
+                   SUM(esistenza) as pz_tot
+            FROM v_giacenza
+        """)
+        risultati['statistiche'] = stats
 
-    return ctx
+    # ── RECUPERO AUTO ─────────────────────────────────────────────────
+    if any(w in d for w in ['recupero','recuperare','smontare','demolire',
+                             'arrivata','arrivato','demolizione']):
+        # Cerca marca/modello citati nella domanda
+        marche_note = ['fiat','ford','volkswagen','vw','golf','opel','renault','peugeot',
+                       'citroen','alfa','lancia','bmw','mercedes','audi','toyota','nissan',
+                       'hyundai','kia','seat','skoda','volvo','smart','mini','jeep']
+        marca_trovata = next((m for m in marche_note if m in d), None)
+
+        if marca_trovata:
+            disponibili = db.fetchall("""
+                SELECT articolo, categoria, esistenza, scorta, ubicazione
+                FROM v_giacenza
+                WHERE LOWER(marca) LIKE ?
+                  AND esistenza > 0
+                ORDER BY categoria, articolo
+                LIMIT 40
+            """, [f"%{marca_trovata}%"])
+            risultati['recupero_auto'] = disponibili
+            risultati['marca_recupero'] = marca_trovata
+
+    return risultati
+
+
+def formatta_risultati(risultati, domanda):
+    """Formatta i risultati DB in testo chiaro per l'AI."""
+    parti = []
+
+    if risultati.get('pezzi_trovati') is not None:
+        pezzi = risultati['pezzi_trovati']
+        if pezzi:
+            parti.append("PEZZI TROVATI NEL MAGAZZINO (" + str(len(pezzi)) + " risultati):")
+            for p in pezzi[:15]:
+                es = p['esistenza'] or 0
+                stato = "DISPONIBILE" if es > 0 else "ESAURITO"
+                riga = f"- {p['articolo']} | {p['marca'] or ''} {p['modello'] or ''} | {stato} | Quantità: {es}"
+                if p.get('ubicazione'): riga += f" | Posizione: {p['ubicazione']}"
+                if p.get('listino1') and p['listino1'] > 0: riga += f" | Prezzo: €{p['listino1']}"
+                if p.get('anno_da'): riga += f" | Anno: {p['anno_da']}"
+                parti.append(riga)
+        else:
+            parti.append("RICERCA NEL MAGAZZINO: Nessun pezzo trovato con questi criteri.")
+
+    if risultati.get('sotto_scorta'):
+        sotto = risultati['sotto_scorta']
+        parti.append(f"PEZZI SOTTO SCORTA ({len(sotto)} articoli da riordinare):")
+        for p in sotto:
+            parti.append(f"- {p['articolo']} | {p['marca'] or ''} | Ha: {p['esistenza']} | Minimo: {p['scorta']}")
+
+    if risultati.get('piu_venduti'):
+        gg = risultati.get('periodo_giorni', 30)
+        periodo_str = f"ultimi {gg} giorni" if gg <= 90 else "ultimo anno"
+        venduti = risultati['piu_venduti']
+        parti.append(f"PIÙ VENDUTI ({periodo_str}, top {len(venduti)}):")
+        for p in venduti:
+            parti.append(f"- {p['articolo']} ({p['marca'] or ''}) | {p['qty']} pezzi venduti in {p['n_vendite']} operazioni")
+
+    if risultati.get('pezzi_fermi'):
+        mesi = risultati.get('mesi_fermi', 6)
+        fermi = risultati['pezzi_fermi']
+        parti.append(f"PEZZI FERMI DA {mesi}+ MESI (in magazzino ma non venduti, top {len(fermi)}):")
+        for p in fermi:
+            ult = (p['ultimo_movimento'] or 'mai')[:10]
+            parti.append(f"- {p['articolo']} ({p['marca'] or ''}) | Quantità: {p['esistenza']} | Ultimo movimento: {ult}")
+
+    if risultati.get('valore'):
+        v = risultati['valore']
+        parti.append(f"VALORE MAGAZZINO (stima su listino):")
+        parti.append(f"- Valore totale: €{round(v['valore_totale'] or 0, 2):,.2f}")
+        parti.append(f"- Pezzi con prezzo: {v['con_prezzo']} su {v['totale']} disponibili")
+        parti.append(f"- Pezzi fisici totali: {v['pezzi_totali']}")
+
+    if risultati.get('statistiche'):
+        s = risultati['statistiche']
+        parti.append(f"STATISTICHE MAGAZZINO:")
+        parti.append(f"- Articoli totali: {s['tot']}")
+        parti.append(f"- Disponibili (ES>0): {s['disp']}")
+        parti.append(f"- Sotto scorta: {s['sc']}")
+        parti.append(f"- Pezzi fisici totali: {s['pz_tot']}")
+
+    if risultati.get('recupero_auto'):
+        marca = risultati.get('marca_recupero', '').upper()
+        pezzi = risultati['recupero_auto']
+        parti.append(f"PEZZI {marca} DISPONIBILI DA RECUPERARE ({len(pezzi)} trovati):")
+        for p in pezzi[:20]:
+            parti.append(f"- {p['articolo']} | Qtà: {p['esistenza']} | {p['ubicazione'] or ''}")
+
+    return "\n".join(parti) if parti else "Nessun dato trovato per questa ricerca."
 
 
 @app.route("/api/assistente", methods=["POST"])
@@ -1132,63 +1170,39 @@ def api_assistente():
     if not domanda:
         return jsonify({"ok": False, "msg": "Domanda vuota"}), 400
 
-    # Costruisci contesto ricco
+    # 1. Cerca dati REALI nel database
     try:
-        ctx = build_contesto_magazzino(domanda)
+        risultati = cerca_nel_db(domanda)
+        dati_reali = formatta_risultati(risultati, domanda)
     except Exception as e:
-        log.error(f"Errore build contesto: {e}")
-        ctx = {'indice_pezzi': '', 'totale_pezzi': 0}
+        log.error(f"Errore ricerca DB: {e}")
+        dati_reali = "Errore nel recupero dati."
 
-    system_prompt = f"""Sei PERI, assistente AI del magazzino PerilCar.
-REGOLA ASSOLUTA: usa SOLO i dati forniti qui sotto per rispondere.
-NON dire mai "non ho accesso" o "non posso sapere" — hai tutti i dati del magazzino.
-Rispondi in italiano, max 4 frasi, sii diretto e preciso.
-Se trovi il pezzo nell'indice, di' la giacenza esatta. Se non c'e', suggerisci alternative simili.
+    # 2. Usa AI solo per formulare risposta naturale sui dati reali
+    system_prompt = """Sei PERI, assistente del magazzino PerilCar.
+Ti vengono forniti dati REALI estratti dal database. Usali per rispondere.
+REGOLE ASSOLUTE:
+- Usa SOLO i dati forniti, non inventare nulla
+- Se i dati dicono "ESAURITO" di lo chiaramente
+- Se i dati dicono "DISPONIBILE" con quantità X, riporta esattamente X
+- Rispondi in italiano, max 5 frasi, sii diretto e preciso
+- Non aggiungere informazioni che non sono nei dati forniti"""
 
-=== DATI MAGAZZINO AGGIORNATI ===
-Totale articoli: {ctx.get('totale_pezzi', 0)}
-Disponibili (ES>0): {ctx.get('pezzi_disponibili', 0)}
-Sotto scorta: {ctx.get('pezzi_sotto_scorta', 0)}
+    user_msg = f"""Domanda: {domanda}
 
-VALORE STIMATO MAGAZZINO:
-{ctx.get('valore_magazzino', {}).get('stima_euro', 'N/D')} EUR (su {ctx.get('valore_magazzino', {}).get('pezzi_con_prezzo', 0)} pezzi con prezzo)
+DATI REALI DAL DATABASE:
+{dati_reali}
 
-TOP VENDUTI ULTIMO MESE:
-{chr(10).join(ctx.get('top_venduti_mese', ['Nessun dato'])[:10])}
-
-TOP VENDUTI ULTIMO ANNO:
-{chr(10).join(ctx.get('top_venduti_anno', ['Nessun dato'])[:10])}
-
-PEZZI FERMI DA 6+ MESI (in magazzino ma non venduti):
-{chr(10).join(ctx.get('pezzi_fermi_6mesi', ['Nessun dato'])[:15])}
-
-CATEGORIE:
-{chr(10).join(ctx.get('categorie', [])[:10])}
-
-ATTIVITA' ULTIMI 7 GIORNI:
-{str(ctx.get('attivita_7gg', {}))}
-
-INDICE COMPLETO PEZZI (CODICE|NOME|STATO|ES:giacenza|SC:scorta|altri dati):
-{ctx.get('indice_pezzi', 'Magazzino vuoto')}
-
-=== REGOLE ===
-1. Disponibilità pezzi: cerca nell'indice per nome, marca, modello, categoria, cilindrata
-2. Compatibilità: se un pezzo manca, suggerisci pezzi della stessa categoria/marca/cilindrata disponibili
-3. Pezzi più venduti: usa i dati TOP VENDUTI
-4. Pezzi fermi: usa la lista PEZZI FERMI
-5. Valore pezzo: se ha listino1, usalo come riferimento. Altrimenti stima in base a categoria e stato
-6. "Cosa recuperare da un'auto": elenca i pezzi tipicamente recuperabili di quella marca/modello presenti nel magazzino
-7. Ricambi da acquistare: segnala pezzi sotto scorta della categoria/marca richiesta
-8. Sei PERI, parla in prima persona, sii amichevole e professionale"""
+Rispondi basandoti ESCLUSIVAMENTE sui dati sopra."""
 
     payload = _j.dumps({
         "model": "llama3.2:latest",
         "messages": [
             {"role": "system", "content": system_prompt},
-            {"role": "user",   "content": domanda}
+            {"role": "user",   "content": user_msg}
         ],
         "stream": False,
-        "options": {"temperature": 0.1, "num_predict": 200, "num_ctx": 4096}
+        "options": {"temperature": 0.1, "num_predict": 250, "num_ctx": 4096}
     }).encode()
 
     req = urllib.request.Request(
@@ -1199,16 +1213,21 @@ INDICE COMPLETO PEZZI (CODICE|NOME|STATO|ES:giacenza|SC:scorta|altri dati):
     )
 
     try:
-        with urllib.request.urlopen(req, timeout=180) as resp:
+        with urllib.request.urlopen(req, timeout=120) as resp:
             result = _j.loads(resp.read())
             risposta = result["message"]["content"]
-            return jsonify({"ok": True, "risposta": risposta})
+            # Aggiungi dati grezzi se risposta troppo vaga
+            return jsonify({"ok": True, "risposta": risposta, "dati": dati_reali})
     except urllib.error.URLError:
-        return jsonify({"ok": False,
-            "msg": "Ollama non avviato. Apri il terminale e scrivi: ollama serve"}), 503
+        # Se Ollama non risponde, restituisci almeno i dati grezzi formattati
+        return jsonify({"ok": True,
+            "risposta": "Dati dal magazzino:\n" + dati_reali,
+            "dati": dati_reali})
     except Exception as e:
         log.error(f"Assistente error: {e}")
-        return jsonify({"ok": False, "msg": str(e)}), 500
+        return jsonify({"ok": True,
+            "risposta": "Ecco i dati trovati:\n" + dati_reali,
+            "dati": dati_reali})
 
 
 # ══════════════════════════════════════════════════════════════════════════════
