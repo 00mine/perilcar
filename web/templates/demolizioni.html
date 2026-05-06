@@ -207,94 +207,81 @@
     <!-- Card Generale -->
     <div class="card">
       <div class="card-title">Generale</div>
-      <div class="form-grid cols3" style="gap:10px">
 
+      <!-- ID + Data + Reg + Pag -->
+      <div style="display:grid;grid-template-columns:70px 160px 1fr 90px;gap:6px;margin-bottom:6px">
         <div class="field">
           <label>ID</label>
           <input type="text" id="f-id" readonly style="background:var(--surface2);color:var(--text3);font-family:var(--mono)">
         </div>
-
         <div class="field">
           <label>Data presa in carico</label>
           <input type="date" id="f-data">
         </div>
-
         <div class="field">
           <label>Reg. demolitori</label>
-          <input type="text" id="f-reg" placeholder="Num. registro">
+          <input type="text" id="f-reg" placeholder="Numero">
         </div>
-
-        <div class="field full">
+        <div class="field">
           <label>Pag. Reg.</label>
-          <input type="text" id="f-pag" placeholder="Pagina registro">
+          <input type="text" id="f-pag" placeholder="Pag.">
         </div>
+      </div>
 
-        <!-- Veicolo -->
-        <div class="field full">
+      <!-- Veicolo -->
+      <div style="margin-bottom:6px">
+        <div class="field">
           <label>Veicolo</label>
           <div class="input-group">
-            <select id="f-veicolo">
-              <option value="">— seleziona —</option>
-            </select>
+            <select id="f-veicolo"><option value="">— seleziona —</option></select>
             <button class="btn-v" onclick="openModalVeicolo()">▾</button>
-            <button class="btn-plus" onclick="openModalNuovoVeicolo()" title="Nuovo veicolo">+</button>
+            <button class="btn-plus" onclick="openModalNuovoVeicolo()">+</button>
           </div>
         </div>
+      </div>
 
-        <!-- Proprietario -->
+      <!-- Proprietario + Detentore -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
         <div class="field">
           <label>Proprietario</label>
           <div class="input-group">
-            <select id="f-proprietario">
-              <option value="">— seleziona —</option>
-            </select>
-            <button class="btn-plus" onclick="openModalNuovaAnagrafica('proprietario')" title="Nuova anagrafica">+</button>
+            <select id="f-proprietario"><option value="">— seleziona —</option></select>
+            <button class="btn-plus" onclick="openModalNuovaAnagrafica('proprietario')">+</button>
           </div>
         </div>
-
-        <!-- Detentore -->
         <div class="field">
           <label>Detentore</label>
           <div class="input-group">
-            <select id="f-detentore">
-              <option value="">— seleziona —</option>
-            </select>
-            <button class="btn-plus" onclick="openModalNuovaAnagrafica('detentore')" title="Nuova anagrafica">+</button>
+            <select id="f-detentore"><option value="">— seleziona —</option></select>
+            <button class="btn-plus" onclick="openModalNuovaAnagrafica('detentore')">+</button>
           </div>
         </div>
+      </div>
 
-        <!-- Ufficio Provinciale -->
+      <!-- Ufficio + Concessionaria + Checkbox -->
+      <div style="display:grid;grid-template-columns:100px 1fr auto;gap:6px;align-items:end">
         <div class="field">
-          <label>Ufficio Provinciale</label>
-          <input type="text" id="f-ufficio" placeholder="es. VI, PD, VE...">
+          <label>Ufficio Prov.</label>
+          <input type="text" id="f-ufficio" placeholder="es. VI">
         </div>
-
-        <!-- Concessionaria -->
         <div class="field">
           <label>Concessionaria</label>
           <input type="text" id="f-concessionaria">
         </div>
-        <div class="field">
-          <label>Num. Albatros</label>
-          <input type="text" id="f-albatros" placeholder="Numero certificato">
-        </div>
-
-        <!-- Checkbox -->
-        <div class="field" style="grid-column:1/-1;display:flex;gap:24px;padding-top:4px">
+        <div style="display:flex;gap:16px;padding-bottom:5px;flex-shrink:0">
           <div class="check-row">
             <input type="checkbox" id="f-targhe">
             <label for="f-targhe">Targhe consegnate</label>
           </div>
           <div class="check-row">
             <input type="checkbox" id="f-carta">
-            <label for="f-carta">Carta di circolazione</label>
+            <label for="f-carta">Carta circ.</label>
           </div>
         </div>
-
       </div>
     </div>
 
-    <!-- Colonna destra: dati rottamazione + pulsanti -->
+        <!-- Colonna destra: dati rottamazione + pulsanti -->
     <div style="display:flex;flex-direction:column;gap:10px">
 
       <!-- Card Dati Rottamazione -->
@@ -680,14 +667,14 @@ function selectRow(id, el) {
   document.getElementById('f-peso-eff').value  = d.peso_effettivo_kg||'';
   document.getElementById('f-peso-netto').value= d.peso_netto_kg||'';
   document.getElementById('f-modalita').value  = d.modalita_radiazione||'';
-  document.getElementById('f-albatros').value  = d.num_albatros||'';
+  // f-albatros rimosso dal form
 }
 
 function nuovoRecord() {
   _selId = null;
   document.querySelectorAll('#tbody tr').forEach(r=>r.classList.remove('selected'));
   ['f-id','f-data','f-reg','f-pag','f-ufficio','f-concessionaria',
-   'f-peso-eff','f-peso-netto','f-albatros'].forEach(id=>{
+   'f-peso-eff','f-peso-netto'].forEach(id=>{
     const el=document.getElementById(id); if(el) el.value='';
   });
   document.getElementById('f-veicolo').value='';
@@ -714,7 +701,7 @@ function getFormData() {
     peso_effettivo_kg:    parseFloat(document.getElementById('f-peso-eff').value)||null,
     peso_netto_kg:        parseFloat(document.getElementById('f-peso-netto').value)||null,
     modalita_radiazione:  document.getElementById('f-modalita').value||null,
-    num_albatros:         document.getElementById('f-albatros').value||null,
+    num_albatros:         null,
   };
 }
 
