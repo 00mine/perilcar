@@ -1095,9 +1095,11 @@ def api_assistente():
         log.error(f"Errore build contesto: {e}")
         ctx = {'indice_pezzi': '', 'totale_pezzi': 0}
 
-    system_prompt = f"""Sei PERI, l'assistente AI del magazzino PerilCar — un'autodemolizione italiana.
-Rispondi SEMPRE in italiano, in modo conciso, pratico e diretto. Max 5 frasi.
-Puoi SOLO leggere i dati — non puoi modificare il magazzino.
+    system_prompt = f"""Sei PERI, assistente AI del magazzino PerilCar.
+REGOLA ASSOLUTA: usa SOLO i dati forniti qui sotto per rispondere.
+NON dire mai "non ho accesso" o "non posso sapere" — hai tutti i dati del magazzino.
+Rispondi in italiano, max 4 frasi, sii diretto e preciso.
+Se trovi il pezzo nell'indice, di' la giacenza esatta. Se non c'e', suggerisci alternative simili.
 
 === DATI MAGAZZINO AGGIORNATI ===
 Totale articoli: {ctx.get('totale_pezzi', 0)}
@@ -1136,13 +1138,13 @@ INDICE COMPLETO PEZZI (CODICE|NOME|STATO|ES:giacenza|SC:scorta|altri dati):
 8. Sei PERI, parla in prima persona, sii amichevole e professionale"""
 
     payload = _j.dumps({
-        "model": "llama3.2:1b",
+        "model": "llama3.2",
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user",   "content": domanda}
         ],
         "stream": False,
-        "options": {"temperature": 0.3, "num_predict": 500}
+        "options": {"temperature": 0.1, "num_predict": 300, "num_ctx": 8192}
     }).encode()
 
     req = urllib.request.Request(
