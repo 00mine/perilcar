@@ -1431,10 +1431,14 @@ function openColonneModal() {
     item.innerHTML = `
       <span class="drag-handle">⠿</span>
       <input type="checkbox" ${col.visible?'checked':''} onchange="colToggle(${idx},this.checked)">
-      <span class="col-label">${col.label}</span>
+      <input type="text" class="col-name" value="${col.label}"
+             title="Nome colonna (modificabile)"
+             onchange="colRename(${idx},this.value)"
+             style="flex:1;padding:3px 6px;font-size:12px;border:1px solid var(--border);
+                    border-radius:4px;background:var(--surface);min-width:0">
       <input type="number" class="col-w" value="${col.w}" min="40" max="500"
              title="Larghezza px" onchange="colWidth(${idx},this.value)">
-      <span style="font-size:10px;color:var(--text3)">px</span>
+      <span style="font-size:10px;color:var(--text3);flex-shrink:0">px</span>
     `;
 
     // Drag & Drop
@@ -1471,6 +1475,10 @@ function colToggle(idx, visible) {
 function colWidth(idx, val) {
   const w = Math.max(40, Math.min(500, parseInt(val)||80));
   _colState[idx].w = w;
+}
+
+function colRename(idx, val) {
+  if(val.trim()) _colState[idx].label = val.trim();
 }
 
 function colonneShowAll() {
