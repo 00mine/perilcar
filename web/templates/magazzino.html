@@ -1744,7 +1744,7 @@ function eseguiStampa() {
     +'thead th{background:#e94c00;color:white;padding:5px 6px;text-align:left;font-size:9px;text-transform:uppercase;white-space:nowrap}'
     +'tbody td{padding:4px 6px;border-bottom:1px solid #eee}'
     +'.footer{margin-top:10px;font-size:9px;color:#aaa;border-top:1px solid #eee;padding-top:5px;display:flex;justify-content:space-between}'
-    +'@media print{@page{margin:1cm;size:landscape}body{margin:0}.no-print{display:none}}'
+    +'* { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }'    +'@media print{@page{margin:1cm;size:landscape}body{margin:0}.no-print{display:none}}'
     +'</style></head><body>'
     +'<div class="no-print" style="margin-bottom:12px">'
     +'<button onclick="window.print()" style="background:#e94c00;color:#fff;border:none;padding:8px 20px;border-radius:6px;font-size:13px;cursor:pointer;font-weight:700">Stampa / Salva PDF</button>'
