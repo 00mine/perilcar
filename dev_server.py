@@ -1182,7 +1182,7 @@ INDICE COMPLETO PEZZI (CODICE|NOME|STATO|ES:giacenza|SC:scorta|altri dati):
 8. Sei PERI, parla in prima persona, sii amichevole e professionale"""
 
     payload = _j.dumps({
-        "model": "qwen2.5:0.5b",
+        "model": "llama3.2:latest",
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user",   "content": domanda}
