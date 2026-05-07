@@ -44,41 +44,34 @@ cfg = ConfigManager()
 db  = DatabaseManager(cfg.get("db_path"))
 log.info(f"DB: {cfg.get('db_path')}")
 
-def _migra_colonne():
-    conn = None
-    try:
-        import sqlite3 as _sq
-        db_path = cfg.get("db_path")
-        conn = _sq.connect(db_path, timeout=30)
-        conn.row_factory = _sq.Row
-        vei = [r[1] for r in conn.execute("PRAGMA table_info(veicoli)").fetchall()]
-        for col,typ in [("classe","TEXT"),("marca","TEXT"),("modello","TEXT"),
-                        ("anno_immatricolazione","TEXT"),("num_motore","TEXT"),
-                        ("colore","TEXT"),("note","TEXT")]:
-            if col not in vei:
-                conn.execute(f"ALTER TABLE veicoli ADD COLUMN {col} {typ}")
-        dem = [r[1] for r in conn.execute("PRAGMA table_info(demolizioni)").fetchall()]
-        for col,typ in [("ora_presa_in_carico","TEXT"),("num_albatros","TEXT")]:
-            if col not in dem:
-                conn.execute(f"ALTER TABLE demolizioni ADD COLUMN {col} {typ}")
-        ana = [r[1] for r in conn.execute("PRAGMA table_info(anagrafiche)").fetchall()]
-        for col,typ in [("cognome","TEXT"),("nome","TEXT"),("sesso","TEXT"),
-                        ("data_nascita","TEXT"),("luogo_nascita","TEXT"),
-                        ("comune","TEXT"),("provincia","TEXT"),("via","TEXT"),
-                        ("civico","TEXT"),("cap","TEXT"),("tipo_doc","TEXT"),
-                        ("num_doc","TEXT"),("data_doc","TEXT"),("rilasciato_da","TEXT"),
-                        ("cellulare","TEXT"),("fax","TEXT")]:
-            if col not in ana:
-                conn.execute(f"ALTER TABLE anagrafiche ADD COLUMN {col} {typ}")
-        conn.commit()
-        log.info("Migrazione colonne OK")
-    except Exception as e:
-        log.error(f"Migrazione: {e}")
-    finally:
-        if conn:
-            conn.close()
-
-_migra_colonne()
+# Migrazione colonne eseguita tramite DatabaseManager (thread-safe)
+try:
+    with db._write_lock:
+        _c = db.get_connection()
+        for _col,_typ in [("classe","TEXT"),("marca","TEXT"),("modello","TEXT"),
+                          ("anno_immatricolazione","TEXT"),("num_motore","TEXT"),
+                          ("colore","TEXT"),("note","TEXT")]:
+            _vei = [r[1] for r in _c.execute("PRAGMA table_info(veicoli)").fetchall()]
+            if _col not in _vei:
+                _c.execute(f"ALTER TABLE veicoli ADD COLUMN {_col} {_typ}")
+        for _col,_typ in [("ora_presa_in_carico","TEXT"),("num_albatros","TEXT")]:
+            _dem = [r[1] for r in _c.execute("PRAGMA table_info(demolizioni)").fetchall()]
+            if _col not in _dem:
+                _c.execute(f"ALTER TABLE demolizioni ADD COLUMN {_col} {_typ}")
+        for _col,_typ in [("cognome","TEXT"),("nome","TEXT"),("sesso","TEXT"),
+                          ("data_nascita","TEXT"),("luogo_nascita","TEXT"),
+                          ("comune","TEXT"),("provincia","TEXT"),("via","TEXT"),
+                          ("civico","TEXT"),("cap","TEXT"),("tipo_doc","TEXT"),
+                          ("num_doc","TEXT"),("data_doc","TEXT"),("rilasciato_da","TEXT"),
+                          ("cellulare","TEXT"),("fax","TEXT")]:
+            _ana = [r[1] for r in _c.execute("PRAGMA table_info(anagrafiche)").fetchall()]
+            if _col not in _ana:
+                _c.execute(f"ALTER TABLE anagrafiche ADD COLUMN {_col} {_typ}")
+        _c.commit()
+        _c.close()
+    log.info("Migrazione colonne OK")
+except Exception as _e:
+    log.error(f"Migrazione: {_e}")
 
 # ── Scrittura sicura: tutte le operazioni passano da qui ─────────────────────
 def db_write(statements: list):
@@ -1453,34 +1446,21 @@ def api_veicoli_crea():
 def api_demolizioni_progressivi():
     """Restituisce i valori automatici per una nuova demolizione."""
     import datetime
-    conn = db.get_connection()
-    
-    # Prossimo ID
-    row = conn.execute("SELECT COALESCE(MAX(id),0)+1 as next_id FROM demolizioni").fetchone()
-    next_id = row["next_id"]
-    
-    # Prossima pagina registro
-    row2 = conn.execute("SELECT COALESCE(MAX(CAST(pag_reg AS INTEGER)),0)+1 as next_pag FROM demolizioni").fetchone()
-    next_pag = row2["next_pag"]
-    
-    # Reg demolitori = 01/ANNO corrente
-    anno = datetime.datetime.now().year
-    reg = f"01/{anno}"
-    
-    # Data e ora correnti
-    now = datetime.datetime.now()
-    data_oggi = now.strftime("%Y-%m-%d")
-    ora_adesso = now.strftime("%H:%M")
-    
-    conn.close()
-    return jsonify({
-        "ok": True,
-        "next_id": next_id,
-        "next_pag": next_pag,
-        "reg_demolitori": reg,
-        "data": data_oggi,
-        "ora": ora_adesso
-    })
+    try:
+        next_id  = db.fetchone("SELECT COALESCE(MAX(id),0)+1 as v FROM demolizioni")["v"]
+        next_pag = db.fetchone("SELECT COALESCE(MAX(CAST(pag_reg AS INTEGER)),0)+1 as v FROM demolizioni")["v"]
+        anno = datetime.datetime.now().year
+        now  = datetime.datetime.now()
+        return jsonify({
+            "ok": True,
+            "next_id": next_id,
+            "next_pag": next_pag,
+            "reg_demolitori": f"01/{anno}",
+            "data": now.strftime("%Y-%m-%d"),
+            "ora": now.strftime("%H:%M")
+        })
+    except Exception as e:
+        return jsonify({"ok": False, "msg": str(e)}), 500
 
 @app.route("/api/demolizioni/cerca")
 @require_login  
