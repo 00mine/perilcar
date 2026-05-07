@@ -1272,25 +1272,30 @@ def api_demolizioni_list():
 def api_demolizioni_crea():
     u = cu()
     d = request.json or {}
+    # Campi base sempre presenti
+    campi_base = ["data_presa_in_carico","reg_demolitori","pag_reg","veicolo_id",
+                  "proprietario_id","detentore_id","ufficio_provinciale",
+                  "targhe_consegnate","carta_circolazione","concessionaria",
+                  "peso_effettivo_kg","peso_netto_kg","modalita_radiazione","note"]
+    # Campi opzionali aggiunti dopo
+    campi_opt  = ["ora_presa_in_carico","num_albatros","certificato_id"]
+    
+    def try_insert(conn, campi, vals):
+        sql = "INSERT INTO demolizioni ("+",".join(campi)+",creato_da) VALUES ("+",".join(["?"]*len(campi))+",?)"
+        return conn.execute(sql, vals + [u.get("id")])
+    
     try:
         with db._write_lock:
             conn = db.get_connection()
-            # Colonne disponibili nel DB (dinamico)
-            db_cols = [r[1] for r in conn.execute("PRAGMA table_info(demolizioni)").fetchall()]
-            # Tutti i campi possibili
-            tutti = ["data_presa_in_carico","ora_presa_in_carico","reg_demolitori",
-                     "pag_reg","veicolo_id","proprietario_id","detentore_id",
-                     "ufficio_provinciale","targhe_consegnate","carta_circolazione",
-                     "concessionaria","peso_effettivo_kg","peso_netto_kg",
-                     "modalita_radiazione","num_albatros","certificato_id","note"]
-            # Usa solo quelli presenti nel DB
-            campi = [f for f in tutti if f in db_cols]
-            vals  = [d.get(k) for k in campi]
-            if "creato_da" in db_cols:
-                campi.append("creato_da")
-                vals.append(u.get("id"))
-            sql = "INSERT INTO demolizioni ("+",".join(campi)+") VALUES ("+",".join(["?"]*len(campi))+")"
-            cur = conn.execute(sql, vals)
+            # Prima prova con tutti i campi opzionali
+            campi_tutti = campi_base + campi_opt
+            vals_tutti  = [d.get(k) for k in campi_tutti]
+            try:
+                cur = try_insert(conn, campi_tutti, vals_tutti)
+            except Exception:
+                # Fallback: solo campi base
+                vals_base = [d.get(k) for k in campi_base]
+                cur = try_insert(conn, campi_base, vals_base)
             conn.commit()
             conn.close()
         return jsonify({"ok": True, "id": cur.lastrowid, "msg": "Demolizione salvata"})

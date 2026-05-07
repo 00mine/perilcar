@@ -92,3 +92,10 @@ except Exception as e:
 conn.close()
 print("Migrazione completata!")
 input("Premi INVIO...")
+
+# VACUUM finale - ricostruisce il DB eliminando qualsiasi residuo interno
+print("\nEseguo VACUUM per pulizia completa DB...")
+conn2 = sqlite3.connect(db_path, timeout=30)
+conn2.execute("VACUUM")
+conn2.close()
+print("VACUUM completato!")
