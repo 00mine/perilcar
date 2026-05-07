@@ -44,7 +44,20 @@ cfg = ConfigManager()
 db  = DatabaseManager(cfg.get("db_path"))
 log.info(f"DB: {cfg.get('db_path')}")
 
-# Migrazione colonne gestita da DatabaseManager (core/database.py)
+# Pulizia tabelle residue da migrazioni precedenti
+try:
+    import sqlite3 as _sq3
+    _cp = _sq3.connect(cfg.get("db_path"), timeout=10)
+    # Elimina tabelle residue
+    for _tbak in ['veicoli_bak','veicoli_old','veicoli_tmp']:
+        _exists = _cp.execute(f"SELECT 1 FROM sqlite_master WHERE type='table' AND name='{_tbak}'").fetchone()
+        if _exists:
+            _cp.execute(f"DROP TABLE {_tbak}")
+            log.info(f"Rimossa tabella residua: {_tbak}")
+    _cp.commit()
+    _cp.close()
+except Exception as _ce:
+    log.warning(f"Pulizia residui: {_ce}")
 
 # ── Scrittura sicura: tutte le operazioni passano da qui ─────────────────────
 def db_write(statements: list):
