@@ -338,6 +338,7 @@ class DatabaseManager:
             num_motore            TEXT,
             colore                TEXT,
             note                  TEXT,
+            stato                 TEXT DEFAULT 'in_attesa',
             creato_da             INTEGER,
             creato_il             TEXT DEFAULT (datetime('now'))
         );
