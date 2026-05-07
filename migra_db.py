@@ -6,15 +6,23 @@ print(f"DB: {db_path}")
 conn = sqlite3.connect(db_path, timeout=30)
 conn.execute("PRAGMA journal_mode=WAL")
 
-# Elimina TUTTE le tabelle residue
-for bak in ['veicoli_bak','veicoli_old','veicoli_tmp']:
-    try:
-        conn.execute(f"DROP TABLE IF EXISTS {bak}")
-        conn.commit()
-        print(f"Rimossa {bak} (se esisteva)")
-    except Exception as e:
-        print(f"  {bak}: {e}")
+# Elimina TUTTO il residuo: tabelle, view, trigger con 'bak' o 'old' o 'tmp'
+all_items = conn.execute("SELECT type, name FROM sqlite_master").fetchall()
+print("Oggetti nel DB:", [(t,n) for t,n in all_items if any(x in n.lower() for x in ['bak','old','tmp'])])
 
+for typ, name in all_items:
+    if any(x in name.lower() for x in ['bak','old','tmp','_new']):
+        try:
+            if typ == 'table':
+                conn.execute(f"DROP TABLE IF EXISTS [{name}]")
+            elif typ == 'view':
+                conn.execute(f"DROP VIEW IF EXISTS [{name}]")
+            elif typ == 'trigger':
+                conn.execute(f"DROP TRIGGER IF EXISTS [{name}]")
+            conn.commit()
+            print(f"  Rimosso {typ}: {name}")
+        except Exception as e:
+            print(f"  Errore su {name}: {e}")
 # Ricrea veicoli senza UNIQUE
 conn.row_factory = sqlite3.Row
 sql = conn.execute("SELECT sql FROM sqlite_master WHERE name='veicoli'").fetchone()
