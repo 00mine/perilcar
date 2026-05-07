@@ -75,6 +75,12 @@ tbody tr.sel{background:#fff7f4;outline:2px solid var(--orange);outline-offset:-
 tbody td{padding:6px 10px;font-size:12px}
 .id-chip{display:inline-block;font-family:var(--mono);font-size:10px;background:#fff3ee;color:var(--orange);border:1px solid #ffd0b5;padding:1px 6px;border-radius:4px}
 .s-bar{font-size:11px;color:var(--text3);flex-shrink:0}
+thead th .f-inp{width:100%;margin-top:4px;padding:2px 5px;font-size:11px;border:1px solid var(--border);border-radius:4px;font-family:var(--font);background:#fff;color:var(--text)}
+thead th .f-inp:focus{border-color:var(--blue);outline:none}
+thead th .f-inp-range{display:flex;gap:3px;margin-top:4px}
+thead th .f-inp-range input{flex:1;min-width:0;padding:2px 4px;font-size:10px;border:1px solid var(--border);border-radius:4px;font-family:var(--font);background:#fff;color:var(--text)}
+thead th .f-inp-range input:focus{border-color:var(--blue);outline:none}
+thead th .f-inp-range span{font-size:10px;color:var(--text3);align-self:center;flex-shrink:0}
 .overlay{position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;padding:16px}
 .overlay.hidden{display:none}
 .modal{background:#fff;border-radius:14px;width:100%;max-height:94vh;overflow-y:auto;box-shadow:0 24px 64px rgba(0,0,0,.2)}
@@ -199,11 +205,37 @@ tbody td{padding:6px 10px;font-size:12px}
   </div>
   <div class="table-wrap">
     <table>
-      <thead><tr>
-        <th>ID</th><th>Reg.</th><th>Pag.</th><th>Data</th>
-        <th>Veicolo</th><th>Proprietario</th><th>Detentore</th>
-        <th>Peso eff.</th><th>Peso netto</th><th>Modalita'</th><th>Targhe</th><th>Carta</th>
-      </tr></thead>
+      <thead>
+  <tr>
+    <th>ID</th><th>Reg.</th><th>Pag.</th><th>Data</th>
+    <th>Veicolo</th><th>Proprietario</th><th>Detentore</th>
+    <th>Peso eff.</th><th>Peso netto</th><th>Modalita'</th><th>Targhe</th><th>Carta</th>
+  </tr>
+  <tr id="tr-filtri" style="background:var(--surface)">
+    <th><input class="f-inp" id="tf-id" placeholder="ID" oninput="filtraTabella()"></th>
+    <th><input class="f-inp" id="tf-reg" placeholder="es. 01/2026" oninput="filtraTabella()"></th>
+    <th>
+      <div class="f-inp-range">
+        <input id="tf-pag-da" placeholder="da" oninput="filtraTabella()">
+        <span>&#8212;</span>
+        <input id="tf-pag-a" placeholder="a" oninput="filtraTabella()">
+      </div>
+    </th>
+    <th>
+      <div class="f-inp-range">
+        <input type="date" id="tf-data-da" oninput="filtraTabella()" title="Data da">
+        <span>&#8212;</span>
+        <input type="date" id="tf-data-a" oninput="filtraTabella()" title="Data a">
+      </div>
+    </th>
+    <th><input class="f-inp" id="tf-veicolo" placeholder="marca, targa..." oninput="filtraTabella()"></th>
+    <th><input class="f-inp" id="tf-prop" placeholder="nome..." oninput="filtraTabella()"></th>
+    <th><input class="f-inp" id="tf-det" placeholder="nome..." oninput="filtraTabella()"></th>
+    <th></th><th></th>
+    <th><input class="f-inp" id="tf-modalita" placeholder="..." oninput="filtraTabella()"></th>
+    <th></th><th></th>
+  </tr>
+</thead>
       <tbody id="tbody"></tbody>
     </table>
   </div>
@@ -591,7 +623,46 @@ function filtra() {
 }
 
 function ricaricaDemolizioni() {
-  return apiFetch('/api/demolizioni/cerca').then(function(rows){ _tutti=rows||[]; renderTabella(_tutti); });
+  return apiFetch('/api/demolizioni/cerca').then(function(rows){ _tutti=rows||[]; filtraTabella(); });
+}
+
+function _v(id){ var el=document.getElementById(id); return el ? el.value.trim() : ''; }
+
+function filtraTabella() {
+  var tid     = _v('tf-id').toLowerCase();
+  var treg    = _v('tf-reg').toLowerCase();
+  var tpagda  = _v('tf-pag-da');
+  var tpaga   = _v('tf-pag-a');
+  var tdatada = _v('tf-data-da');
+  var tdataa  = _v('tf-data-a');
+  var tvei    = _v('tf-veicolo').toLowerCase();
+  var tprop   = _v('tf-prop').toLowerCase();
+  var tdet    = _v('tf-det').toLowerCase();
+  var tmod    = _v('tf-modalita').toLowerCase();
+
+  var filtered = _tutti.filter(function(d) {
+    if(tid    && !String(d.id).includes(tid)) return false;
+    if(treg   && !(d.reg_demolitori||'').toLowerCase().includes(treg)) return false;
+    // Pag. Reg. range numerico
+    if(tpagda) {
+      var pag = parseInt(d.pag_reg)||0;
+      if(pag < parseInt(tpagda)) return false;
+    }
+    if(tpaga) {
+      var pag2 = parseInt(d.pag_reg)||0;
+      if(pag2 > parseInt(tpaga)) return false;
+    }
+    // Data range
+    if(tdatada && (d.data_presa_in_carico||'') < tdatada) return false;
+    if(tdataa  && (d.data_presa_in_carico||'') > tdataa)  return false;
+    // Testo
+    if(tvei  && !(d.veicolo_str||'').toLowerCase().includes(tvei)) return false;
+    if(tprop && !(d.proprietario_str||'').toLowerCase().includes(tprop)) return false;
+    if(tdet  && !(d.detentore_str||'').toLowerCase().includes(tdet)) return false;
+    if(tmod  && !(d.modalita_radiazione||'').toLowerCase().includes(tmod)) return false;
+    return true;
+  });
+  renderTabella(filtered);
 }
 
 function inserisci() {
