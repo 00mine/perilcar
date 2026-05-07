@@ -1488,46 +1488,33 @@ def api_demolizioni_progressivi():
 def api_demolizioni_cerca():
     """Ricerca demolizioni per qualsiasi campo."""
     q = request.args.get("q","").strip()
-    if not q:
-        rows = db.fetchall("""
-            SELECT d.id, d.reg_demolitori, d.pag_reg, d.data_presa_in_carico,
+    _SELECT = """
+            SELECT d.id, d.data_presa_in_carico, d.ora_presa_in_carico,
+                   d.reg_demolitori, d.pag_reg,
                    d.ufficio_provinciale, d.concessionaria,
+                   d.targhe_consegnate, d.carta_circolazione,
+                   d.peso_effettivo_kg, d.peso_netto_kg,
+                   d.modalita_radiazione, d.num_albatros, d.note,
+                   d.veicolo_id, d.proprietario_id, d.detentore_id,
                    COALESCE(v.marca||' '||v.modello||' ('||v.targa||')', '') AS veicolo_str,
                    COALESCE(v.targa,'') AS targa,
                    COALESCE(p.nominativo,'') AS proprietario_str,
-                   COALESCE(det.nominativo,'') AS detentore_str,
-                   d.peso_effettivo_kg, d.peso_netto_kg, d.modalita_radiazione,
-                   d.num_albatros, d.targhe_consegnate, d.carta_circolazione,
-                   d.veicolo_id, d.proprietario_id, d.detentore_id
+                   COALESCE(det.nominativo,'') AS detentore_str
             FROM demolizioni d
             LEFT JOIN veicoli v ON v.id=d.veicolo_id
             LEFT JOIN anagrafiche p ON p.id=d.proprietario_id
-            LEFT JOIN anagrafiche det ON det.id=d.detentore_id
-            ORDER BY d.id DESC LIMIT 200
-        """)
+            LEFT JOIN anagrafiche det ON det.id=d.detentore_id"""
+    if not q:
+        rows = db.fetchall(_SELECT + " ORDER BY d.id DESC LIMIT 200")
     else:
         like = f"%{q}%"
-        rows = db.fetchall("""
-            SELECT d.id, d.reg_demolitori, d.pag_reg, d.data_presa_in_carico,
-                   d.ufficio_provinciale, d.concessionaria,
-                   COALESCE(v.marca||' '||v.modello||' ('||v.targa||')', '') AS veicolo_str,
-                   COALESCE(v.targa,'') AS targa,
-                   COALESCE(p.nominativo,'') AS proprietario_str,
-                   COALESCE(det.nominativo,'') AS detentore_str,
-                   d.peso_effettivo_kg, d.peso_netto_kg, d.modalita_radiazione,
-                   d.num_albatros, d.targhe_consegnate, d.carta_circolazione,
-                   d.veicolo_id, d.proprietario_id, d.detentore_id
-            FROM demolizioni d
-            LEFT JOIN veicoli v ON v.id=d.veicolo_id
-            LEFT JOIN anagrafiche p ON p.id=d.proprietario_id
-            LEFT JOIN anagrafiche det ON det.id=d.detentore_id
+        rows = db.fetchall(_SELECT + """
             WHERE d.reg_demolitori LIKE ? OR d.pag_reg LIKE ?
                OR d.ufficio_provinciale LIKE ? OR d.concessionaria LIKE ?
                OR v.targa LIKE ? OR v.marca LIKE ? OR v.modello LIKE ?
                OR p.nominativo LIKE ? OR det.nominativo LIKE ?
                OR CAST(d.id AS TEXT) LIKE ?
-            ORDER BY d.id DESC LIMIT 200
-        """, [like]*10)
+            ORDER BY d.id DESC LIMIT 200""", [like]*10)
     return jsonify([dict(r) for r in rows])
 
 

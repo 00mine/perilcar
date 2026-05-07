@@ -576,11 +576,12 @@
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
         <div class="field"><label>Note</label><textarea id="v-note" rows="5"></textarea></div>
         <div class="field"><label>Allegati</label>
-          <div style="border:1px solid var(--border);border-radius:var(--radius);height:108px;
-                      padding:8px;font-size:11px;color:var(--text3);cursor:pointer;background:#fff"
-               onclick="document.getElementById('v-allegati').click()">
-            📎 Clicca per allegare file
-            <input type="file" id="v-allegati" multiple style="display:none">
+          <div style="border:1px solid var(--border);border-radius:var(--radius);min-height:80px;
+                      padding:8px;font-size:11px;color:var(--text3);background:#fafafa">
+            <input type="file" id="v-allegati" multiple
+                   style="font-size:11px;width:100%;cursor:pointer"
+                   onchange="mostraFileSelezionati('v-allegati','v-file-list')">
+            <div id="v-file-list" style="margin-top:6px;font-size:11px;color:var(--text2)"></div>
           </div>
         </div>
       </div>
@@ -688,10 +689,11 @@
         <div class="field"><label>Note</label><input type="text" id="a-note"></div>
         <div class="field"><label>Allegati</label>
           <div style="border:1px solid var(--border);border-radius:var(--radius);
-                      padding:6px 10px;font-size:11px;color:var(--text3);cursor:pointer;background:#fff"
-               onclick="document.getElementById('a-allegati').click()">
-            📎 Clicca per allegare
-            <input type="file" id="a-allegati" multiple style="display:none">
+                      padding:6px 10px;font-size:11px;color:var(--text3);background:#fafafa">
+            <input type="file" id="a-allegati" multiple
+                   style="font-size:11px;width:100%;cursor:pointer"
+                   onchange="mostraFileSelezionati('a-allegati','a-file-list')">
+            <div id="a-file-list" style="margin-top:4px;font-size:11px;color:var(--text2)"></div>
           </div>
         </div>
       </div>
@@ -911,10 +913,10 @@ function selectRow(id, el) {
   document.getElementById('f-concessionaria').value = d.concessionaria||'';
   document.getElementById('f-targhe').checked = !!d.targhe_consegnate;
   document.getElementById('f-carta').checked  = !!d.carta_circolazione;
-  document.getElementById('f-peso-eff').value  = d.peso_effettivo_kg||'';
-  document.getElementById('f-peso-netto').value= d.peso_netto_kg||'';
-  document.getElementById('f-modalita').value  = d.modalita_radiazione||'';
-  // f-albatros rimosso dal form
+  document.getElementById('f-peso-eff').value  = d.peso_effettivo_kg!=null ? d.peso_effettivo_kg : '';
+  document.getElementById('f-peso-netto').value= d.peso_netto_kg!=null ? d.peso_netto_kg : '';
+  var fm = document.getElementById('f-modalita'); if(fm) fm.value = d.modalita_radiazione||'';
+  document.getElementById('f-ora').value = d.ora_presa_in_carico||'';
 }
 
 function nuovoRecord() {
@@ -1275,6 +1277,19 @@ async function rimuoviRicambio(rid) {
       - _ricambi.reduce(function(s,r){ return s+(parseFloat(r.peso_kg)||0); },0));
     document.getElementById('f-peso-netto').value = netto.toFixed(2);
   }
+}
+
+// ── ALLEGATI ─────────────────────────────────────────────────────────
+function mostraFileSelezionati(inputId, listId) {
+  var input = document.getElementById(inputId);
+  var list  = document.getElementById(listId);
+  if(!input || !list) return;
+  var files = Array.from(input.files);
+  if(!files.length) { list.innerHTML=''; return; }
+  list.innerHTML = files.map(function(f){
+    var kb = (f.size/1024).toFixed(1);
+    return '<div style="padding:2px 0">📎 '+f.name+' <span style="color:var(--text3)">('+kb+' KB)</span></div>';
+  }).join('');
 }
 
 // ── INIT ─────────────────────────────────────────────────────────────
