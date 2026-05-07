@@ -206,87 +206,107 @@
 
     <!-- Card Generale -->
     <div class="card">
-      <div class="card-title">Generale</div>
-
-      <!-- Riga 1: ID(v) | Data + icona | Reg.demolitori(v)(+) | Pag.Reg + icona -->
-      <div style="display:grid;grid-template-columns:140px 180px 1fr 160px;gap:8px;margin-bottom:10px;align-items:end">
-        <div class="field">
-          <label>ID</label>
-          <div class="input-group">
-            <input type="text" id="f-id" readonly style="background:var(--surface2);color:var(--text3);font-family:var(--mono)">
-            <button class="btn-v">▾</button>
-          </div>
-        </div>
-        <div class="field">
-          <label>Data presa in carico</label>
-          <input type="date" id="f-data">
-        </div>
-        <div class="field">
-          <label>Reg. demolitori</label>
-          <div class="input-group">
-            <input type="text" id="f-reg" placeholder="">
-            <button class="btn-v">▾</button>
-            <button class="btn-plus" onclick="">+</button>
-          </div>
-        </div>
-        <div class="field">
-          <label>Pag. Reg.</label>
-          <input type="text" id="f-pag" placeholder="">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <div class="card-title" style="margin:0">Generale</div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-primary" id="btn-nuova" onclick="modalitaNuova()" title="Compila automaticamente i progressivi">
+            ＋ Nuova demolizione
+          </button>
+          <button class="btn btn-ghost" id="btn-modalita-label" onclick="modalitaRicerca()" style="display:none">
+            🔍 Modalità ricerca
+          </button>
         </div>
       </div>
 
-      <!-- Riga 2: Veicolo(v)(+) | Proprietario(v)(+) | Detentore(v)(+)(icona) -->
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px;align-items:end">
+      <!-- Badge modalità -->
+      <div id="badge-modalita" style="display:none;margin-bottom:8px">
+        <span style="background:var(--orange);color:#fff;border-radius:20px;
+                     font-size:11px;font-weight:700;padding:3px 12px">
+          ✏ NUOVA DEMOLIZIONE — compila i campi e clicca Inserisci
+        </span>
+      </div>
+
+      <!-- Riga 1: ID | Data e ora | Reg. demolitori | Pag. Reg. -->
+      <div style="display:grid;grid-template-columns:80px 1fr 1fr 130px 90px;gap:8px;margin-bottom:8px;align-items:end">
+        <div class="field">
+          <label>ID</label>
+          <input type="text" id="f-id" readonly style="background:var(--surface2);color:var(--text3);font-family:var(--mono)">
+        </div>
+        <div class="field">
+          <label>Data presa in carico</label>
+          <input type="date" id="f-data" oninput="filtraTabella()">
+        </div>
+        <div class="field">
+          <label>Ora</label>
+          <input type="time" id="f-ora" oninput="filtraTabella()">
+        </div>
+        <div class="field">
+          <label>Reg. demolitori</label>
+          <input type="text" id="f-reg" placeholder="01/2026" oninput="filtraTabella()">
+        </div>
+        <div class="field">
+          <label>Pag. Reg.</label>
+          <input type="text" id="f-pag" placeholder="1" oninput="filtraTabella()">
+        </div>
+      </div>
+
+      <!-- Riga 2: Veicolo (targa → ricerca) -->
+      <div style="margin-bottom:8px">
         <div class="field">
           <label>Veicolo</label>
           <div class="input-group">
-            <select id="f-veicolo"><option value="">— seleziona —</option></select>
-            <button class="btn-plus" onclick="openModalNuovoVeicolo()">+</button>
+            <select id="f-veicolo" onchange="filtraTabella()">
+              <option value="">— cerca per targa o seleziona —</option>
+            </select>
+            <button class="btn-plus" onclick="openModalNuovoVeicolo()" title="Nuovo veicolo">+</button>
           </div>
         </div>
+      </div>
+
+      <!-- Riga 3: Proprietario | Detentore + Copia -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
         <div class="field">
           <label>Proprietario</label>
           <div class="input-group">
-            <select id="f-proprietario"><option value="">— seleziona —</option></select>
-            <button class="btn-plus" onclick="openModalNuovaAnagrafica('proprietario')">+</button>
+            <select id="f-proprietario" onchange="filtraTabella()">
+              <option value="">— cerca o seleziona —</option>
+            </select>
+            <button class="btn-plus" onclick="openModalNuovaAnagrafica('proprietario')" title="Nuovo proprietario">+</button>
           </div>
         </div>
         <div class="field">
           <label>Detentore</label>
           <div class="input-group">
-            <select id="f-detentore"><option value="">— seleziona —</option></select>
-            <button class="btn-plus" onclick="openModalNuovaAnagrafica('detentore')">+</button>
+            <select id="f-detentore" onchange="filtraTabella()">
+              <option value="">— cerca o seleziona —</option>
+            </select>
+            <button class="btn-plus" onclick="openModalNuovaAnagrafica('detentore')" title="Nuovo detentore">+</button>
+            <button class="btn-v" onclick="copiaProprietario()" title="Copia dati proprietario" style="background:#fff3ee;color:var(--orange)">⎘</button>
           </div>
         </div>
       </div>
 
-      <!-- Riga 3: Ufficio Provinciale(v) | Concessionaria -->
-      <div style="display:grid;grid-template-columns:200px 260px;gap:8px;margin-bottom:10px;align-items:end">
+      <!-- Riga 4: Ufficio Prov. | Concessionaria | Checkbox -->
+      <div style="display:grid;grid-template-columns:120px 1fr auto;gap:8px;align-items:end">
         <div class="field">
-          <label>Ufficio Provinciale</label>
-          <div class="input-group">
-            <input type="text" id="f-ufficio" placeholder="">
-            <button class="btn-v">▾</button>
-          </div>
+          <label>Ufficio Prov.</label>
+          <input type="text" id="f-ufficio" placeholder="es. VI" oninput="filtraTabella()">
         </div>
         <div class="field">
           <label>Concessionaria</label>
-          <input type="text" id="f-concessionaria">
+          <input type="text" id="f-concessionaria" oninput="filtraTabella()">
+        </div>
+        <div style="display:flex;gap:16px;padding-bottom:5px;flex-shrink:0">
+          <div class="check-row" style="border:2px solid var(--text);border-radius:20px;padding:4px 12px;gap:8px">
+            <label for="f-targhe" style="font-weight:600;font-size:12px;cursor:pointer">Targhe</label>
+            <input type="checkbox" id="f-targhe" style="width:16px;height:16px;accent-color:var(--orange)">
+          </div>
+          <div class="check-row" style="border:2px solid var(--text);border-radius:20px;padding:4px 12px;gap:8px">
+            <label for="f-carta" style="font-weight:600;font-size:12px;cursor:pointer">Carta circ.</label>
+            <input type="checkbox" id="f-carta" style="width:16px;height:16px;accent-color:var(--orange)">
+          </div>
         </div>
       </div>
-
-      <!-- Riga 4: Checkbox targhe + carta di circolazione -->
-      <div style="display:flex;gap:20px;align-items:center">
-        <div class="check-row" style="border:2px solid var(--text);border-radius:20px;padding:5px 14px;gap:10px">
-          <label for="f-targhe" style="font-weight:600;font-size:13px;cursor:pointer">targhe</label>
-          <input type="checkbox" id="f-targhe" style="width:18px;height:18px;accent-color:var(--orange)">
-        </div>
-        <div class="check-row" style="border:2px solid var(--text);border-radius:20px;padding:5px 14px;gap:10px">
-          <label for="f-carta" style="font-weight:600;font-size:13px;cursor:pointer">Carta di circolazione</label>
-          <input type="checkbox" id="f-carta" style="width:18px;height:18px;accent-color:var(--orange)">
-        </div>
-      </div>
-
     </div>
 
         <!-- Colonna destra: dati rottamazione + pulsanti -->
@@ -341,9 +361,11 @@
 
   <!-- Toolbar -->
   <div class="actions">
-    <button class="btn btn-primary" onclick="salvaRecord()">💾 Salva</button>
-    <button class="btn btn-ghost"   onclick="nuovoRecord()">＋ Nuovo</button>
-    <button class="btn btn-danger"  onclick="eliminaRecord()">🗑 Elimina</button>
+    <button class="btn btn-green" id="btn-inserisci" onclick="inserisciDemolizione()" style="display:none;font-size:14px;padding:8px 20px">
+      ✅ Inserisci demolizione
+    </button>
+    <button class="btn btn-ghost"  onclick="salvaRecord()" id="btn-salva">💾 Aggiorna</button>
+    <button class="btn btn-danger" onclick="eliminaRecord()">🗑 Elimina</button>
     <div class="feedback" id="feedback" style="margin-left:8px;align-self:center"></div>
   </div>
 
@@ -662,13 +684,15 @@
 io().on('reload', () => { setTimeout(()=>window.location.reload(),500); });
 
 // ── STATO ────────────────────────────────────────────────────────────
-let _demolizioni = [];
-let _anagrafiche = [];
-let _veicoli     = [];
-let _componenti  = [];
-let _selId       = null;
-let _anaTarget   = null;  // 'proprietario' | 'detentore'
-let _ricambi     = [];    // ricambi del record corrente
+var _demolizioni = [];
+var _anagrafiche = [];
+var _veicoli     = [];
+var _componenti  = [];
+var _selId       = null;
+var _anaTarget   = null;
+var _ricambi     = [];
+var _modalita    = 'ricerca';  // 'ricerca' | 'nuova'
+var _filtroTimer = null;
 
 // ── UTILS ────────────────────────────────────────────────────────────
 async function apiFetch(url, opts={}) {
@@ -677,34 +701,123 @@ async function apiFetch(url, opts={}) {
 }
 function esc(s){ return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function toast(msg, ok=true) {
-  document.querySelectorAll('.toast').forEach(e=>e.remove());
-  const d=document.createElement('div');
+  document.querySelectorAll('.toast').forEach(function(e){ e.remove(); });
+  var d=document.createElement('div');
   d.className='toast '+(ok?'toast-ok':'toast-err');
   d.textContent=msg; document.body.appendChild(d);
-  setTimeout(()=>d.remove(),3500);
+  setTimeout(function(){ d.remove(); },3500);
 }
-function fb(msg,ok=true){
-  const el=document.getElementById('feedback');
+function fb(msg,ok){
+  ok = ok !== false;
+  var el=document.getElementById('feedback');
   el.textContent=msg; el.className='feedback '+(ok?'ok':'err');
-  setTimeout(()=>{el.textContent='';el.className='feedback';},4000);
+  setTimeout(function(){ el.textContent=''; el.className='feedback'; },4000);
 }
 async function logout(){ await apiFetch('/api/logout',{method:'POST'}); window.location.href='/login'; }
 function closeModal(id){ document.getElementById(id).classList.add('hidden'); }
 function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
-document.querySelectorAll('.overlay').forEach(o=>{
-  o.addEventListener('click',e=>{ if(e.target===o) o.classList.add('hidden'); });
+document.querySelectorAll('.overlay').forEach(function(o){
+  o.addEventListener('click',function(e){ if(e.target===o) o.classList.add('hidden'); });
 });
+
+// ── MODALITÀ NUOVA / RICERCA ──────────────────────────────────────────
+async function modalitaNuova() {
+  _modalita = 'nuova';
+  _selId    = null;
+  // Carica progressivi dal server
+  var prog = await apiFetch('/api/demolizioni/prossimi-progressivi');
+  document.getElementById('f-id').value  = prog.next_id;
+  document.getElementById('f-data').value= prog.data;
+  document.getElementById('f-ora').value = prog.ora;
+  document.getElementById('f-reg').value = prog.reg_demolitori;
+  document.getElementById('f-pag').value = prog.next_pag;
+  // Pulisci altri campi
+  ['f-veicolo','f-proprietario','f-detentore'].forEach(function(id){
+    document.getElementById(id).value='';
+  });
+  ['f-ufficio','f-concessionaria'].forEach(function(id){
+    document.getElementById(id).value='';
+  });
+  document.getElementById('f-targhe').checked=false;
+  document.getElementById('f-carta').checked=false;
+  // UI
+  document.getElementById('badge-modalita').style.display='block';
+  document.getElementById('btn-modalita-label').style.display='';
+  document.getElementById('btn-inserisci').style.display='';
+  document.getElementById('btn-salva').style.display='none';
+  // Mostra tutte le demolizioni (non filtrare)
+  renderTabella(_demolizioni);
+}
+
+function modalitaRicerca() {
+  _modalita = 'ricerca';
+  _selId    = null;
+  document.getElementById('badge-modalita').style.display='none';
+  document.getElementById('btn-modalita-label').style.display='none';
+  document.getElementById('btn-inserisci').style.display='none';
+  document.getElementById('btn-salva').style.display='';
+  // Pulisci campi e torna alla lista completa
+  ['f-id','f-data','f-ora','f-reg','f-pag','f-ufficio','f-concessionaria']
+    .forEach(function(id){ document.getElementById(id).value=''; });
+  ['f-veicolo','f-proprietario','f-detentore']
+    .forEach(function(id){ document.getElementById(id).value=''; });
+  document.getElementById('f-targhe').checked=false;
+  document.getElementById('f-carta').checked=false;
+  renderTabella(_demolizioni);
+}
+
+// ── FILTRO IN TEMPO REALE ─────────────────────────────────────────────
+function filtraTabella() {
+  if(_modalita === 'nuova') return;  // in modalità nuova non filtrare
+  clearTimeout(_filtroTimer);
+  _filtroTimer = setTimeout(function() {
+    var q = [
+      document.getElementById('f-reg').value,
+      document.getElementById('f-pag').value,
+      document.getElementById('f-ufficio').value,
+      document.getElementById('f-concessionaria').value,
+    ].join(' ').trim();
+    // Aggiunge veicolo/prop/det selezionati
+    var vId = document.getElementById('f-veicolo').value;
+    var pId = document.getElementById('f-proprietario').value;
+    var dId = document.getElementById('f-detentore').value;
+    var filtered = _demolizioni.filter(function(d) {
+      if(vId && String(d.veicolo_id) !== vId) return false;
+      if(pId && String(d.proprietario_id) !== pId) return false;
+      if(dId && String(d.detentore_id) !== dId) return false;
+      if(q) {
+        var testo = [d.reg_demolitori,d.pag_reg,d.ufficio_provinciale,
+                     d.concessionaria,d.veicolo_str,d.proprietario_str,d.detentore_str]
+          .join(' ').toLowerCase();
+        return q.toLowerCase().split(' ').every(function(w){ return !w || testo.includes(w); });
+      }
+      return true;
+    });
+    renderTabella(filtered);
+  }, 300);
+}
+
+// Copia proprietario → detentore
+function copiaProprietario() {
+  var pId = document.getElementById('f-proprietario').value;
+  if(!pId){ toast('Seleziona prima un proprietario',false); return; }
+  document.getElementById('f-detentore').value = pId;
+  toast('Dati proprietario copiati nel detentore');
+}
 
 // ── CARICA DATI ───────────────────────────────────────────────────────
 async function init() {
-  [_demolizioni, _anagrafiche, _veicoli] = await Promise.all([
-    apiFetch('/api/demolizioni'),
+  var results = await Promise.all([
+    apiFetch('/api/demolizioni/cerca'),
     apiFetch('/api/anagrafiche'),
     apiFetch('/api/veicoli'),
   ]);
-  _componenti = await apiFetch('/api/magazzino/componenti');
+  _demolizioni = results[0];
+  _anagrafiche = results[1];
+  _veicoli     = results[2];
+  _componenti  = await apiFetch('/api/magazzino/componenti');
   popolaSelects();
-  renderTabella();
+  renderTabella(_demolizioni);
 }
 
 function popolaSelects() {
@@ -725,14 +838,15 @@ function popolaSelects() {
 }
 
 // ── TABELLA ───────────────────────────────────────────────────────────
-function renderTabella() {
-  const tbody = document.getElementById('tbody');
-  if(!_demolizioni.length) {
-    tbody.innerHTML = '<tr><td colspan="13" style="text-align:center;padding:40px;color:var(--text3)">Nessuna demolizione registrata</td></tr>';
+function renderTabella(data) {
+  if(data===undefined) data=_demolizioni;
+  var tbody = document.getElementById('tbody');
+  if(!data.length) {
+    tbody.innerHTML = '<tr><td colspan="13" style="text-align:center;padding:40px;color:var(--text3)">Nessuna demolizione</td></tr>';
     document.getElementById('s-tot').textContent = '0 demolizioni';
     return;
   }
-  tbody.innerHTML = _demolizioni.map(function(d) {
+  tbody.innerHTML = data.map(function(d) {
     var sel = _selId===d.id ? ' selected':'';
     return '<tr class="'+sel+'" onclick="selectRow('+d.id+',this)" ondblclick="selectRow('+d.id+',this)">'
       +'<td><span class="id-chip">'+d.id+'</span></td>'
@@ -750,7 +864,7 @@ function renderTabella() {
       +'<td style="text-align:center">'+(d.carta_circolazione?'✅':'')+'</td>'
       +'</tr>';
   }).join('');
-  document.getElementById('s-tot').textContent = _demolizioni.length+' demolizioni';
+  document.getElementById('s-tot').textContent = data.length+' di '+_demolizioni.length+' demolizioni';
 }
 
 // ── FORM ──────────────────────────────────────────────────────────────
@@ -760,8 +874,10 @@ function selectRow(id, el) {
   if(el) el.classList.add('selected');
   const d = _demolizioni.find(x=>x.id===id);
   if(!d) return;
+  if(_modalita==='nuova') return;  // in modalità nuova non caricare
   document.getElementById('f-id').value     = d.id;
   document.getElementById('f-data').value   = (d.data_presa_in_carico||'').slice(0,10);
+  document.getElementById('f-ora').value    = d.ora_presa_in_carico||'';
   document.getElementById('f-reg').value    = d.reg_demolitori||'';
   document.getElementById('f-pag').value    = d.pag_reg||'';
   document.getElementById('f-veicolo').value      = d.veicolo_id||'';
@@ -796,6 +912,7 @@ function nuovoRecord() {
 function getFormData() {
   return {
     data_presa_in_carico: document.getElementById('f-data').value||null,
+    ora_presa_in_carico:  document.getElementById('f-ora').value||null,
     reg_demolitori:       document.getElementById('f-reg').value||null,
     pag_reg:              document.getElementById('f-pag').value||null,
     veicolo_id:           document.getElementById('f-veicolo').value||null,
@@ -1062,8 +1179,7 @@ async function rimuoviRicambio(rid) {
   }
 }
 
-// ── INIT v2.0.2 fix ─────────────────────────────────────────────────
-nuovoRecord();
+// ── INIT ─────────────────────────────────────────────────────────────
 init();
 </script>
 </body>

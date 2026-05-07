@@ -341,6 +341,7 @@ class DatabaseManager:
         CREATE TABLE IF NOT EXISTS demolizioni (
             id                    INTEGER PRIMARY KEY AUTOINCREMENT,
             data_presa_in_carico  TEXT,
+            ora_presa_in_carico   TEXT,
             reg_demolitori        TEXT,
             pag_reg               TEXT,
             veicolo_id            INTEGER REFERENCES veicoli(id),
