@@ -44,46 +44,7 @@ cfg = ConfigManager()
 db  = DatabaseManager(cfg.get("db_path"))
 log.info(f"DB: {cfg.get('db_path')}")
 
-# Migrazione colonne DB - usa sqlite3 direttamente per evitare conflitti
-import sqlite3 as _sq3, time as _time
-def _migra():
-    for _attempt in range(5):
-        _mc = None
-        try:
-            _mc = _sq3.connect(cfg.get("db_path"), timeout=20)
-            _mc.execute("PRAGMA journal_mode=WAL")
-            _vei = [r[1] for r in _mc.execute("PRAGMA table_info(veicoli)").fetchall()]
-            for _col,_typ in [("classe","TEXT"),("marca","TEXT"),("modello","TEXT"),
-                              ("anno_immatricolazione","TEXT"),("num_motore","TEXT"),
-                              ("colore","TEXT"),("note","TEXT")]:
-                if _col not in _vei:
-                    _mc.execute(f"ALTER TABLE veicoli ADD COLUMN {_col} {_typ}")
-            _dem = [r[1] for r in _mc.execute("PRAGMA table_info(demolizioni)").fetchall()]
-            for _col,_typ in [("ora_presa_in_carico","TEXT"),("num_albatros","TEXT")]:
-                if _col not in _dem:
-                    _mc.execute(f"ALTER TABLE demolizioni ADD COLUMN {_col} {_typ}")
-            _ana = [r[1] for r in _mc.execute("PRAGMA table_info(anagrafiche)").fetchall()]
-            for _col,_typ in [("cognome","TEXT"),("nome","TEXT"),("sesso","TEXT"),
-                              ("data_nascita","TEXT"),("luogo_nascita","TEXT"),
-                              ("comune","TEXT"),("provincia","TEXT"),("via","TEXT"),
-                              ("civico","TEXT"),("cap","TEXT"),("tipo_doc","TEXT"),
-                              ("num_doc","TEXT"),("data_doc","TEXT"),("rilasciato_da","TEXT"),
-                              ("cellulare","TEXT"),("fax","TEXT")]:
-                if _col not in _ana:
-                    _mc.execute(f"ALTER TABLE anagrafiche ADD COLUMN {_col} {_typ}")
-            _mc.commit()
-            log.info("Migrazione colonne OK")
-            return
-        except _sq3.OperationalError as _e:
-            if "locked" in str(_e) and _attempt < 4:
-                _time.sleep(1)
-            else:
-                log.error(f"Migrazione fallita: {_e}")
-        finally:
-            if _mc:
-                try: _mc.close()
-                except: pass
-_migra()
+# Migrazione colonne gestita da DatabaseManager (core/database.py)
 
 # ── Scrittura sicura: tutte le operazioni passano da qui ─────────────────────
 def db_write(statements: list):
