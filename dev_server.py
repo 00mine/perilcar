@@ -44,6 +44,35 @@ cfg = ConfigManager()
 db  = DatabaseManager(cfg.get("db_path"))
 log.info(f"DB: {cfg.get('db_path')}")
 
+def _migra_colonne():
+    try:
+        conn = db.get_connection()
+        vei = [r[1] for r in conn.execute("PRAGMA table_info(veicoli)").fetchall()]
+        for col,typ in [("classe","TEXT"),("marca","TEXT"),("modello","TEXT"),
+                        ("anno_immatricolazione","TEXT"),("num_motore","TEXT"),
+                        ("colore","TEXT"),("note","TEXT")]:
+            if col not in vei:
+                conn.execute(f"ALTER TABLE veicoli ADD COLUMN {col} {typ}")
+        dem = [r[1] for r in conn.execute("PRAGMA table_info(demolizioni)").fetchall()]
+        for col,typ in [("ora_presa_in_carico","TEXT"),("num_albatros","TEXT")]:
+            if col not in dem:
+                conn.execute(f"ALTER TABLE demolizioni ADD COLUMN {col} {typ}")
+        ana = [r[1] for r in conn.execute("PRAGMA table_info(anagrafiche)").fetchall()]
+        for col,typ in [("cognome","TEXT"),("nome","TEXT"),("sesso","TEXT"),
+                        ("data_nascita","TEXT"),("luogo_nascita","TEXT"),
+                        ("comune","TEXT"),("provincia","TEXT"),("via","TEXT"),
+                        ("civico","TEXT"),("cap","TEXT"),("tipo_doc","TEXT"),
+                        ("num_doc","TEXT"),("data_doc","TEXT"),("rilasciato_da","TEXT"),
+                        ("cellulare","TEXT"),("fax","TEXT")]:
+            if col not in ana:
+                conn.execute(f"ALTER TABLE anagrafiche ADD COLUMN {col} {typ}")
+        conn.commit(); conn.close()
+        log.info("Migrazione colonne OK")
+    except Exception as e:
+        log.error(f"Migrazione: {e}")
+
+_migra_colonne()
+
 # ── Scrittura sicura: tutte le operazioni passano da qui ─────────────────────
 def db_write(statements: list):
     """Esegue più statement in una singola transazione atomica."""
