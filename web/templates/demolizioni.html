@@ -101,6 +101,11 @@ thead th .f-inp-range span{font-size:10px;color:var(--text3);align-self:center;f
 .ric-table th{padding:6px 10px;background:var(--surface);font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text2);border-bottom:1px solid var(--border);text-align:left}
 .ric-table td{padding:6px 10px;border-bottom:1px solid #f3f4f6;font-size:12px}
 .btn-del{width:26px;height:26px;border-radius:50%;border:none;background:#fee2e2;color:var(--red);cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center}
+.ric-item{display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:6px;cursor:pointer;user-select:none}
+.ric-item:hover{background:var(--surface2)}
+.ric-item.sel{background:#fff7f4}
+.ric-item input[type=checkbox]{width:15px;height:15px;accent-color:var(--orange);cursor:pointer;flex-shrink:0}
+.ric-item label{font-size:12px;cursor:pointer;flex:1}
 .cdp-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 .cdp-col{display:flex;flex-direction:column;gap:8px}
 .cdp-sep{font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;padding-bottom:4px;border-bottom:1px solid var(--border)}
@@ -361,14 +366,29 @@ thead th .f-inp-range span{font-size:10px;color:var(--text3);align-self:center;f
       <button class="mclose" onclick="chiudi('m-sottrai')">x</button>
     </div>
     <div class="mbody">
-      <div class="sr-form">
-        <div class="field"><label>Pezzo dal magazzino</label>
-          <select id="sr-pezzo"><option value="">&#8212; seleziona pezzo &#8212;</option></select></div>
-        <div class="field"><label>Peso (Kg)</label>
-          <input type="number" id="sr-peso" placeholder="0.00" step="0.01" min="0"></div>
-        <div class="field"><label>Note</label>
-          <input type="text" id="sr-note" placeholder="facoltativo"></div>
-        <button class="btn btn-green" onclick="aggRicambio()" style="height:32px;align-self:flex-end">+ Aggiungi</button>
+      <!-- Ricerca + lista checkbox -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+        <div>
+          <div style="display:flex;gap:6px;margin-bottom:6px;align-items:center">
+            <input type="text" id="sr-cerca" placeholder="&#128269; Cerca ricambio..." oninput="filtraRicambi()"
+                   style="flex:1;font-size:12px;padding:5px 8px">
+            <button class="btn btn-ghost" onclick="deselTutti()" style="font-size:11px;padding:4px 8px">Deseleziona tutto</button>
+          </div>
+          <div id="sr-lista" style="height:260px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:4px"></div>
+        </div>
+        <div>
+          <div style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:6px">Selezionati: <span id="sr-count" style="color:var(--orange)">0</span></div>
+          <div id="sr-selezionati" style="height:180px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:8px;font-size:12px;background:var(--surface)">
+            <span style="color:var(--text3)">Nessun pezzo selezionato</span>
+          </div>
+          <div style="margin-top:8px;display:grid;grid-template-columns:1fr 1fr;gap:6px">
+            <div class="field"><label>Peso totale (Kg)</label>
+              <input type="number" id="sr-peso" placeholder="0.00" step="0.01" min="0"></div>
+            <div class="field"><label>Note</label>
+              <input type="text" id="sr-note" placeholder="facoltativo"></div>
+          </div>
+          <button class="btn btn-green" onclick="aggRicambio()" style="width:100%;margin-top:8px;justify-content:center">+ Aggiungi selezionati</button>
+        </div>
       </div>
       <div style="overflow:auto;max-height:280px">
         <table class="ric-table">
@@ -439,14 +459,57 @@ function popolaAnagrafiche() {
   });
 }
 
+var _RICAMBI_LISTA=['Abitacolo', 'Airbag laterale sinistro', 'Airbag laterale destro', 'Airbag passeggero', 'Airbag volante', 'Albero di trasmissione', 'Alternatore', 'Ammortizzatore anteriore sinistro', 'Ammortizzatore anteriore destro', 'Ammortizzatore posteriore sinistro', 'Ammortizzatore posteriore destro', 'Antenna', 'Assale posteriore', 'Batteria', 'Blocchetto accensione', 'Braccio oscillante anteriore sinistro', 'Braccio oscillante anteriore destro', 'Braccio oscillante posteriore sinistro', 'Braccio oscillante posteriore destro', 'Bumpstop', 'Calotta specchio sinistro', 'Calotta specchio destro', 'Cambio automatico', 'Cambio manuale', 'Candelette', 'Candele', 'Centralina ABS', 'Centralina airbag', 'Centralina climatizzatore', 'Centralina motore', 'Cintura di sicurezza anteriore sinistra', 'Cintura di sicurezza anteriore destra', 'Cintura di sicurezza posteriore', 'Climatizzatore', 'Cofano', 'Collettore di aspirazione', 'Collettore di scarico', 'Compressore aria condizionata', 'Condensatore', 'Coprimozzo', 'Coprisedile', 'Cremagliera sterzo', 'Cristallo anteriore', 'Cristallo posteriore', 'Cristallo lunotto', 'Cristallo laterale sinistro', 'Cristallo laterale destro', 'Differenziale', 'Dinamo', 'Dispositivo anti-bloccaggio', 'ECU', 'Fanale anteriore sinistro', 'Fanale anteriore destro', 'Fanale posteriore sinistro', 'Fanale posteriore destro', 'Fanale fendinebbia sinistro', 'Fanale fendinebbia destro', 'Filtro abitacolo', 'Filtro aria', 'Filtro carburante', 'Filtro olio', 'Freno a mano', 'Fuso a snodo', 'Gancio traino', 'Gruppo ottico anteriore sinistro', 'Gruppo ottico anteriore destro', 'Gruppo ottico posteriore sinistro', 'Gruppo ottico posteriore destro', 'Impianto audio', 'Impianto di climatizzazione', 'Impianto elettrico', 'Indicatore di direzione', 'Ingranaggio', 'Intercooler', 'Kit airbag', 'Kombi', 'Leva cambio', 'Leva freno a mano', 'Longherone', 'Manettino', 'Maniglia porta anteriore sinistra', 'Maniglia porta anteriore destra', 'Maniglia porta posteriore sinistra', 'Maniglia porta posteriore destra', 'Motore', 'Motorino avviamento', 'Motorino tergicristallo', 'Mozzo ruota', 'Parabrezza', 'Parafango anteriore sinistro', 'Parafango anteriore destro', 'Parafango posteriore sinistro', 'Parafango posteriore destro', 'Paraurti anteriore', 'Paraurti posteriore', 'Pinza freno anteriore sinistra', 'Pinza freno anteriore destra', 'Pinza freno posteriore sinistra', 'Pinza freno posteriore destra', 'Pompa acqua', 'Pompa benzina', 'Pompa carburante', 'Pompa freni', 'Pompa olio', 'Pompa servosterzo', 'Porta anteriore sinistra', 'Porta anteriore destra', 'Porta posteriore sinistra', 'Porta posteriore destra', 'Portabagagli', 'Portellone', 'Quadro strumenti', 'Radiatore', 'Radiatore intercooler', 'Retrovisore interno', 'Retrovisore esterno sinistro', 'Retrovisore esterno destro', 'Ruota di scorta', 'Sedile anteriore sinistro', 'Sedile anteriore destro', 'Sedile posteriore', 'Sensore ABS', 'Sensore aria', 'Sensore parcheggio', 'Sensore pressione gomme', 'Servosterzo elettrico', 'Servosterzo idraulico', 'Serbatoio carburante', 'Sospensione anteriore sinistra', 'Sospensione anteriore destra', 'Sospensione posteriore sinistra', 'Sospensione posteriore destra', 'Specchio retrovisore', 'Sportello', 'Sterzo', 'Subwoofer', 'Supporto motore', 'Tachimetro', 'Telaio', 'Terminale di scarico', 'Testata motore', 'Tetto apribile', 'Trasmissione', 'Turbina', 'Turbocompressore', 'Valvola EGR', 'Vassoio battery', 'Vetro', 'Volante', 'Gruppo pompa freni', 'Altro'];
+
 function popolaRicambi() {
-  var sp=document.getElementById('sr-pezzo');
-  sp.innerHTML='<option value="">&#8212; seleziona tipo ricambio &#8212;</option>';
-  var lista=['Abitacolo', 'Airbag laterale sinistro', 'Airbag laterale destro', 'Airbag passeggero', 'Airbag volante', 'Albero di trasmissione', 'Alternatore', 'Ammortizzatore anteriore sinistro', 'Ammortizzatore anteriore destro', 'Ammortizzatore posteriore sinistro', 'Ammortizzatore posteriore destro', 'Antenna', 'Assale posteriore', 'Batteria', 'Blocchetto accensione', 'Braccio oscillante anteriore sinistro', 'Braccio oscillante anteriore destro', 'Braccio oscillante posteriore sinistro', 'Braccio oscillante posteriore destro', 'Bumpstop', 'Calotta specchio sinistro', 'Calotta specchio destro', 'Cambio automatico', 'Cambio manuale', 'Candelette', 'Candele', 'Centralina ABS', 'Centralina airbag', 'Centralina climatizzatore', 'Centralina motore', 'Cintura di sicurezza anteriore sinistra', 'Cintura di sicurezza anteriore destra', 'Cintura di sicurezza posteriore', 'Climatizzatore', 'Cofano', 'Collettore di aspirazione', 'Collettore di scarico', 'Compressore aria condizionata', 'Condensatore', 'Coprimozzo', 'Coprisedile', 'Cremagliera sterzo', 'Cristallo anteriore', 'Cristallo posteriore', 'Cristallo lunotto', 'Cristallo laterale sinistro', 'Cristallo laterale destro', 'Differenziale', 'Dinamo', 'Dispositivo anti-bloccaggio', 'ECU', 'Fanale anteriore sinistro', 'Fanale anteriore destro', 'Fanale posteriore sinistro', 'Fanale posteriore destro', 'Fanale fendinebbia sinistro', 'Fanale fendinebbia destro', 'Filtro abitacolo', 'Filtro aria', 'Filtro carburante', 'Filtro olio', 'Freno a mano', 'Fuso a snodo', 'Gancio traino', 'Gruppo ottico anteriore sinistro', 'Gruppo ottico anteriore destro', 'Gruppo ottico posteriore sinistro', 'Gruppo ottico posteriore destro', 'Impianto audio', 'Impianto di climatizzazione', 'Impianto elettrico', 'Indicatore di direzione', 'Ingranaggio', 'Intercooler', 'Kit airbag', 'Kombi', 'Leva cambio', 'Leva freno a mano', 'Longherone', 'Manettino', 'Maniglia porta anteriore sinistra', 'Maniglia porta anteriore destra', 'Maniglia porta posteriore sinistra', 'Maniglia porta posteriore destra', 'Motore', 'Motorino avviamento', 'Motorino tergicristallo', 'Mozzo ruota', 'Parabrezza', 'Parafango anteriore sinistro', 'Parafango anteriore destro', 'Parafango posteriore sinistro', 'Parafango posteriore destro', 'Paraurti anteriore', 'Paraurti posteriore', 'Pinza freno anteriore sinistra', 'Pinza freno anteriore destra', 'Pinza freno posteriore sinistra', 'Pinza freno posteriore destra', 'Pompa acqua', 'Pompa benzina', 'Pompa carburante', 'Pompa freni', 'Pompa olio', 'Pompa servosterzo', 'Porta anteriore sinistra', 'Porta anteriore destra', 'Porta posteriore sinistra', 'Porta posteriore destra', 'Portabagagli', 'Portellone', 'Quadro strumenti', 'Radiatore', 'Radiatore intercooler', 'Retrovisore interno', 'Retrovisore esterno sinistro', 'Retrovisore esterno destro', 'Ruota di scorta', 'Sedile anteriore sinistro', 'Sedile anteriore destro', 'Sedile posteriore', 'Sensore ABS', 'Sensore aria', 'Sensore parcheggio', 'Sensore pressione gomme', 'Servosterzo elettrico', 'Servosterzo idraulico', 'Serbatoio carburante', 'Sospensione anteriore sinistra', 'Sospensione anteriore destra', 'Sospensione posteriore sinistra', 'Sospensione posteriore destra', 'Specchio retrovisore', 'Sportello', 'Sterzo', 'Subwoofer', 'Supporto motore', 'Tachimetro', 'Telaio', 'Terminale di scarico', 'Testata motore', 'Tetto apribile', 'Trasmissione', 'Turbina', 'Turbocompressore', 'Valvola EGR', 'Vassoio battery', 'Vetro', 'Volante', 'Gruppo pompa freni', 'Altro'];
+  renderListaRicambi(_RICAMBI_LISTA);
+}
+
+function filtraRicambi() {
+  var q=document.getElementById('sr-cerca').value.toLowerCase();
+  var filtered=q ? _RICAMBI_LISTA.filter(function(n){ return n.toLowerCase().includes(q); }) : _RICAMBI_LISTA;
+  renderListaRicambi(filtered);
+}
+
+function renderListaRicambi(lista) {
+  var div=document.getElementById('sr-lista');
+  div.innerHTML='';
   lista.forEach(function(nome){
-    var o=document.createElement('option'); o.value=nome; o.textContent=nome; sp.appendChild(o);
+    var id='chk-'+nome.replace(/[^a-zA-Z0-9]/g,'_');
+    var item=document.createElement('div');
+    item.className='ric-item';
+    item.innerHTML='<input type="checkbox" id="'+id+'" value="'+nome+'" onchange="aggiornaSel()">'
+      +'<label for="'+id+'">'+nome+'</label>';
+    item.querySelector('label').addEventListener('click',function(e){
+      e.preventDefault();
+      var cb=item.querySelector('input');
+      cb.checked=!cb.checked;
+      aggiornaSel();
+    });
+    div.appendChild(item);
   });
 }
+
+function aggiornaSel() {
+  var checked=document.querySelectorAll('#sr-lista input[type=checkbox]:checked');
+  document.getElementById('sr-count').textContent=checked.length;
+  var div=document.getElementById('sr-selezionati');
+  if(!checked.length){
+    div.innerHTML='<span style="color:var(--text3)">Nessun pezzo selezionato</span>';
+    return;
+  }
+  var html='';
+  checked.forEach(function(cb){
+    html+='<div style="padding:3px 0;border-bottom:1px solid #f3f4f6;font-size:12px">&#10003; '+cb.value+'</div>';
+  });
+  div.innerHTML=html;
+}
+
+function deselTutti() {
+  document.querySelectorAll('#sr-lista input[type=checkbox]').forEach(function(cb){ cb.checked=false; });
+  aggiornaSel();
+}
+
 
 function init() {
   Promise.all([
@@ -901,20 +964,29 @@ function renderRicambi() {
 }
 
 function aggRicambio() {
-  var nomeRicambio=document.getElementById('sr-pezzo').value;
+  var checked=document.querySelectorAll('#sr-lista input[type=checkbox]:checked');
+  if(!checked.length){ toast('Seleziona almeno un ricambio',false); return; }
   var peso=parseFloat(document.getElementById('sr-peso').value);
+  if(!peso||peso<=0){ toast('Inserisci il peso totale',false); return; }
   var note=document.getElementById('sr-note').value;
-  if(!nomeRicambio){ toast('Seleziona un tipo di ricambio',false); return; }
-  if(!peso||peso<=0){ toast('Inserisci un peso valido',false); return; }
-  apiFetch('/api/demolizioni/'+_selId+'/ricambi',{method:'POST',body:JSON.stringify({pezzo_nome:nomeRicambio,peso_kg:peso,note:note})})
-    .then(function(res){
-      if(res.ok){
-        document.getElementById('sr-peso').value='';
-        document.getElementById('sr-note').value='';
-        document.getElementById('sr-pezzo').value='';
-        return apiFetch('/api/demolizioni/'+_selId+'/ricambi').then(function(rows){ _ricambi=rows||[]; renderRicambi(); });
-      } else toast(res.msg||'Errore',false);
-    });
+  // Peso diviso equamente tra i pezzi selezionati
+  var pesoPezzo=Math.round((peso/checked.length)*1000)/1000;
+  var nomi=[];
+  checked.forEach(function(cb){ nomi.push(cb.value); });
+  // Inserisci come unico record con tutti i nomi concatenati
+  var nomeCombinato=nomi.join(', ');
+  apiFetch('/api/demolizioni/'+_selId+'/ricambi',{
+    method:'POST',body:JSON.stringify({pezzo_nome:nomeCombinato,peso_kg:peso,note:note})
+  }).then(function(res){
+    if(res.ok){
+      document.getElementById('sr-peso').value='';
+      document.getElementById('sr-note').value='';
+      document.getElementById('sr-cerca').value='';
+      deselTutti();
+      renderListaRicambi(_RICAMBI_LISTA);
+      return apiFetch('/api/demolizioni/'+_selId+'/ricambi').then(function(rows){ _ricambi=rows||[]; renderRicambi(); });
+    } else toast(res.msg||'Errore',false);
+  });
 }
 
 function delRic(rid) {
