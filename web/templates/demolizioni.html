@@ -894,9 +894,9 @@ function renderTabella(data) {
 // ── FORM ──────────────────────────────────────────────────────────────
 function selectRow(id, el) {
   _selId = id;
-  document.querySelectorAll('#tbody tr').forEach(r=>r.classList.remove('selected'));
+  document.querySelectorAll('#tbody tr').forEach(function(r){ r.classList.remove('selected'); });
   if(el) el.classList.add('selected');
-  const d = _demolizioni.find(x=>x.id===id);
+  var d = _demolizioni.find(function(x){ return x.id===id; });
   if(!d) return;
   if(_modalita==='nuova') return;  // in modalità nuova non caricare
   document.getElementById('f-id').value     = d.id;
@@ -919,18 +919,17 @@ function selectRow(id, el) {
 
 function nuovoRecord() {
   _selId = null;
-  document.querySelectorAll('#tbody tr').forEach(r=>r.classList.remove('selected'));
-  ['f-id','f-data','f-reg','f-pag','f-ufficio','f-concessionaria',
-   'f-peso-eff','f-peso-netto'].forEach(id=>{
-    const el=document.getElementById(id); if(el) el.value='';
+  document.querySelectorAll('#tbody tr').forEach(function(r){ r.classList.remove('selected'); });
+  ['f-id','f-data','f-ora','f-reg','f-pag','f-ufficio','f-concessionaria',
+   'f-peso-eff','f-peso-netto'].forEach(function(id){
+    var el=document.getElementById(id); if(el) el.value='';
   });
   document.getElementById('f-veicolo').value='';
   document.getElementById('f-proprietario').value='';
   document.getElementById('f-detentore').value='';
-  document.getElementById('f-modalita').value='';
+  var fm = document.getElementById('f-modalita'); if(fm) fm.value='';
   document.getElementById('f-targhe').checked=false;
   document.getElementById('f-carta').checked=false;
-  document.getElementById('f-data').value = new Date().toISOString().slice(0,10);
 }
 
 async function inserisciDemolizione() {
@@ -1001,7 +1000,7 @@ async function eliminaRecord() {
 
 function aggiornaPesoNetto() {
   const eff = parseFloat(document.getElementById('f-peso-eff').value)||0;
-  const sottratto = _ricambi.reduce((s,r)=>s+(parseFloat(r.peso_kg)||0),0);
+  var sottratto = _ricambi.reduce(function(s,r){ return s+(parseFloat(r.peso_kg)||0); },0);
   const netto = Math.max(0, eff - sottratto);
   document.getElementById('f-peso-netto').value = netto.toFixed(2);
 }
@@ -1151,7 +1150,7 @@ async function cercaCDP() {
   };
 
   // Filtra demolizioni localmente
-  let risultati = _demolizioni.filter(d => {
+  var risultati = _demolizioni.filter(function(d) {
     if(filtri.marca && !d.veicolo_str?.toLowerCase().includes(filtri.marca.toLowerCase())) return false;
     if(filtri.modello && !d.veicolo_str?.toLowerCase().includes(filtri.modello.toLowerCase())) return false;
     if(filtri.proprietario && !d.proprietario_str?.toLowerCase().includes(filtri.proprietario.toLowerCase())) return false;
@@ -1193,7 +1192,7 @@ async function cercaCDP() {
 function selezionaCDP(id) {
   // Porta il record selezionato nel form principale
   const rows = document.querySelectorAll('#tbody tr');
-  rows.forEach(r=>{ if(parseInt(r.children[0]?.textContent)===id) r.click(); });
+  rows.forEach(function(r){ if(parseInt(r.children[0] && r.children[0].textContent)===id) r.click(); });
   closeModal('modal-cdp');
   toast('Demolizione n.'+id+' caricata');
 }
@@ -1223,7 +1222,7 @@ async function openSottrai() {
 
 function renderRicambi() {
   const tbody = document.getElementById('sr-tbody');
-  const tot = _ricambi.reduce((s,r)=>s+(parseFloat(r.peso_kg)||0),0);
+  var tot = _ricambi.reduce(function(s,r){ return s+(parseFloat(r.peso_kg)||0); },0);
   const pesoEff = parseFloat(document.getElementById('f-peso-eff').value)||0;
   const netto = Math.max(0, pesoEff - tot);
 
@@ -1262,7 +1261,7 @@ async function aggiungiRicambio() {
     renderRicambi();
     // Aggiorna anche il campo peso netto nel form principale
     const netto = Math.max(0,(parseFloat(document.getElementById('f-peso-eff').value)||0)
-      - _ricambi.reduce((s,r)=>s+(parseFloat(r.peso_kg)||0),0));
+      - _ricambi.reduce(function(s,r){ return s+(parseFloat(r.peso_kg)||0); },0));
     document.getElementById('f-peso-netto').value = netto.toFixed(2);
   } else toast(res.msg,false);
 }
@@ -1273,7 +1272,7 @@ async function rimuoviRicambio(rid) {
     _ricambi = await apiFetch('/api/demolizioni/'+_selId+'/ricambi');
     renderRicambi();
     const netto = Math.max(0,(parseFloat(document.getElementById('f-peso-eff').value)||0)
-      - _ricambi.reduce((s,r)=>s+(parseFloat(r.peso_kg)||0),0));
+      - _ricambi.reduce(function(s,r){ return s+(parseFloat(r.peso_kg)||0); },0));
     document.getElementById('f-peso-netto').value = netto.toFixed(2);
   }
 }
