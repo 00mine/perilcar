@@ -44,34 +44,46 @@ cfg = ConfigManager()
 db  = DatabaseManager(cfg.get("db_path"))
 log.info(f"DB: {cfg.get('db_path')}")
 
-# Migrazione colonne eseguita tramite DatabaseManager (thread-safe)
-try:
-    with db._write_lock:
-        _c = db.get_connection()
-        for _col,_typ in [("classe","TEXT"),("marca","TEXT"),("modello","TEXT"),
-                          ("anno_immatricolazione","TEXT"),("num_motore","TEXT"),
-                          ("colore","TEXT"),("note","TEXT")]:
-            _vei = [r[1] for r in _c.execute("PRAGMA table_info(veicoli)").fetchall()]
-            if _col not in _vei:
-                _c.execute(f"ALTER TABLE veicoli ADD COLUMN {_col} {_typ}")
-        for _col,_typ in [("ora_presa_in_carico","TEXT"),("num_albatros","TEXT")]:
-            _dem = [r[1] for r in _c.execute("PRAGMA table_info(demolizioni)").fetchall()]
-            if _col not in _dem:
-                _c.execute(f"ALTER TABLE demolizioni ADD COLUMN {_col} {_typ}")
-        for _col,_typ in [("cognome","TEXT"),("nome","TEXT"),("sesso","TEXT"),
-                          ("data_nascita","TEXT"),("luogo_nascita","TEXT"),
-                          ("comune","TEXT"),("provincia","TEXT"),("via","TEXT"),
-                          ("civico","TEXT"),("cap","TEXT"),("tipo_doc","TEXT"),
-                          ("num_doc","TEXT"),("data_doc","TEXT"),("rilasciato_da","TEXT"),
-                          ("cellulare","TEXT"),("fax","TEXT")]:
-            _ana = [r[1] for r in _c.execute("PRAGMA table_info(anagrafiche)").fetchall()]
-            if _col not in _ana:
-                _c.execute(f"ALTER TABLE anagrafiche ADD COLUMN {_col} {_typ}")
-        _c.commit()
-        _c.close()
-    log.info("Migrazione colonne OK")
-except Exception as _e:
-    log.error(f"Migrazione: {_e}")
+# Migrazione colonne DB - usa sqlite3 direttamente per evitare conflitti
+import sqlite3 as _sq3, time as _time
+def _migra():
+    for _attempt in range(5):
+        _mc = None
+        try:
+            _mc = _sq3.connect(cfg.get("db_path"), timeout=20)
+            _mc.execute("PRAGMA journal_mode=WAL")
+            _vei = [r[1] for r in _mc.execute("PRAGMA table_info(veicoli)").fetchall()]
+            for _col,_typ in [("classe","TEXT"),("marca","TEXT"),("modello","TEXT"),
+                              ("anno_immatricolazione","TEXT"),("num_motore","TEXT"),
+                              ("colore","TEXT"),("note","TEXT")]:
+                if _col not in _vei:
+                    _mc.execute(f"ALTER TABLE veicoli ADD COLUMN {_col} {_typ}")
+            _dem = [r[1] for r in _mc.execute("PRAGMA table_info(demolizioni)").fetchall()]
+            for _col,_typ in [("ora_presa_in_carico","TEXT"),("num_albatros","TEXT")]:
+                if _col not in _dem:
+                    _mc.execute(f"ALTER TABLE demolizioni ADD COLUMN {_col} {_typ}")
+            _ana = [r[1] for r in _mc.execute("PRAGMA table_info(anagrafiche)").fetchall()]
+            for _col,_typ in [("cognome","TEXT"),("nome","TEXT"),("sesso","TEXT"),
+                              ("data_nascita","TEXT"),("luogo_nascita","TEXT"),
+                              ("comune","TEXT"),("provincia","TEXT"),("via","TEXT"),
+                              ("civico","TEXT"),("cap","TEXT"),("tipo_doc","TEXT"),
+                              ("num_doc","TEXT"),("data_doc","TEXT"),("rilasciato_da","TEXT"),
+                              ("cellulare","TEXT"),("fax","TEXT")]:
+                if _col not in _ana:
+                    _mc.execute(f"ALTER TABLE anagrafiche ADD COLUMN {_col} {_typ}")
+            _mc.commit()
+            log.info("Migrazione colonne OK")
+            return
+        except _sq3.OperationalError as _e:
+            if "locked" in str(_e) and _attempt < 4:
+                _time.sleep(1)
+            else:
+                log.error(f"Migrazione fallita: {_e}")
+        finally:
+            if _mc:
+                try: _mc.close()
+                except: pass
+_migra()
 
 # ── Scrittura sicura: tutte le operazioni passano da qui ─────────────────────
 def db_write(statements: list):
@@ -1417,7 +1429,10 @@ def api_anagrafiche_crea():
 @app.route("/api/veicoli", methods=["GET"])
 @require_login
 def api_veicoli():
-    rows = db.fetchall("SELECT * FROM veicoli ORDER BY marca, modello")
+    try:
+        rows = db.fetchall("SELECT * FROM veicoli ORDER BY marca, modello")
+    except Exception:
+        rows = db.fetchall("SELECT * FROM veicoli ORDER BY id")
     return jsonify([dict(r) for r in rows])
 
 @app.route("/api/veicoli", methods=["POST"])
