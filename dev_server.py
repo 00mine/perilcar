@@ -489,21 +489,40 @@ def api_movimento():
     gia_dopo = gia_prima + qty if tipo == "carico" else gia_prima - qty
 
     try:
-        db_write([
-            ("""INSERT INTO movimenti_magazzino
-                (componente_id,tipo,quantita,quantita_prima,quantita_dopo,riferimento,note,utente_id)
-                VALUES(?,?,?,?,?,?,?,?)""",
-             (cid, tipo, qty, gia_prima, gia_dopo, rif, note, u.get("id"))),
-            ("UPDATE magazzino SET aggiornato_il=datetime('now') WHERE componente_id=?", (cid,)),
-            ("""INSERT INTO log_operazioni
-                (utente_id,username,modulo,azione,tabella,record_id,dati_precedenti,dati_nuovi)
-                VALUES(?,?,?,?,?,?,?,?)""",
-             (u.get("id"),u.get("username"),"MAGAZZINO",tipo.upper(),
-              "movimenti_magazzino",cid,str({"g":gia_prima}),str({"g":gia_dopo})))
-        ])
+        with db._write_lock:
+            conn = db.get_connection()
+            try:
+                # Controlla colonne disponibili in movimenti_magazzino
+                mov_cols = [r[1] for r in conn.execute("PRAGMA table_info(movimenti_magazzino)").fetchall()]
+                # Costruisci insert dinamico
+                m_fields = ["componente_id","tipo","quantita","riferimento","note","utente_id"]
+                m_vals   = [cid, tipo, qty, rif, note, u.get("id")]
+                for col_name, val in [("quantita_prima", gia_prima),("esistenza_prima", gia_prima),
+                                      ("quantita_dopo",  gia_dopo), ("esistenza_dopo",  gia_dopo)]:
+                    if col_name in mov_cols and col_name not in m_fields:
+                        m_fields.append(col_name); m_vals.append(val)
+                        break  # usa solo il primo che trova
+                for col_name, val in [("quantita_dopo", gia_dopo),("esistenza_dopo", gia_dopo)]:
+                    if col_name in mov_cols and col_name not in m_fields:
+                        m_fields.append(col_name); m_vals.append(val)
+                        break
+                conn.execute(
+                    "INSERT INTO movimenti_magazzino ("+",".join(m_fields)+") VALUES ("+",".join(["?"]*len(m_fields))+")",
+                    m_vals)
+                conn.execute("UPDATE magazzino SET aggiornato_il=datetime('now') WHERE componente_id=?", (cid,))
+                try:
+                    conn.execute(
+                        "INSERT INTO log_operazioni (utente_id,username,modulo,azione,tabella,record_id,dati_precedenti,dati_nuovi) VALUES(?,?,?,?,?,?,?,?)",
+                        (u.get("id"),u.get("username"),"MAGAZZINO",tipo.upper(),"movimenti_magazzino",cid,str({"g":gia_prima}),str({"g":gia_dopo})))
+                except Exception:
+                    pass  # log non bloccante
+                conn.commit()
+            finally:
+                conn.close()
         return jsonify({"ok": True, "msg": f"{tipo.capitalize()} di {qty} pz completato",
                         "giacenza": gia_dopo})
     except Exception as e:
+        log.error(f"api_movimento: {e}")
         return jsonify({"ok": False, "msg": str(e)}), 500
 
 @app.route("/api/magazzino/movimenti")
