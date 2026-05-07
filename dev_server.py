@@ -45,8 +45,12 @@ db  = DatabaseManager(cfg.get("db_path"))
 log.info(f"DB: {cfg.get('db_path')}")
 
 def _migra_colonne():
+    conn = None
     try:
-        conn = db.get_connection()
+        import sqlite3 as _sq
+        db_path = cfg.get("db_path")
+        conn = _sq.connect(db_path, timeout=30)
+        conn.row_factory = _sq.Row
         vei = [r[1] for r in conn.execute("PRAGMA table_info(veicoli)").fetchall()]
         for col,typ in [("classe","TEXT"),("marca","TEXT"),("modello","TEXT"),
                         ("anno_immatricolazione","TEXT"),("num_motore","TEXT"),
@@ -66,10 +70,13 @@ def _migra_colonne():
                         ("cellulare","TEXT"),("fax","TEXT")]:
             if col not in ana:
                 conn.execute(f"ALTER TABLE anagrafiche ADD COLUMN {col} {typ}")
-        conn.commit(); conn.close()
+        conn.commit()
         log.info("Migrazione colonne OK")
     except Exception as e:
         log.error(f"Migrazione: {e}")
+    finally:
+        if conn:
+            conn.close()
 
 _migra_colonne()
 
