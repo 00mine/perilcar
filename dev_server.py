@@ -1430,22 +1430,36 @@ def api_anagrafiche_crea():
 @require_login
 def api_veicoli():
     try:
-        rows = db.fetchall("SELECT * FROM veicoli ORDER BY marca, modello")
-    except Exception:
-        rows = db.fetchall("SELECT * FROM veicoli ORDER BY id")
-    return jsonify([dict(r) for r in rows])
+        rows = db.fetchall("SELECT id, targa, telaio, classe, marca, modello, anno_immatricolazione, num_motore, colore, note FROM veicoli ORDER BY id DESC")
+        return jsonify([dict(r) for r in rows])
+    except Exception as e:
+        log.error(f"api_veicoli GET error: {e}")
+        return jsonify([])
 
 @app.route("/api/veicoli", methods=["POST"])
 @require_login
 def api_veicoli_crea():
     d = request.json or {}
+    log.info(f"POST veicoli: {d}")
     try:
         with db._write_lock:
             conn = db.get_connection()
-            cur = conn.execute(
-                "INSERT INTO veicoli (targa,telaio,classe,marca,modello,anno_immatricolazione,num_motore,note) VALUES (?,?,?,?,?,?,?,?)",
-                (d.get("targa"), d.get("telaio"), d.get("classe"), d.get("marca"),
-                 d.get("modello"), d.get("anno_immatricolazione"), d.get("num_motore"), d.get("note")))
+            # Verifica colonne disponibili
+            cols = [r[1] for r in conn.execute("PRAGMA table_info(veicoli)").fetchall()]
+            log.info(f"Colonne veicoli: {cols}")
+            # Inserisci solo colonne esistenti
+            insert_cols = []
+            insert_vals = []
+            for col, val in [("targa",d.get("targa")),("telaio",d.get("telaio")),
+                             ("classe",d.get("classe")),("marca",d.get("marca")),
+                             ("modello",d.get("modello")),("anno_immatricolazione",d.get("anno_immatricolazione")),
+                             ("num_motore",d.get("num_motore")),("note",d.get("note"))]:
+                if col in cols:
+                    insert_cols.append(col)
+                    insert_vals.append(val)
+            sql = "INSERT INTO veicoli ("+",".join(insert_cols)+") VALUES ("+",".join(["?"]*len(insert_cols))+")"
+            log.info(f"SQL: {sql} | vals: {insert_vals}")
+            cur = conn.execute(sql, insert_vals)
             conn.commit(); conn.close()
         targa  = d.get("targa","") or ""
         marca  = d.get("marca","") or ""
@@ -1453,6 +1467,7 @@ def api_veicoli_crea():
         label  = (marca+" "+modello).strip() + (" ("+targa+")" if targa else "")
         return jsonify({"ok": True, "id": cur.lastrowid, "msg": "Veicolo salvato", "label": label})
     except Exception as e:
+        log.error(f"api_veicoli POST error: {e}")
         return jsonify({"ok": False, "msg": str(e)}), 500
 
 
