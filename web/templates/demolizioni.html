@@ -674,6 +674,7 @@ function salvaAllegatiFetch(tipo, id, inputId) {
 
 function apreVeicolo() {
   var vid=document.getElementById('f-veicolo').value;
+  vid = vid ? String(parseInt(vid)) : '';  // normalizza ID
   ['v-id','v-targa','v-telaio','v-marca','v-modello','v-anno','v-motore','v-note']
     .forEach(function(id){ document.getElementById(id).value=''; });
   document.getElementById('v-classe').value='';
@@ -681,6 +682,7 @@ function apreVeicolo() {
   document.getElementById('v-prev').innerHTML='';
   if(vid) {
     apiFetch('/api/veicoli/'+vid).then(function(res){
+      if(!res.ok || !res.data) { console.log('Veicolo non trovato:', vid); apri('m-veicolo'); return; }
       if(res.ok&&res.data) {
         var v=res.data;
         document.getElementById('v-id').value    =v.id||'';
@@ -731,6 +733,7 @@ function apreAna(target) {
   _anaTarget=target;
   document.getElementById('ana-titolo').textContent=target==='prop'?'Proprietario':'Detentore';
   var aid=document.getElementById(target==='prop'?'f-prop':'f-det').value;
+  aid = aid ? String(parseInt(aid)) : '';  // normalizza ID
   ['a-id','a-cognome','a-nome','a-cf','a-luogo','a-provnascita',
    'a-comune','a-prov','a-via','a-civico','a-cap',
    'a-numdoc','a-rilda','a-tel','a-cell','a-fax','a-email','a-note']
@@ -743,9 +746,11 @@ function apreAna(target) {
     apiFetch('/api/anagrafiche/'+aid).then(function(res){
       if(res.ok&&res.data) {
         var a=res.data;
+        // Cognome: usa campo dedicato o spezza il nominativo
+        var nomi = (a.nominativo||'').split(' ');
         document.getElementById('a-id').value         =a.id||'';
-        document.getElementById('a-cognome').value     =a.cognome||(a.nominativo||'').split(' ')[0]||'';
-        document.getElementById('a-nome').value        =a.nome||(a.nominativo||'').split(' ').slice(1).join(' ')||'';
+        document.getElementById('a-cognome').value     =a.cognome||nomi[0]||'';
+        document.getElementById('a-nome').value        =a.nome||nomi.slice(1).join(' ')||'';
         document.getElementById('a-cf').value          =a.cf_piva||'';
         document.getElementById('a-sesso').value       =a.sesso||'';
         document.getElementById('a-tsoc').value        =a.tipo_societa||'';
