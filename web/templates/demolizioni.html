@@ -992,16 +992,42 @@ function openModalNuovaAnagrafica(target) {
   _anaTarget = target;
   const titolo = target==='proprietario' ? '👤 Proprietario' : '👤 Detentore';
   document.getElementById('ana-title').textContent = titolo;
-  ['a-id','a-cognome','a-nome','a-cfpiva','a-luogo-nascita','a-prov-nascita',
-   'a-comune','a-provincia','a-via','a-civico','a-cap','a-num-doc',
-   'a-rilasciato-da','a-telefono','a-cellulare','a-fax','a-email','a-note']
-    .forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
-  ['a-sesso','a-tipo-societa','a-tipo-doc'].forEach(id=>{
-    const el=document.getElementById(id); if(el) el.value='';
-  });
-  ['a-data-nascita','a-data-doc'].forEach(id=>{
-    const el=document.getElementById(id); if(el) el.value='';
-  });
+
+  // Controlla se c'è già un'anagrafica selezionata per questo campo
+  const selId = document.getElementById('f-'+target).value;
+  const esistente = selId ? _anagrafiche.find(function(a){ return String(a.id)===String(selId); }) : null;
+
+  if(esistente) {
+    // Riapri con i dati già inseriti
+    const nomi = (esistente.nominativo||'').split(' ');
+    document.getElementById('a-cognome').value = nomi[0]||'';
+    document.getElementById('a-nome').value    = nomi.slice(1).join(' ')||'';
+    document.getElementById('a-cfpiva').value  = esistente.cf_piva||'';
+    document.getElementById('a-telefono').value= esistente.telefono||'';
+    document.getElementById('a-email').value   = esistente.email||'';
+    // Indirizzo: prova a scomporre
+    document.getElementById('a-indirizzo-raw') && (document.getElementById('a-indirizzo-raw').value = esistente.indirizzo||'');
+    document.getElementById('a-id').value      = esistente.id;
+    // Altri campi rimangono vuoti se non sono stati salvati
+    ['a-luogo-nascita','a-prov-nascita','a-comune','a-provincia',
+     'a-via','a-civico','a-cap','a-num-doc','a-rilasciato-da',
+     'a-cellulare','a-fax','a-note'].forEach(function(id){
+       const el=document.getElementById(id); if(el && !el.value) el.value='';
+     });
+  } else {
+    // Nuovo: svuota tutto
+    document.getElementById('a-id').value = '';
+    ['a-cognome','a-nome','a-cfpiva','a-luogo-nascita','a-prov-nascita',
+     'a-comune','a-provincia','a-via','a-civico','a-cap','a-num-doc',
+     'a-rilasciato-da','a-telefono','a-cellulare','a-fax','a-email','a-note']
+      .forEach(function(id){ const el=document.getElementById(id); if(el) el.value=''; });
+    ['a-sesso','a-tipo-societa','a-tipo-doc'].forEach(function(id){
+      const el=document.getElementById(id); if(el) el.value='';
+    });
+    ['a-data-nascita','a-data-doc'].forEach(function(id){
+      const el=document.getElementById(id); if(el) el.value='';
+    });
+  }
   openModal('modal-anagrafica');
 }
 
