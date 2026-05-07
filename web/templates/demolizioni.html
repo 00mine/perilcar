@@ -583,6 +583,7 @@
                    onchange="mostraFileSelezionati('v-allegati','v-file-list')">
             <div id="v-file-list" style="margin-top:6px;font-size:11px;color:var(--text2)"></div>
           </div>
+          <div id="v-allegati-list" style="margin-top:6px"></div>
         </div>
       </div>
     </div>
@@ -695,6 +696,7 @@
                    onchange="mostraFileSelezionati('a-allegati','a-file-list')">
             <div id="a-file-list" style="margin-top:4px;font-size:11px;color:var(--text2)"></div>
           </div>
+          <div id="a-allegati-list" style="margin-top:6px"></div>
         </div>
       </div>
 
@@ -1043,6 +1045,9 @@ async function salvaVeicolo() {
     // Ripristina proprietario e detentore
     document.getElementById('f-proprietario').value = prevProp;
     document.getElementById('f-detentore').value    = prevDet;
+    if(res.id) {
+      await salvaAllegati('veicoli', res.id, 'v-allegati', 'v-allegati-list');
+    }
     closeModal('modal-veicolo');
     toast(res.msg || 'Veicolo salvato');
   } else toast(res.msg,false);
@@ -1055,26 +1060,39 @@ function openModalNuovaAnagrafica(target) {
   document.getElementById('ana-title').textContent = titolo;
 
   // Controlla se c'è già un'anagrafica selezionata per questo campo
-  const selId = document.getElementById('f-'+target).value;
-  const esistente = selId ? _anagrafiche.find(function(a){ return String(a.id)===String(selId); }) : null;
+  var selId = document.getElementById('f-'+target).value;
 
-  if(esistente) {
-    // Riapri con i dati già inseriti
-    const nomi = (esistente.nominativo||'').split(' ');
-    document.getElementById('a-cognome').value = nomi[0]||'';
-    document.getElementById('a-nome').value    = nomi.slice(1).join(' ')||'';
-    document.getElementById('a-cfpiva').value  = esistente.cf_piva||'';
-    document.getElementById('a-telefono').value= esistente.telefono||'';
-    document.getElementById('a-email').value   = esistente.email||'';
-    // Indirizzo: prova a scomporre
-    document.getElementById('a-indirizzo-raw') && (document.getElementById('a-indirizzo-raw').value = esistente.indirizzo||'');
-    document.getElementById('a-id').value      = esistente.id;
-    // Altri campi rimangono vuoti se non sono stati salvati
-    ['a-luogo-nascita','a-prov-nascita','a-comune','a-provincia',
-     'a-via','a-civico','a-cap','a-num-doc','a-rilasciato-da',
-     'a-cellulare','a-fax','a-note'].forEach(function(id){
-       const el=document.getElementById(id); if(el && !el.value) el.value='';
-     });
+  if(selId) {
+    // Carica dati completi dal server
+    document.getElementById('a-id').value = selId;
+    var resp = await apiFetch('/api/anagrafiche/'+selId);
+    if(resp.ok && resp.data) {
+      var a = resp.data;
+      document.getElementById('a-cognome').value       = a.cognome||a.nominativo||'';
+      document.getElementById('a-nome').value          = a.nome||'';
+      document.getElementById('a-cfpiva').value        = a.cf_piva||'';
+      document.getElementById('a-sesso').value         = a.sesso||'';
+      document.getElementById('a-tipo-societa').value  = a.tipo_societa||'';
+      document.getElementById('a-data-nascita').value  = a.data_nascita||'';
+      document.getElementById('a-luogo-nascita').value = a.luogo_nascita||'';
+      document.getElementById('a-prov-nascita').value  = a.prov_nascita||'';
+      document.getElementById('a-comune').value        = a.comune||'';
+      document.getElementById('a-provincia').value     = a.provincia||'';
+      document.getElementById('a-via').value           = a.via||'';
+      document.getElementById('a-civico').value        = a.civico||'';
+      document.getElementById('a-cap').value           = a.cap||'';
+      document.getElementById('a-tipo-doc').value      = a.tipo_doc||'';
+      document.getElementById('a-num-doc').value       = a.num_doc||'';
+      document.getElementById('a-data-doc').value      = a.data_doc||'';
+      document.getElementById('a-rilasciato-da').value = a.rilasciato_da||'';
+      document.getElementById('a-telefono').value      = a.telefono||'';
+      document.getElementById('a-cellulare').value     = a.cellulare||'';
+      document.getElementById('a-fax').value           = a.fax||'';
+      document.getElementById('a-email').value         = a.email||'';
+      document.getElementById('a-note').value          = a.note||'';
+      // Carica allegati
+      caricaAllegati('anagrafiche', selId, 'a-allegati-list');
+    }
   } else {
     // Nuovo: svuota tutto
     document.getElementById('a-id').value = '';
@@ -1109,7 +1127,33 @@ async function salvaAnagrafica() {
                 (document.getElementById('a-provincia').value||''),
   };
   if(!cognome){ toast('Inserisci almeno il Cognome/Denominazione',false); return; }
-  var res = await apiFetch('/api/anagrafiche',{method:'POST',body:JSON.stringify(dati)});
+  // Aggiungi tutti i campi extra
+  dati.cognome       = document.getElementById('a-cognome').value||null;
+  dati.nome          = document.getElementById('a-nome').value||null;
+  dati.sesso         = document.getElementById('a-sesso').value||null;
+  dati.data_nascita  = document.getElementById('a-data-nascita').value||null;
+  dati.luogo_nascita = document.getElementById('a-luogo-nascita').value||null;
+  dati.prov_nascita  = document.getElementById('a-prov-nascita').value||null;
+  dati.comune        = document.getElementById('a-comune').value||null;
+  dati.provincia     = document.getElementById('a-provincia').value||null;
+  dati.via           = document.getElementById('a-via').value||null;
+  dati.civico        = document.getElementById('a-civico').value||null;
+  dati.cap           = document.getElementById('a-cap').value||null;
+  dati.tipo_doc      = document.getElementById('a-tipo-doc').value||null;
+  dati.num_doc       = document.getElementById('a-num-doc').value||null;
+  dati.data_doc      = document.getElementById('a-data-doc').value||null;
+  dati.rilasciato_da = document.getElementById('a-rilasciato-da').value||null;
+  dati.cellulare     = document.getElementById('a-cellulare').value||null;
+  dati.fax           = document.getElementById('a-fax').value||null;
+  // Se ha già un ID, aggiorna invece di inserire
+  var anaId = document.getElementById('a-id').value;
+  var res;
+  if(anaId) {
+    res = await apiFetch('/api/anagrafiche/'+anaId, {method:'PUT', body:JSON.stringify(dati)});
+    res.id = parseInt(anaId);
+  } else {
+    res = await apiFetch('/api/anagrafiche',{method:'POST',body:JSON.stringify(dati)});
+  }
   if(res.ok){
     _anagrafiche = await apiFetch('/api/anagrafiche');
     // Salva selezioni correnti
@@ -1127,6 +1171,10 @@ async function salvaAnagrafica() {
     document.getElementById('f-veicolo').value      = prevVeicolo;
     document.getElementById('f-proprietario').value = _anaTarget==='proprietario' ? String(res.id) : prevProp;
     document.getElementById('f-detentore').value    = _anaTarget==='detentore'    ? String(res.id) : prevDet;
+    // Salva allegati se presenti
+    if(res.id) {
+      await salvaAllegati('anagrafiche', res.id, 'a-allegati', 'a-allegati-list');
+    }
     closeModal('modal-anagrafica');
     toast(res.msg || 'Anagrafica salvata');
   } else toast(res.msg,false);
@@ -1280,6 +1328,34 @@ async function rimuoviRicambio(rid) {
 }
 
 // ── ALLEGATI ─────────────────────────────────────────────────────────
+async function caricaAllegati(tipo, id, containerId) {
+  var cont = document.getElementById(containerId);
+  if(!cont) return;
+  try {
+    var files = await apiFetch('/api/'+tipo+'/'+id+'/allegati');
+    if(!files || !files.length) { cont.innerHTML=''; return; }
+    cont.innerHTML = '<div style="margin-top:6px;font-size:11px;font-weight:600;color:var(--text2)">📁 Allegati salvati:</div>'
+      + files.map(function(f){
+        var kb = (f.size/1024).toFixed(1);
+        return '<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid #f3f4f6">'
+          + '<a href="'+f.url+'" target="_blank" style="color:var(--blue);font-size:11px;flex:1">📎 '+f.nome+'</a>'
+          + '<span style="font-size:10px;color:var(--text3)">'+kb+' KB</span>'
+          + '</div>';
+      }).join('');
+  } catch(e) { cont.innerHTML=''; }
+}
+
+async function salvaAllegati(tipo, id, inputId, listContainerId) {
+  var input = document.getElementById(inputId);
+  if(!input || !input.files.length) return;
+  var fd = new FormData();
+  Array.from(input.files).forEach(function(f){ fd.append('files', f); });
+  await fetch('/api/'+tipo+'/'+id+'/allegati', {method:'POST', body:fd});
+  await caricaAllegati(tipo, id, listContainerId);
+  input.value='';
+  document.getElementById(listContainerId.replace('-list','-list')).innerHTML='';
+}
+
 function mostraFileSelezionati(inputId, listId) {
   var input = document.getElementById(inputId);
   var list  = document.getElementById(listId);

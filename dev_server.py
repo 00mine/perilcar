@@ -1424,6 +1424,105 @@ def api_anagrafiche_crea():
     except Exception as e:
         return jsonify({"ok": False, "msg": str(e)}), 500
 
+@app.route("/api/anagrafiche/<int:aid>", methods=["GET"])
+@require_login
+def api_anagrafica_get(aid):
+    row = db.fetchone("SELECT * FROM anagrafiche WHERE id=?", (aid,))
+    if not row:
+        return jsonify({"ok": False, "msg": "Non trovata"}), 404
+    return jsonify({"ok": True, "data": row})
+
+@app.route("/api/anagrafiche/<int:aid>", methods=["PUT"])
+@require_login
+def api_anagrafica_update(aid):
+    d = request.json or {}
+    try:
+        with db._write_lock:
+            conn = db.get_connection()
+            try:
+                db_cols = [r[1] for r in conn.execute("PRAGMA table_info(anagrafiche)").fetchall()]
+                tutti = ["nominativo","cf_piva","tipo","telefono","email","indirizzo",
+                         "cognome","nome","sesso","data_nascita","luogo_nascita","prov_nascita",
+                         "comune","provincia","via","civico","cap","tipo_doc","num_doc",
+                         "data_doc","rilasciato_da","cellulare","fax"]
+                campi = [f for f in tutti if f in db_cols and f in d]
+                vals  = [d[f] for f in campi] + [aid]
+                if campi:
+                    sql = "UPDATE anagrafiche SET "+",".join(f+"=?" for f in campi)+" WHERE id=?"
+                    conn.execute(sql, vals)
+                conn.commit()
+            finally:
+                conn.close()
+        return jsonify({"ok": True, "msg": "Aggiornata"})
+    except Exception as e:
+        return jsonify({"ok": False, "msg": str(e)}), 500
+
+
+@app.route("/api/anagrafiche/<int:aid>/allegati", methods=["POST"])
+@require_login
+def api_anagrafica_upload(aid):
+    import os
+    upload_dir = os.path.join(os.path.dirname(__file__), "uploads", "anagrafiche", str(aid))
+    os.makedirs(upload_dir, exist_ok=True)
+    saved = []
+    for f in request.files.getlist("files"):
+        if f.filename:
+            safe_name = f.filename.replace("/","_").replace("\\","_")
+            path = os.path.join(upload_dir, safe_name)
+            f.save(path)
+            saved.append(safe_name)
+    return jsonify({"ok": True, "files": saved})
+
+@app.route("/api/anagrafiche/<int:aid>/allegati", methods=["GET"])
+@require_login
+def api_anagrafica_allegati(aid):
+    import os
+    upload_dir = os.path.join(os.path.dirname(__file__), "uploads", "anagrafiche", str(aid))
+    if not os.path.exists(upload_dir):
+        return jsonify([])
+    files = []
+    for f in os.listdir(upload_dir):
+        fpath = os.path.join(upload_dir, f)
+        files.append({"nome": f, "size": os.path.getsize(fpath), "url": f"/uploads/anagrafiche/{aid}/{f}"})
+    return jsonify(files)
+
+@app.route("/api/veicoli/<int:vid>/allegati", methods=["POST"])
+@require_login
+def api_veicolo_upload(vid):
+    import os
+    upload_dir = os.path.join(os.path.dirname(__file__), "uploads", "veicoli", str(vid))
+    os.makedirs(upload_dir, exist_ok=True)
+    saved = []
+    for f in request.files.getlist("files"):
+        if f.filename:
+            safe_name = f.filename.replace("/","_").replace("\\","_")
+            path = os.path.join(upload_dir, safe_name)
+            f.save(path)
+            saved.append(safe_name)
+    return jsonify({"ok": True, "files": saved})
+
+@app.route("/api/veicoli/<int:vid>/allegati", methods=["GET"])
+@require_login
+def api_veicolo_allegati(vid):
+    import os
+    upload_dir = os.path.join(os.path.dirname(__file__), "uploads", "veicoli", str(vid))
+    if not os.path.exists(upload_dir):
+        return jsonify([])
+    files = []
+    for f in os.listdir(upload_dir):
+        fpath = os.path.join(upload_dir, f)
+        files.append({"nome": f, "size": os.path.getsize(fpath), "url": f"/uploads/veicoli/{vid}/{f}"})
+    return jsonify(files)
+
+@app.route("/uploads/<path:filename>")
+@require_login
+def serve_upload(filename):
+    import os
+    from flask import send_from_directory
+    upload_base = os.path.join(os.path.dirname(__file__), "uploads")
+    return send_from_directory(upload_base, filename)
+
+
 @app.route("/api/veicoli", methods=["GET"])
 @require_login
 def api_veicoli():
