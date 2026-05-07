@@ -58,8 +58,6 @@ def db_write(statements: list):
         except Exception as e:
             conn.rollback()
             raise
-        finally:
-            conn.close()
 
 def require_login(f):
     from functools import wraps
@@ -221,8 +219,6 @@ def api_crea_componente():
             except Exception as e:
                 conn.rollback()
                 return jsonify({"ok": False, "msg": str(e)}), 500
-            finally:
-                conn.close()
     except Exception as e:
         return jsonify({"ok": False, "msg": str(e)}), 500
 
@@ -777,8 +773,6 @@ def api_import_excel():
                 conn.rollback()
                 log.error(f"Import errore riga {row_n}: {e}")
                 return jsonify({"ok": False, "msg": f"Errore riga {row_n}: {e}"}), 500
-            finally:
-                conn.close()
 
         tot = importati + aggiornati
         return jsonify({"ok": True,
@@ -934,8 +928,6 @@ def api_import_excel_stream():
                 conn.rollback()
                 log.error(f"Import errore riga {row_n}: {e}")
                 return jsonify({"ok": False, "msg": f"Errore riga {row_n}: {e}"}), 500
-            finally:
-                conn.close()
 
     finally:
         try: _os.unlink(tmp_path)
@@ -1274,7 +1266,7 @@ def api_demolizioni_crea():
             cur = conn.execute(
                 "INSERT INTO demolizioni ("+",".join(campi)+",creato_da) VALUES ("
                 +",".join(["?"]*len(campi))+",?)", vals)
-            conn.commit(); conn.close()
+            conn.commit()
         return jsonify({"ok": True, "id": cur.lastrowid, "msg": "Demolizione salvata"})
     except Exception as e:
         return jsonify({"ok": False, "msg": str(e)}), 500
@@ -1294,7 +1286,7 @@ def api_demolizioni_update(did):
             sets = ", ".join(f"{k}=?" for k in campi if k in d)
             vals = [d[k] for k in campi if k in d] + [did]
             conn.execute(f"UPDATE demolizioni SET {sets} WHERE id=?", vals)
-            conn.commit(); conn.close()
+            conn.commit()
         return jsonify({"ok": True, "msg": "Aggiornata"})
     except Exception as e:
         return jsonify({"ok": False, "msg": str(e)}), 500
@@ -1307,7 +1299,7 @@ def api_demolizioni_delete(did):
             conn = db.get_connection()
             conn.execute("DELETE FROM ricambi_sottratti WHERE demolizione_id=?", (did,))
             conn.execute("DELETE FROM demolizioni WHERE id=?", (did,))
-            conn.commit(); conn.close()
+            conn.commit()
         return jsonify({"ok": True})
     except Exception as e:
         return jsonify({"ok": False, "msg": str(e)}), 500
@@ -1339,7 +1331,7 @@ def api_ricambi_add(did):
             conn.execute(
                 "UPDATE demolizioni SET peso_netto_kg=MAX(0, COALESCE(peso_effettivo_kg,0)-?) WHERE id=?",
                 (tot, did))
-            conn.commit(); conn.close()
+            conn.commit()
         return jsonify({"ok": True, "msg": "Ricambio aggiunto"})
     except Exception as e:
         return jsonify({"ok": False, "msg": str(e)}), 500
@@ -1359,7 +1351,7 @@ def api_ricambi_del(rid):
                 conn.execute(
                     "UPDATE demolizioni SET peso_netto_kg=MAX(0,COALESCE(peso_effettivo_kg,0)-?) WHERE id=?",
                     (tot, row["demolizione_id"]))
-            conn.commit(); conn.close()
+            conn.commit()
         return jsonify({"ok": True})
     except Exception as e:
         return jsonify({"ok": False, "msg": str(e)}), 500
@@ -1381,7 +1373,7 @@ def api_anagrafiche_crea():
                 "INSERT INTO anagrafiche (nominativo,cf_piva,tipo,telefono,email,indirizzo) VALUES (?,?,?,?,?,?)",
                 (d.get("nominativo"), d.get("cf_piva"), d.get("tipo","privato"),
                  d.get("telefono"), d.get("email"), d.get("indirizzo")))
-            conn.commit(); conn.close()
+            conn.commit()
         return jsonify({"ok": True, "id": cur.lastrowid, "msg": "Anagrafica salvata",
                         "nominativo": d.get("nominativo")})
     except Exception as e:
@@ -1421,7 +1413,7 @@ def api_veicoli_crea():
             sql = "INSERT INTO veicoli ("+",".join(insert_cols)+") VALUES ("+",".join(["?"]*len(insert_cols))+")"
             log.info(f"SQL: {sql} | vals: {insert_vals}")
             cur = conn.execute(sql, insert_vals)
-            conn.commit(); conn.close()
+            conn.commit()
         targa  = d.get("targa","") or ""
         marca  = d.get("marca","") or ""
         modello= d.get("modello","") or ""
