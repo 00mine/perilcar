@@ -991,7 +991,7 @@ async function salvaRecord() {
     if(res.ok) { _selId = res.id; document.getElementById('f-id').value = res.id; }
   }
   fb(res.msg, res.ok);
-  if(res.ok) { _demolizioni = await apiFetch('/api/demolizioni'); renderTabella(); }
+  if(res.ok) { _demolizioni = await apiFetch('/api/demolizioni/cerca'); renderTabella(_demolizioni); }
 }
 
 async function eliminaRecord() {
@@ -999,7 +999,7 @@ async function eliminaRecord() {
   if(!confirm('Eliminare questa demolizione?')) return;
   const res = await apiFetch('/api/demolizioni/'+_selId,{method:'DELETE'});
   fb(res.ok?'Eliminata':'Errore',res.ok);
-  if(res.ok){ _selId=null; nuovoRecord(); _demolizioni=await apiFetch('/api/demolizioni'); renderTabella(); }
+  if(res.ok){ _selId=null; nuovoRecord(); _demolizioni=await apiFetch('/api/demolizioni/cerca'); renderTabella(_demolizioni); }
 }
 
 function aggiornaPesoNetto() {
@@ -1054,7 +1054,7 @@ async function salvaVeicolo() {
 }
 
 // ── NUOVA ANAGRAFICA ──────────────────────────────────────────────────
-function openModalNuovaAnagrafica(target) {
+async function openModalNuovaAnagrafica(target) {
   _anaTarget = target;
   const titolo = target==='proprietario' ? '👤 Proprietario' : '👤 Detentore';
   document.getElementById('ana-title').textContent = titolo;
@@ -1317,7 +1317,7 @@ async function aggiungiRicambio() {
 }
 
 async function rimuoviRicambio(rid) {
-  const res = await apiFetch('/api/demolizioni/ricambi/'+rid+',{method:"DELETE"}');
+  var res = await apiFetch('/api/demolizioni/ricambi/'+rid,{method:'DELETE'});
   if(res.ok){
     _ricambi = await apiFetch('/api/demolizioni/'+_selId+'/ricambi');
     renderRicambi();
