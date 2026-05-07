@@ -1,77 +1,55 @@
-"""Ripristina i componenti del magazzino dal backup"""
+"""Copia diretta da backup al DB corrente usando ATTACH"""
 import sqlite3, os, glob
 
 db_path = os.path.join(os.path.dirname(__file__), 'db', 'perilcar.db')
+backup_files = sorted(glob.glob(db_path + '.backup_*'), key=os.path.getsize, reverse=True)
 
-# Trova TUTTI i backup
-backup_files = sorted(glob.glob(db_path + '.backup_*'))
-print("Backup disponibili:")
-for i, b in enumerate(backup_files):
-    size = os.path.getsize(b)
-    print(f"  [{i}] {os.path.basename(b)} ({size//1024//1024} MB)")
+print("Backup disponibili (per dimensione):")
+for b in backup_files:
+    print(f"  {os.path.basename(b)} - {os.path.getsize(b)//1024//1024} MB")
 
-if not backup_files:
-    print("ERRORE: nessun backup trovato!")
-    input("Premi INVIO..."); exit()
+# Usa il backup più grande
+backup = backup_files[0]
+print(f"\nUso: {os.path.basename(backup)}")
 
-# Usa il backup più grande (quello con i dati)
-backup = max(backup_files, key=os.path.getsize)
-print(f"\nUso backup: {os.path.basename(backup)} ({os.path.getsize(backup)//1024//1024} MB)")
-
+# Verifica che abbia i componenti
 old = sqlite3.connect(backup, timeout=30)
-old.row_factory = sqlite3.Row
-
-# Lista tabelle nel backup
-tabelle_bak = [r[0] for r in old.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()]
-print("Tabelle nel backup:", tabelle_bak)
-
-# Determina il nome della tabella componenti
-tab_comp = 'componenti' if 'componenti' in tabelle_bak else None
-tab_mag  = 'magazzino'  if 'magazzino'  in tabelle_bak else None
-tab_mov  = 'movimenti_magazzino' if 'movimenti_magazzino' in tabelle_bak else None
-
-if not tab_comp:
-    print("ERRORE: tabella componenti non trovata nel backup!")
-    old.close(); input("Premi INVIO..."); exit()
-
-componenti = old.execute(f"SELECT * FROM {tab_comp}").fetchall()
-magazzino  = old.execute(f"SELECT * FROM {tab_mag}").fetchall() if tab_mag else []
-movimenti  = old.execute(f"SELECT * FROM {tab_mov}").fetchall() if tab_mov else []
-print(f"Componenti: {len(componenti)}, Magazzino: {len(magazzino)}, Movimenti: {len(movimenti)}")
+n_old = old.execute("SELECT COUNT(*) FROM componenti").fetchone()[0]
+print(f"Componenti nel backup: {n_old}")
+if n_old == 0:
+    print("ERRORE: backup vuoto!")
+    old.close(); input(); exit()
 old.close()
 
-# Importa nel DB corrente
-new = sqlite3.connect(db_path, timeout=30)
-new.row_factory = sqlite3.Row
+# Copia usando ATTACH - copia tutto senza preoccuparsi delle colonne
+conn = sqlite3.connect(db_path, timeout=30)
+conn.execute(f"ATTACH DATABASE '{backup}' AS bak")
 
-new.execute("DELETE FROM movimenti_magazzino")
-new.execute("DELETE FROM magazzino")
-new.execute("DELETE FROM componenti")
-new.commit()
+# Ricrea componenti con lo stesso schema del backup
+conn.execute("DROP TABLE IF EXISTS componenti")
+bak_schema = conn.execute("SELECT sql FROM bak.sqlite_master WHERE name='componenti'").fetchone()[0]
+conn.execute(bak_schema)
+conn.execute("INSERT INTO componenti SELECT * FROM bak.componenti")
 
-def importa_tabella(conn, table, rows):
-    if not rows: return 0
-    cols_db = [r[1] for r in conn.execute(f"PRAGMA table_info({table})").fetchall()]
-    n = 0
-    for row in rows:
-        d = dict(row)
-        cols = [k for k in d.keys() if k in cols_db]
-        vals = [d[k] for k in cols]
-        try:
-            conn.execute(f"INSERT INTO {table} ({','.join(cols)}) VALUES ({','.join(['?']*len(cols))})", vals)
-            n += 1
-        except: pass
-    conn.commit()
-    return n
+# Ricrea magazzino
+conn.execute("DROP TABLE IF EXISTS magazzino")
+mag_schema = conn.execute("SELECT sql FROM bak.sqlite_master WHERE name='magazzino'").fetchone()[0]
+if mag_schema:
+    conn.execute(mag_schema)
+    conn.execute("INSERT INTO magazzino SELECT * FROM bak.magazzino")
 
-n1 = importa_tabella(new, 'componenti', componenti)
-n2 = importa_tabella(new, 'magazzino', magazzino)
-n3 = importa_tabella(new, 'movimenti_magazzino', movimenti)
-print(f"Importati: {n1} componenti, {n2} magazzino, {n3} movimenti")
+# Ricrea movimenti
+conn.execute("DROP TABLE IF EXISTS movimenti_magazzino")
+mov_schema = conn.execute("SELECT sql FROM bak.sqlite_master WHERE name='movimenti_magazzino'").fetchone()[0]
+if mov_schema:
+    conn.execute(mov_schema)
+    conn.execute("INSERT INTO movimenti_magazzino SELECT * FROM bak.movimenti_magazzino")
 
-# Verifica
-tot = new.execute("SELECT COUNT(*) FROM componenti").fetchone()[0]
-print(f"\nComponenti nel DB: {tot}")
-new.close()
-print("Completato!")
+conn.commit()
+
+n = conn.execute("SELECT COUNT(*) FROM componenti").fetchone()[0]
+print(f"Componenti importati: {n}")
+conn.execute("DETACH DATABASE bak")
+conn.close()
+print("\nMagazzino ripristinato!")
 input("Premi INVIO...")
