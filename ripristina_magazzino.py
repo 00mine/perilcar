@@ -3,79 +3,75 @@ import sqlite3, os, glob
 
 db_path = os.path.join(os.path.dirname(__file__), 'db', 'perilcar.db')
 
-# Trova il backup più recente
+# Trova TUTTI i backup
 backup_files = sorted(glob.glob(db_path + '.backup_*'))
+print("Backup disponibili:")
+for i, b in enumerate(backup_files):
+    size = os.path.getsize(b)
+    print(f"  [{i}] {os.path.basename(b)} ({size//1024//1024} MB)")
+
 if not backup_files:
     print("ERRORE: nessun backup trovato!")
-    input("Premi INVIO...")
-    exit()
+    input("Premi INVIO..."); exit()
 
-backup = backup_files[-1]
-print(f"Backup trovato: {backup}")
+# Usa il backup più grande (quello con i dati)
+backup = max(backup_files, key=os.path.getsize)
+print(f"\nUso backup: {os.path.basename(backup)} ({os.path.getsize(backup)//1024//1024} MB)")
 
-# Leggi componenti e magazzino dal backup
 old = sqlite3.connect(backup, timeout=30)
 old.row_factory = sqlite3.Row
 
-componenti = old.execute("SELECT * FROM componenti").fetchall()
-magazzino  = old.execute("SELECT * FROM magazzino").fetchall()
-movimenti  = old.execute("SELECT * FROM movimenti_magazzino").fetchall()
-print(f"Componenti nel backup: {len(componenti)}")
-print(f"Magazzino nel backup:  {len(magazzino)}")
-print(f"Movimenti nel backup:  {len(movimenti)}")
+# Lista tabelle nel backup
+tabelle_bak = [r[0] for r in old.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()]
+print("Tabelle nel backup:", tabelle_bak)
+
+# Determina il nome della tabella componenti
+tab_comp = 'componenti' if 'componenti' in tabelle_bak else None
+tab_mag  = 'magazzino'  if 'magazzino'  in tabelle_bak else None
+tab_mov  = 'movimenti_magazzino' if 'movimenti_magazzino' in tabelle_bak else None
+
+if not tab_comp:
+    print("ERRORE: tabella componenti non trovata nel backup!")
+    old.close(); input("Premi INVIO..."); exit()
+
+componenti = old.execute(f"SELECT * FROM {tab_comp}").fetchall()
+magazzino  = old.execute(f"SELECT * FROM {tab_mag}").fetchall() if tab_mag else []
+movimenti  = old.execute(f"SELECT * FROM {tab_mov}").fetchall() if tab_mov else []
+print(f"Componenti: {len(componenti)}, Magazzino: {len(magazzino)}, Movimenti: {len(movimenti)}")
 old.close()
 
 # Importa nel DB corrente
 new = sqlite3.connect(db_path, timeout=30)
 new.row_factory = sqlite3.Row
 
-# Svuota prima
 new.execute("DELETE FROM movimenti_magazzino")
 new.execute("DELETE FROM magazzino")
 new.execute("DELETE FROM componenti")
 new.commit()
 
-# Reimporta componenti
-c_cols = [r[1] for r in new.execute("PRAGMA table_info(componenti)").fetchall()]
-imported = 0
-for row in componenti:
-    d = dict(row)
-    cols = [k for k in d.keys() if k in c_cols]
-    vals = [d[k] for k in cols]
-    try:
-        new.execute(f"INSERT INTO componenti ({','.join(cols)}) VALUES ({','.join(['?']*len(cols))})", vals)
-        imported += 1
-    except: pass
-new.commit()
-print(f"Componenti importati: {imported}")
+def importa_tabella(conn, table, rows):
+    if not rows: return 0
+    cols_db = [r[1] for r in conn.execute(f"PRAGMA table_info({table})").fetchall()]
+    n = 0
+    for row in rows:
+        d = dict(row)
+        cols = [k for k in d.keys() if k in cols_db]
+        vals = [d[k] for k in cols]
+        try:
+            conn.execute(f"INSERT INTO {table} ({','.join(cols)}) VALUES ({','.join(['?']*len(cols))})", vals)
+            n += 1
+        except: pass
+    conn.commit()
+    return n
 
-# Reimporta magazzino
-m_cols = [r[1] for r in new.execute("PRAGMA table_info(magazzino)").fetchall()]
-for row in magazzino:
-    d = dict(row)
-    cols = [k for k in d.keys() if k in m_cols]
-    vals = [d[k] for k in cols]
-    try:
-        new.execute(f"INSERT INTO magazzino ({','.join(cols)}) VALUES ({','.join(['?']*len(cols))})", vals)
-    except: pass
-new.commit()
-print(f"Magazzino importato")
-
-# Reimporta movimenti
-mv_cols = [r[1] for r in new.execute("PRAGMA table_info(movimenti_magazzino)").fetchall()]
-for row in movimenti:
-    d = dict(row)
-    cols = [k for k in d.keys() if k in mv_cols]
-    vals = [d[k] for k in cols]
-    try:
-        new.execute(f"INSERT INTO movimenti_magazzino ({','.join(cols)}) VALUES ({','.join(['?']*len(cols))})", vals)
-    except: pass
-new.commit()
-print(f"Movimenti importati")
+n1 = importa_tabella(new, 'componenti', componenti)
+n2 = importa_tabella(new, 'magazzino', magazzino)
+n3 = importa_tabella(new, 'movimenti_magazzino', movimenti)
+print(f"Importati: {n1} componenti, {n2} magazzino, {n3} movimenti")
 
 # Verifica
-n = new.execute("SELECT COUNT(*) FROM componenti").fetchone()[0]
-print(f"\nComponenti nel DB ora: {n}")
+tot = new.execute("SELECT COUNT(*) FROM componenti").fetchone()[0]
+print(f"\nComponenti nel DB: {tot}")
 new.close()
-print("Ripristino magazzino completato!")
+print("Completato!")
 input("Premi INVIO...")
