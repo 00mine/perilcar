@@ -57,19 +57,14 @@ class DatabaseManager:
     # ─── Connessione ─────────────────────────────────────────────────────────
 
     def get_connection(self) -> sqlite3.Connection:
-        """Ritorna sempre la stessa connessione persistente (thread-safe via lock)."""
-        if not hasattr(self, '_conn') or self._conn is None:
-            self._conn = sqlite3.connect(
-                self.db_path, timeout=60,
-                check_same_thread=False,
-                isolation_level=None  # autocommit off gestito manualmente
-            )
-            self._conn.row_factory = sqlite3.Row
-            self._conn.execute("PRAGMA journal_mode=WAL")
-            self._conn.execute("PRAGMA foreign_keys=ON")
-            self._conn.execute("PRAGMA busy_timeout=30000")
-            self._conn.execute("PRAGMA synchronous=NORMAL")
-        return self._conn
+        """Apre una connessione fresca ad ogni chiamata."""
+        conn = sqlite3.connect(self.db_path, timeout=60, check_same_thread=False)
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA foreign_keys=ON")
+        conn.execute("PRAGMA busy_timeout=30000")
+        conn.execute("PRAGMA synchronous=NORMAL")
+        return conn
 
     # ─── Schema ──────────────────────────────────────────────────────────────
 
@@ -449,14 +444,21 @@ class DatabaseManager:
 
     def fetchall(self, sql: str, params=()) -> list:
         with self._write_lock:
-            cur = self.get_connection().execute(sql, params)
-            return [dict(row) for row in cur.fetchall()]
+            conn = self.get_connection()
+            try:
+                cur = conn.execute(sql, params)
+                return [dict(row) for row in cur.fetchall()]
+            finally:
+                conn.close()
 
     def fetchone(self, sql: str, params=()) -> dict | None:
         with self._write_lock:
-            cur = self.get_connection().execute(sql, params)
-            row = cur.fetchone()
-            return dict(row) if row else None
+            conn = self.get_connection()
+            try:
+                row = conn.execute(sql, params).fetchone()
+                return dict(row) if row else None
+            finally:
+                conn.close()
 
     def log(self, utente_id, username, modulo, azione, tabella=None,
             record_id=None, dati_prec=None, dati_nuovi=None):

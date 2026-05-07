@@ -55,6 +55,7 @@ def db_write(statements: list):
             for sql, params in statements:
                 conn.execute(sql, params)
             conn.commit()
+            conn.close()
         except Exception as e:
             conn.rollback()
             raise
@@ -215,6 +216,7 @@ def api_crea_componente():
                     VALUES(?,?,?,?,?,?,?)""",
                     (u.get("id"),u.get("username"),"MAGAZZINO","CREA","componenti",comp_id,str(campi_validi)))
                 conn.commit()
+                conn.close()
                 return jsonify({"ok": True, "msg": "Componente creato", "id": comp_id})
             except Exception as e:
                 conn.rollback()
@@ -769,6 +771,7 @@ def api_import_excel():
                                 (comp_id,"carico",esistenza,0,esistenza,"Import Excel",u.get("id")))
 
                 conn.commit()
+                conn.close()
             except Exception as e:
                 conn.rollback()
                 log.error(f"Import errore riga {row_n}: {e}")
@@ -915,6 +918,7 @@ def api_import_excel_stream():
 
                     if row_n % BATCH == 0:
                         conn.commit()
+                        conn.close()
                         log.info(f"Import progress: riga {row_n}, nuovi={importati}, aggiornati={aggiornati}")
                         socketio.emit("import_progress", {
                             "processed": row_n-1,
@@ -923,6 +927,7 @@ def api_import_excel_stream():
                         })
 
                 conn.commit()
+                conn.close()
                 wb.close()
             except Exception as e:
                 conn.rollback()
@@ -1267,6 +1272,7 @@ def api_demolizioni_crea():
                 "INSERT INTO demolizioni ("+",".join(campi)+",creato_da) VALUES ("
                 +",".join(["?"]*len(campi))+",?)", vals)
             conn.commit()
+            conn.close()
         return jsonify({"ok": True, "id": cur.lastrowid, "msg": "Demolizione salvata"})
     except Exception as e:
         return jsonify({"ok": False, "msg": str(e)}), 500
@@ -1287,6 +1293,7 @@ def api_demolizioni_update(did):
             vals = [d[k] for k in campi if k in d] + [did]
             conn.execute(f"UPDATE demolizioni SET {sets} WHERE id=?", vals)
             conn.commit()
+            conn.close()
         return jsonify({"ok": True, "msg": "Aggiornata"})
     except Exception as e:
         return jsonify({"ok": False, "msg": str(e)}), 500
@@ -1300,6 +1307,7 @@ def api_demolizioni_delete(did):
             conn.execute("DELETE FROM ricambi_sottratti WHERE demolizione_id=?", (did,))
             conn.execute("DELETE FROM demolizioni WHERE id=?", (did,))
             conn.commit()
+            conn.close()
         return jsonify({"ok": True})
     except Exception as e:
         return jsonify({"ok": False, "msg": str(e)}), 500
@@ -1332,6 +1340,7 @@ def api_ricambi_add(did):
                 "UPDATE demolizioni SET peso_netto_kg=MAX(0, COALESCE(peso_effettivo_kg,0)-?) WHERE id=?",
                 (tot, did))
             conn.commit()
+            conn.close()
         return jsonify({"ok": True, "msg": "Ricambio aggiunto"})
     except Exception as e:
         return jsonify({"ok": False, "msg": str(e)}), 500
@@ -1352,6 +1361,7 @@ def api_ricambi_del(rid):
                     "UPDATE demolizioni SET peso_netto_kg=MAX(0,COALESCE(peso_effettivo_kg,0)-?) WHERE id=?",
                     (tot, row["demolizione_id"]))
             conn.commit()
+            conn.close()
         return jsonify({"ok": True})
     except Exception as e:
         return jsonify({"ok": False, "msg": str(e)}), 500
@@ -1374,6 +1384,7 @@ def api_anagrafiche_crea():
                 (d.get("nominativo"), d.get("cf_piva"), d.get("tipo","privato"),
                  d.get("telefono"), d.get("email"), d.get("indirizzo")))
             conn.commit()
+            conn.close()
         return jsonify({"ok": True, "id": cur.lastrowid, "msg": "Anagrafica salvata",
                         "nominativo": d.get("nominativo")})
     except Exception as e:
@@ -1393,32 +1404,25 @@ def api_veicoli():
 @require_login
 def api_veicoli_crea():
     d = request.json or {}
-    log.info(f"POST veicoli: {d}")
     try:
         with db._write_lock:
             conn = db.get_connection()
-            # Verifica colonne disponibili
-            cols = [r[1] for r in conn.execute("PRAGMA table_info(veicoli)").fetchall()]
-            log.info(f"Colonne veicoli: {cols}")
-            # Inserisci solo colonne esistenti
-            insert_cols = []
-            insert_vals = []
-            for col, val in [("targa",d.get("targa")),("telaio",d.get("telaio")),
-                             ("classe",d.get("classe")),("marca",d.get("marca")),
-                             ("modello",d.get("modello")),("anno_immatricolazione",d.get("anno_immatricolazione")),
-                             ("num_motore",d.get("num_motore")),("note",d.get("note"))]:
-                if col in cols:
-                    insert_cols.append(col)
-                    insert_vals.append(val)
-            sql = "INSERT INTO veicoli ("+",".join(insert_cols)+") VALUES ("+",".join(["?"]*len(insert_cols))+")"
-            log.info(f"SQL: {sql} | vals: {insert_vals}")
-            cur = conn.execute(sql, insert_vals)
-            conn.commit()
-        targa  = d.get("targa","") or ""
-        marca  = d.get("marca","") or ""
-        modello= d.get("modello","") or ""
-        label  = (marca+" "+modello).strip() + (" ("+targa+")" if targa else "")
-        return jsonify({"ok": True, "id": cur.lastrowid, "msg": "Veicolo salvato", "label": label})
+            try:
+                cur = conn.execute(
+                    "INSERT INTO veicoli (targa,telaio,classe,marca,modello,anno_immatricolazione,num_motore,note) VALUES (?,?,?,?,?,?,?,?)",
+                    (d.get("targa"), d.get("telaio"), d.get("classe",""),
+                     d.get("marca"), d.get("modello"),
+                     d.get("anno_immatricolazione"), d.get("num_motore"), d.get("note")))
+                conn.commit()
+                conn.close()
+                new_id = cur.lastrowid
+            finally:
+                conn.close()
+        targa   = d.get("targa","") or ""
+        marca   = d.get("marca","") or ""
+        modello = d.get("modello","") or ""
+        label   = (marca+" "+modello).strip() + (" ("+targa+")" if targa else "")
+        return jsonify({"ok": True, "id": new_id, "msg": "Veicolo salvato", "label": label})
     except Exception as e:
         log.error(f"api_veicoli POST error: {e}")
         return jsonify({"ok": False, "msg": str(e)}), 500
