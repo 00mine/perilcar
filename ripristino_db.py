@@ -66,7 +66,6 @@ new.executescript("""
 CREATE TABLE schema_version (id INTEGER PRIMARY KEY, version INTEGER);
 INSERT INTO schema_version VALUES (1, 4);
 
-CREATE TABLE sqlite_sequence(name,seq);
 
 CREATE TABLE utenti (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
