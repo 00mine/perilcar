@@ -56,7 +56,6 @@ textarea{resize:vertical;min-height:60px}
 .rott-kg span{font-size:11px;color:var(--text3);font-weight:600;flex-shrink:0}
 .rott-kg input{font-family:var(--mono);font-weight:700}
 .btn-action{width:100%;padding:11px;border-radius:10px;border:none;font-size:13px;font-weight:700;font-family:var(--font);cursor:pointer;margin-bottom:6px}
-.btn-cdp{background:var(--cyan);color:#fff}
 .btn-sottrai{background:var(--green);color:#fff}
 .toolbar{display:flex;gap:6px;align-items:center;flex-shrink:0}
 .btn{display:inline-flex;align-items:center;gap:4px;padding:6px 12px;border-radius:var(--radius);font-size:12px;font-weight:600;cursor:pointer;border:none;font-family:var(--font);white-space:nowrap}
@@ -193,7 +192,6 @@ thead th .f-inp-range span{font-size:10px;color:var(--text3);align-self:center;f
             <option>Esportazione</option><option>Furto</option><option>Altro</option>
           </select></div>
       </div>
-      <button class="btn-action btn-cdp" onclick="apreCDP()">Cerca CDP</button>
       <button class="btn-action btn-sottrai" onclick="apreSottrai()">Sottrai ricambi</button>
     </div>
   </div>
@@ -344,35 +342,6 @@ thead th .f-inp-range span{font-size:10px;color:var(--text3);align-self:center;f
     <div class="mftr">
       <button class="btn btn-danger" onclick="chiudi('m-ana')">Annulla</button>
       <button class="btn btn-green" onclick="salvaAna()">Conferma</button>
-    </div>
-  </div>
-</div>
-
-<!-- MODAL CDP -->
-<div class="overlay hidden" id="m-cdp">
-  <div class="modal" style="max-width:860px">
-    <div class="mhdr"><h3>Cerca CDP</h3><button class="mclose" onclick="chiudi('m-cdp')">x</button></div>
-    <div class="mbody">
-      <div class="cdp-grid">
-        <div class="cdp-col">
-          <div class="cdp-sep">Dati ricerca</div>
-          <div class="field"><label>Data da</label><input type="date" id="cdp-dda"></div>
-          <div class="field"><label>Data a</label><input type="date" id="cdp-da"></div>
-          <div class="field"><label>Marca</label><input type="text" id="cdp-marca"></div>
-          <div class="field"><label>Modello</label><input type="text" id="cdp-modello"></div>
-          <div class="field"><label>Targa</label><input type="text" id="cdp-targa"></div>
-          <div class="field"><label>Proprietario</label><input type="text" id="cdp-prop"></div>
-          <div class="field"><label>Reg. demolitori</label><input type="text" id="cdp-reg"></div>
-        </div>
-        <div class="cdp-col">
-          <div class="cdp-sep">Risultati</div>
-          <div id="cdp-risultati" style="max-height:400px;overflow:auto"></div>
-        </div>
-      </div>
-    </div>
-    <div class="mftr">
-      <button class="btn btn-ghost" onclick="chiudi('m-cdp')">Annulla</button>
-      <button class="btn" style="background:var(--cyan);color:#fff" onclick="cercaCDP()">Cerca</button>
     </div>
   </div>
 </div>
@@ -901,49 +870,6 @@ function salvaAna() {
   });
 }
 
-function apreCDP(){ apri('m-cdp'); document.getElementById('cdp-risultati').innerHTML=''; }
-
-function cercaCDP() {
-  var marca=document.getElementById('cdp-marca').value.toLowerCase();
-  var modello=document.getElementById('cdp-modello').value.toLowerCase();
-  var targa=document.getElementById('cdp-targa').value.toLowerCase();
-  var prop=document.getElementById('cdp-prop').value.toLowerCase();
-  var reg=document.getElementById('cdp-reg').value.toLowerCase();
-  var dda=document.getElementById('cdp-dda').value;
-  var da=document.getElementById('cdp-da').value;
-  var ris=_tutti.filter(function(d){
-    if(marca&&!(d.veicolo_str||'').toLowerCase().includes(marca)) return false;
-    if(modello&&!(d.veicolo_str||'').toLowerCase().includes(modello)) return false;
-    if(targa&&!(d.veicolo_str||'').toLowerCase().includes(targa)) return false;
-    if(prop&&!(d.proprietario_str||'').toLowerCase().includes(prop)) return false;
-    if(reg&&!(d.reg_demolitori||'').toLowerCase().includes(reg)) return false;
-    if(dda&&(d.data_presa_in_carico||'')< dda) return false;
-    if(da &&(d.data_presa_in_carico||'')> da)  return false;
-    return true;
-  });
-  var div=document.getElementById('cdp-risultati');
-  if(!ris.length){ div.innerHTML='<p style="color:var(--text3);padding:16px;text-align:center">Nessun risultato</p>'; return; }
-  var cont=document.createElement('div');
-  ris.forEach(function(d){
-    var el=document.createElement('div');
-    el.className='cdp-result';
-    el.innerHTML='<div style="display:flex;justify-content:space-between"><strong>'+esc(d.veicolo_str||'&#8212;')+'</strong>'
-      +'<span style="font-size:11px;color:var(--text3)">'+esc((d.data_presa_in_carico||'').slice(0,10))+'</span></div>'
-      +'<div style="font-size:11px;color:var(--text2);margin-top:3px">Prop: '+esc(d.proprietario_str||'&#8212;')+' | Reg: '+esc(d.reg_demolitori||'&#8212;')+' p.'+esc(d.pag_reg||'')+'</div>';
-    el.onclick=function(){ selCDP(d.id); };
-    cont.appendChild(el);
-  });
-  div.innerHTML='<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:6px">Risultati ('+ris.length+')</div>';
-  div.appendChild(cont);
-}
-
-function selCDP(id) {
-  chiudi('m-cdp');
-  var d=null;
-  for(var i=0;i<_tutti.length;i++){ if(_tutti[i].id===id){ d=_tutti[i]; break; } }
-  if(d) seleziona(d.id, null);
-  toast('Demolizione n.'+id+' caricata');
-}
 
 function apreSottrai() {
   if(!_selId){ fb('Seleziona prima una demolizione',false); return; }
