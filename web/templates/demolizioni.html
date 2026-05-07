@@ -384,7 +384,7 @@ thead th .f-inp-range span{font-size:10px;color:var(--text3);align-self:center;f
 <script>
 io().on('reload', function(){ setTimeout(function(){ window.location.reload(); }, 500); });
 
-var _tutti=[], _anagrafiche=[], _veicoli=[], _componenti=[], _ricambi=[];
+var _tutti=[], _anagrafiche=[], _veicoli=[], _ricambi=[];
 var _selId=null, _anaTarget=null, _modalita='ricerca', _ftimer=null;
 
 function esc(s){ return String(s==null?'':''+s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
@@ -439,12 +439,12 @@ function popolaAnagrafiche() {
   });
 }
 
-function popolaComponenti() {
+function popolaRicambi() {
   var sp=document.getElementById('sr-pezzo');
-  sp.innerHTML='<option value="">&#8212; seleziona pezzo &#8212;</option>';
-  _componenti.forEach(function(c){
-    var o=document.createElement('option'); o.value=c.componente_id||c.id;
-    o.textContent=(c.cmp||'')+' &#8212; '+(c.articolo||''); sp.appendChild(o);
+  sp.innerHTML='<option value="">&#8212; seleziona tipo ricambio &#8212;</option>';
+  var lista=['Abitacolo', 'Airbag laterale sinistro', 'Airbag laterale destro', 'Airbag passeggero', 'Airbag volante', 'Albero di trasmissione', 'Alternatore', 'Ammortizzatore anteriore sinistro', 'Ammortizzatore anteriore destro', 'Ammortizzatore posteriore sinistro', 'Ammortizzatore posteriore destro', 'Antenna', 'Assale posteriore', 'Batteria', 'Blocchetto accensione', 'Braccio oscillante anteriore sinistro', 'Braccio oscillante anteriore destro', 'Braccio oscillante posteriore sinistro', 'Braccio oscillante posteriore destro', 'Bumpstop', 'Calotta specchio sinistro', 'Calotta specchio destro', 'Cambio automatico', 'Cambio manuale', 'Candelette', 'Candele', 'Centralina ABS', 'Centralina airbag', 'Centralina climatizzatore', 'Centralina motore', 'Cintura di sicurezza anteriore sinistra', 'Cintura di sicurezza anteriore destra', 'Cintura di sicurezza posteriore', 'Climatizzatore', 'Cofano', 'Collettore di aspirazione', 'Collettore di scarico', 'Compressore aria condizionata', 'Condensatore', 'Coprimozzo', 'Coprisedile', 'Cremagliera sterzo', 'Cristallo anteriore', 'Cristallo posteriore', 'Cristallo lunotto', 'Cristallo laterale sinistro', 'Cristallo laterale destro', 'Differenziale', 'Dinamo', 'Dispositivo anti-bloccaggio', 'ECU', 'Fanale anteriore sinistro', 'Fanale anteriore destro', 'Fanale posteriore sinistro', 'Fanale posteriore destro', 'Fanale fendinebbia sinistro', 'Fanale fendinebbia destro', 'Filtro abitacolo', 'Filtro aria', 'Filtro carburante', 'Filtro olio', 'Freno a mano', 'Fuso a snodo', 'Gancio traino', 'Gruppo ottico anteriore sinistro', 'Gruppo ottico anteriore destro', 'Gruppo ottico posteriore sinistro', 'Gruppo ottico posteriore destro', 'Impianto audio', 'Impianto di climatizzazione', 'Impianto elettrico', 'Indicatore di direzione', 'Ingranaggio', 'Intercooler', 'Kit airbag', 'Kombi', 'Leva cambio', 'Leva freno a mano', 'Longherone', 'Manettino', 'Maniglia porta anteriore sinistra', 'Maniglia porta anteriore destra', 'Maniglia porta posteriore sinistra', 'Maniglia porta posteriore destra', 'Motore', 'Motorino avviamento', 'Motorino tergicristallo', 'Mozzo ruota', 'Parabrezza', 'Parafango anteriore sinistro', 'Parafango anteriore destro', 'Parafango posteriore sinistro', 'Parafango posteriore destro', 'Paraurti anteriore', 'Paraurti posteriore', 'Pinza freno anteriore sinistra', 'Pinza freno anteriore destra', 'Pinza freno posteriore sinistra', 'Pinza freno posteriore destra', 'Pompa acqua', 'Pompa benzina', 'Pompa carburante', 'Pompa freni', 'Pompa olio', 'Pompa servosterzo', 'Porta anteriore sinistra', 'Porta anteriore destra', 'Porta posteriore sinistra', 'Porta posteriore destra', 'Portabagagli', 'Portellone', 'Quadro strumenti', 'Radiatore', 'Radiatore intercooler', 'Retrovisore interno', 'Retrovisore esterno sinistro', 'Retrovisore esterno destro', 'Ruota di scorta', 'Sedile anteriore sinistro', 'Sedile anteriore destro', 'Sedile posteriore', 'Sensore ABS', 'Sensore aria', 'Sensore parcheggio', 'Sensore pressione gomme', 'Servosterzo elettrico', 'Servosterzo idraulico', 'Serbatoio carburante', 'Sospensione anteriore sinistra', 'Sospensione anteriore destra', 'Sospensione posteriore sinistra', 'Sospensione posteriore destra', 'Specchio retrovisore', 'Sportello', 'Sterzo', 'Subwoofer', 'Supporto motore', 'Tachimetro', 'Telaio', 'Terminale di scarico', 'Testata motore', 'Tetto apribile', 'Trasmissione', 'Turbina', 'Turbocompressore', 'Valvola EGR', 'Vassoio battery', 'Vetro', 'Volante', 'Gruppo pompa freni', 'Altro'];
+  lista.forEach(function(nome){
+    var o=document.createElement('option'); o.value=nome; o.textContent=nome; sp.appendChild(o);
   });
 }
 
@@ -452,11 +452,10 @@ function init() {
   Promise.all([
     apiFetch('/api/demolizioni/cerca'),
     apiFetch('/api/anagrafiche'),
-    apiFetch('/api/veicoli'),
-    apiFetch('/api/magazzino/componenti')
+    apiFetch('/api/veicoli')
   ]).then(function(res){
-    _tutti=res[0]||[]; _anagrafiche=res[1]||[]; _veicoli=res[2]||[]; _componenti=res[3]||[];
-    popolaVeicoli(); popolaAnagrafiche(); popolaComponenti();
+    _tutti=res[0]||[]; _anagrafiche=res[1]||[]; _veicoli=res[2]||[];
+    popolaVeicoli(); popolaAnagrafiche(); popolaRicambi();
     renderTabella(_tutti);
   }).catch(function(e){ console.error('init:',e); });
 }
@@ -902,11 +901,12 @@ function renderRicambi() {
 }
 
 function aggRicambio() {
-  var cid=document.getElementById('sr-pezzo').value;
+  var nomeRicambio=document.getElementById('sr-pezzo').value;
   var peso=parseFloat(document.getElementById('sr-peso').value);
   var note=document.getElementById('sr-note').value;
+  if(!nomeRicambio){ toast('Seleziona un tipo di ricambio',false); return; }
   if(!peso||peso<=0){ toast('Inserisci un peso valido',false); return; }
-  apiFetch('/api/demolizioni/'+_selId+'/ricambi',{method:'POST',body:JSON.stringify({componente_id:cid||null,peso_kg:peso,note:note})})
+  apiFetch('/api/demolizioni/'+_selId+'/ricambi',{method:'POST',body:JSON.stringify({pezzo_nome:nomeRicambio,peso_kg:peso,note:note})})
     .then(function(res){
       if(res.ok){
         document.getElementById('sr-peso').value='';

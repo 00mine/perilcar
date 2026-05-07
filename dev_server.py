@@ -1602,16 +1602,11 @@ def api_ricambi_get(did):
 @app.route("/api/demolizioni/<int:did>/ricambi", methods=["POST"])
 @require_login
 def api_ricambi_add(did):
-    d   = request.json or {}
-    pid = d.get("componente_id")
-    # Recupera nome pezzo dal DB magazzino
-    nome = ""
-    if pid:
-        comp = db.fetchone("SELECT nome FROM componenti WHERE id=?", (pid,))
-        if comp: nome = comp.get("nome","")
-    peso = d.get("peso_kg",0)
+    d    = request.json or {}
+    nome = d.get("pezzo_nome") or ""
+    peso = d.get("peso_kg", 0)
     dem.run("INSERT INTO ricambi_sottratti (demolizione_id,componente_id,peso_kg,note,pezzo_nome) VALUES (?,?,?,?,?)",
-            (did, pid, peso, d.get("note",""), nome))
+            (did, None, peso, d.get("note",""), nome))
     # Ricalcola peso netto
     tot = (dem.one("SELECT COALESCE(SUM(peso_kg),0) AS t FROM ricambi_sottratti WHERE demolizione_id=?", (did,)) or {}).get("t",0)
     dem.run("UPDATE demolizioni SET peso_netto_kg = MAX(0, COALESCE(peso_effettivo_kg,0)-?) WHERE id=?", (tot, did))
