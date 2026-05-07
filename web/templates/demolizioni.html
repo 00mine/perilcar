@@ -933,6 +933,31 @@ function nuovoRecord() {
   document.getElementById('f-data').value = new Date().toISOString().slice(0,10);
 }
 
+async function inserisciDemolizione() {
+  var dati = getFormData();
+  if(!dati.reg_demolitori){ fb('Compila almeno Reg. demolitori',false); return; }
+  var res = await apiFetch('/api/demolizioni',{method:'POST',body:JSON.stringify(dati)});
+  if(res.ok){
+    toast('Demolizione n.'+res.id+' inserita!');
+    _selId = res.id;
+    _demolizioni = await apiFetch('/api/demolizioni/cerca');
+    renderTabella(_demolizioni);
+    modalitaRicerca();
+    // Evidenzia la riga inserita
+    setTimeout(function(){
+      document.querySelectorAll('#tbody tr').forEach(function(r){
+        var chip = r.querySelector('.id-chip');
+        if(chip && chip.textContent.trim()==String(res.id)){
+          r.classList.add('selected');
+          r.scrollIntoView({block:'center'});
+        }
+      });
+    }, 200);
+  } else {
+    fb(res.msg||'Errore durante il salvataggio', false);
+  }
+}
+
 function getFormData() {
   return {
     data_presa_in_carico: document.getElementById('f-data').value||null,
