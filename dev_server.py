@@ -1399,12 +1399,15 @@ def api_veicoli_crea():
         with db._write_lock:
             conn = db.get_connection()
             cur = conn.execute(
-                "INSERT INTO veicoli (marca,modello,targa,telaio,num_motore,anno_immatricolazione,classe,colore) VALUES (?,?,?,?,?,?,?,?)",
-                (d.get("marca"), d.get("modello"), d.get("targa"), d.get("telaio"),
-                 d.get("num_motore"), d.get("anno_immatricolazione"), d.get("classe"), d.get("colore")))
+                "INSERT INTO veicoli (targa,telaio,classe,marca,modello,anno_immatricolazione,num_motore,note) VALUES (?,?,?,?,?,?,?,?)",
+                (d.get("targa"), d.get("telaio"), d.get("classe"), d.get("marca"),
+                 d.get("modello"), d.get("anno_immatricolazione"), d.get("num_motore"), d.get("note")))
             conn.commit(); conn.close()
-        return jsonify({"ok": True, "id": cur.lastrowid, "msg": "Veicolo salvato",
-                        "label": f"{d.get('marca','')} {d.get('modello','')} ({d.get('targa','')})"})
+        targa  = d.get("targa","") or ""
+        marca  = d.get("marca","") or ""
+        modello= d.get("modello","") or ""
+        label  = (marca+" "+modello).strip() + (" ("+targa+")" if targa else "")
+        return jsonify({"ok": True, "id": cur.lastrowid, "msg": "Veicolo salvato", "label": label})
     except Exception as e:
         return jsonify({"ok": False, "msg": str(e)}), 500
 

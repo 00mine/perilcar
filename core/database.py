@@ -327,14 +327,16 @@ class DatabaseManager:
 
         CREATE TABLE IF NOT EXISTS veicoli (
             id                    INTEGER PRIMARY KEY AUTOINCREMENT,
-            marca                 TEXT,
-            modello               TEXT,
             targa                 TEXT,
             telaio                TEXT,
-            num_motore            TEXT,
-            anno_immatricolazione TEXT,
             classe                TEXT,
+            marca                 TEXT,
+            modello               TEXT,
+            anno_immatricolazione TEXT,
+            num_motore            TEXT,
             colore                TEXT,
+            note                  TEXT,
+            creato_da             INTEGER,
             creato_il             TEXT DEFAULT (datetime('now'))
         );
 

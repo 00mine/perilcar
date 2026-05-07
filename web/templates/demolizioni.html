@@ -539,7 +539,31 @@
           <input type="text" id="v-id" readonly style="background:var(--surface2);color:var(--text3);font-family:var(--mono)"></div>
         <div class="field"><label>Targa</label><input type="text" id="v-targa"></div>
         <div class="field"><label>Telaio</label><input type="text" id="v-telaio"></div>
-        <div class="field"><label>Classe</label><input type="text" id="v-classe" placeholder="es. M1"></div>
+        <div class="field"><label>Classe</label>
+          <select id="v-classe">
+            <option value="">— seleziona —</option>
+            <option value="Nuovo">Nuovo</option>
+            <option value="Autoveicolo">Autoveicolo</option>
+            <option value="Motoveicolo">Motoveicolo</option>
+            <option value="Ciclomotore">Ciclomotore</option>
+            <option value="Rimorchio">Rimorchio</option>
+            <option value="Motociclo">Motociclo</option>
+            <option value="Autocarro">Autocarro</option>
+            <option value="Motocarro">Motocarro</option>
+            <option value="Autovettura">Autovettura</option>
+            <option value="Quadriciclo">Quadriciclo</option>
+            <option value="Autoveicolo promiscuo">Autoveicolo promiscuo</option>
+            <option value="Autobus">Autobus</option>
+            <option value="Trattore stradale">Trattore stradale</option>
+            <option value="Macchina semovente">Macchina semovente</option>
+            <option value="Trattore">Trattore</option>
+            <option value="Trattore per semirimorchio">Trattore per semirimorchio</option>
+            <option value="Macchina">Macchina</option>
+            <option value="Carrello elevatore">Carrello elevatore</option>
+            <option value="Autoveicolo speciale">Autoveicolo speciale</option>
+            <option value="Semirimorchio">Semirimorchio</option>
+          </select>
+        </div>
       </div>
       <!-- Riga 2: Marca Modello Anno Num.Motore -->
       <div style="display:grid;grid-template-columns:1fr 1fr 100px 1fr;gap:8px;margin-bottom:10px">
@@ -959,22 +983,23 @@ function aggiornaPesoNetto() {
 
 // ── NUOVO VEICOLO ─────────────────────────────────────────────────────
 function openModalNuovoVeicolo() {
-  ['v-id','v-marca','v-modello','v-targa','v-telaio','v-motore','v-anno','v-classe','v-note']
-    .forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+  ['v-id','v-marca','v-modello','v-targa','v-telaio','v-motore','v-anno','v-note']
+    .forEach(function(id){ var el=document.getElementById(id); if(el) el.value=''; });
+  document.getElementById('v-classe').value='';
   openModal('modal-veicolo');
 }
 function openModalVeicolo() { openModal('modal-veicolo'); }
 
 async function salvaVeicolo() {
-  const dati = {
-    marca:document.getElementById('v-marca').value,
-    modello:document.getElementById('v-modello').value,
-    targa:document.getElementById('v-targa').value,
-    telaio:document.getElementById('v-telaio').value,
-    num_motore:document.getElementById('v-motore').value,
+  var dati = {
+    targa:                document.getElementById('v-targa').value,
+    telaio:               document.getElementById('v-telaio').value,
+    classe:               document.getElementById('v-classe').value,
+    marca:                document.getElementById('v-marca').value,
+    modello:              document.getElementById('v-modello').value,
     anno_immatricolazione:document.getElementById('v-anno').value,
-    classe:document.getElementById('v-classe').value,
-    note:document.getElementById('v-note').value,
+    num_motore:           document.getElementById('v-motore').value,
+    note:                 document.getElementById('v-note').value,
   };
   if(!dati.targa && !dati.telaio){ toast('Inserisci almeno Targa o Telaio',false); return; }
   const res = await apiFetch('/api/veicoli',{method:'POST',body:JSON.stringify(dati)});
