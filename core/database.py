@@ -377,38 +377,6 @@ class DatabaseManager:
         """)
 
     def _migrate_schema(self, conn: sqlite3.Connection):
-        # SEMPRE: aggiungi colonne mancanti (sicuro anche se già esistono)
-        try:
-            _vei = [r[1] for r in conn.execute("PRAGMA table_info(veicoli)").fetchall()]
-            for _col, _typ in [("classe","TEXT"),("marca","TEXT"),("modello","TEXT"),
-                               ("anno_immatricolazione","TEXT"),("num_motore","TEXT"),
-                               ("colore","TEXT"),("note","TEXT")]:
-                if _col not in _vei:
-                    conn.execute(f"ALTER TABLE veicoli ADD COLUMN {_col} {_typ}")
-                    logger.info(f"Aggiunta colonna veicoli.{_col}")
-        except Exception as _e:
-            logger.warning(f"Migrazione veicoli: {_e}")
-        try:
-            _dem = [r[1] for r in conn.execute("PRAGMA table_info(demolizioni)").fetchall()]
-            for _col, _typ in [("ora_presa_in_carico","TEXT"),("num_albatros","TEXT"),
-                               ("certificato_id","TEXT")]:
-                if _col not in _dem:
-                    conn.execute(f"ALTER TABLE demolizioni ADD COLUMN {_col} {_typ}")
-        except Exception as _e:
-            logger.warning(f"Migrazione demolizioni: {_e}")
-        try:
-            _ana = [r[1] for r in conn.execute("PRAGMA table_info(anagrafiche)").fetchall()]
-            for _col, _typ in [("cognome","TEXT"),("nome","TEXT"),("sesso","TEXT"),
-                               ("data_nascita","TEXT"),("luogo_nascita","TEXT"),
-                               ("comune","TEXT"),("provincia","TEXT"),("via","TEXT"),
-                               ("civico","TEXT"),("cap","TEXT"),("tipo_doc","TEXT"),
-                               ("num_doc","TEXT"),("data_doc","TEXT"),("rilasciato_da","TEXT"),
-                               ("cellulare","TEXT"),("fax","TEXT")]:
-                if _col not in _ana:
-                    conn.execute(f"ALTER TABLE anagrafiche ADD COLUMN {_col} {_typ}")
-        except Exception as _e:
-            logger.warning(f"Migrazione anagrafiche: {_e}")
-
         row = conn.execute("SELECT version FROM schema_version WHERE id=1").fetchone()
         current = row["version"] if row else 0
         if current < DB_SCHEMA_VERSION:
