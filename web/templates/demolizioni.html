@@ -1002,13 +1002,23 @@ async function salvaVeicolo() {
     note:                 document.getElementById('v-note').value,
   };
   if(!dati.targa && !dati.telaio){ toast('Inserisci almeno Targa o Telaio',false); return; }
-  const res = await apiFetch('/api/veicoli',{method:'POST',body:JSON.stringify(dati)});
+  var res = await apiFetch('/api/veicoli',{method:'POST',body:JSON.stringify(dati)});
   if(res.ok){
     _veicoli = await apiFetch('/api/veicoli');
-    popolaSelects();
-    document.getElementById('f-veicolo').value = res.id;
+    // Ricostruisci solo il select veicoli senza toccare proprietario/detentore
+    var sv = document.getElementById('f-veicolo');
+    var prevProp = document.getElementById('f-proprietario').value;
+    var prevDet  = document.getElementById('f-detentore').value;
+    sv.innerHTML = '<option value="">— cerca per targa o seleziona —</option>' +
+      _veicoli.map(function(v){
+        return '<option value="'+v.id+'">'+esc(v.marca||'')+' '+esc(v.modello||'')+' ('+esc(v.targa||'—')+')</option>';
+      }).join('');
+    sv.value = res.id;  // seleziona il veicolo appena inserito
+    // Ripristina proprietario e detentore
+    document.getElementById('f-proprietario').value = prevProp;
+    document.getElementById('f-detentore').value    = prevDet;
     closeModal('modal-veicolo');
-    toast(res.msg);
+    toast(res.msg || 'Veicolo salvato');
   } else toast(res.msg,false);
 }
 
@@ -1073,13 +1083,26 @@ async function salvaAnagrafica() {
                 (document.getElementById('a-provincia').value||''),
   };
   if(!cognome){ toast('Inserisci almeno il Cognome/Denominazione',false); return; }
-  const res = await apiFetch('/api/anagrafiche',{method:'POST',body:JSON.stringify(dati)});
+  var res = await apiFetch('/api/anagrafiche',{method:'POST',body:JSON.stringify(dati)});
   if(res.ok){
     _anagrafiche = await apiFetch('/api/anagrafiche');
-    popolaSelects();
-    if(_anaTarget) document.getElementById('f-'+_anaTarget).value = res.id;
+    // Salva selezioni correnti
+    var prevVeicolo = document.getElementById('f-veicolo').value;
+    var prevProp    = document.getElementById('f-proprietario').value;
+    var prevDet     = document.getElementById('f-detentore').value;
+    // Aggiorna solo i select anagrafiche
+    var optsHtml = '<option value="">— cerca o seleziona —</option>' +
+      _anagrafiche.map(function(a){
+        return '<option value="'+a.id+'">'+esc(a.nominativo)+'</option>';
+      }).join('');
+    document.getElementById('f-proprietario').innerHTML = optsHtml;
+    document.getElementById('f-detentore').innerHTML    = optsHtml;
+    // Ripristina selezioni: il campo target prende il nuovo id, gli altri mantengono
+    document.getElementById('f-veicolo').value      = prevVeicolo;
+    document.getElementById('f-proprietario').value = _anaTarget==='proprietario' ? String(res.id) : prevProp;
+    document.getElementById('f-detentore').value    = _anaTarget==='detentore'    ? String(res.id) : prevDet;
     closeModal('modal-anagrafica');
-    toast(res.msg);
+    toast(res.msg || 'Anagrafica salvata');
   } else toast(res.msg,false);
 }
 
