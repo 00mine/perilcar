@@ -1,882 +1,476 @@
 <!DOCTYPE html>
 <html lang="it">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Demolizioni — PerilCar ERP</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono&display=swap" rel="stylesheet">
-  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-  <style>
-    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-    :root{
-      --bg:#fff;--surface:#f7f8fa;--surface2:#eef0f4;--border:#dde1e8;
-      --orange:#e94c00;--orange2:#ff6b35;--blue:#3a5bd9;--blue2:#5a7bf0;
-      --green:#16a34a;--green2:#22c55e;--red:#dc2626;--cyan:#0ea5e9;
-      --text:#111827;--text2:#4b5563;--text3:#9ca3af;
-      --radius:8px;--font:'DM Sans',system-ui,sans-serif;--mono:'DM Mono',monospace;
-      --shadow:0 1px 4px rgba(0,0,0,.08),0 4px 16px rgba(0,0,0,.06);
-    }
-    body{font-family:var(--font);background:var(--bg);color:var(--text);
-         font-size:13px;height:100vh;overflow:hidden;display:flex;flex-direction:column}
-
-    /* TOPBAR */
-    .topbar{height:50px;flex-shrink:0;background:#fff;border-bottom:1px solid var(--border);
-            display:flex;align-items:center;padding:0 16px;gap:10px;
-            box-shadow:0 1px 3px rgba(0,0,0,.06)}
-    .topbar-logo{font-weight:700;font-size:17px}.topbar-logo span{color:var(--orange)}
-    .nav-link{padding:5px 12px;border-radius:6px;font-size:12.5px;font-weight:500;
-              text-decoration:none;color:var(--text2);transition:.15s}
-    .nav-link:hover{background:var(--surface2)}.nav-link.active{background:var(--orange);color:#fff}
-    .topbar-right{margin-left:auto;display:flex;align-items:center;gap:10px}
-    .user-chip{font-size:12px;color:var(--text2);background:var(--surface);
-               border:1px solid var(--border);padding:4px 10px;border-radius:20px}
-    .btn-logout{font-size:12px;padding:5px 12px;border-radius:6px;border:1px solid var(--border);
-                background:#fff;color:var(--text2);cursor:pointer;font-family:var(--font)}
-    .btn-logout:hover{background:#fee2e2;color:var(--red)}
-
-    /* LAYOUT */
-    .main{flex:1;overflow:hidden;display:flex;flex-direction:column;padding:12px 16px 8px;gap:10px}
-    .title-row{display:flex;align-items:center;gap:10px}
-    .btn-back{width:34px;height:34px;border-radius:8px;border:1px solid var(--border);
-              background:#fff;font-size:16px;font-weight:700;cursor:pointer;
-              display:flex;align-items:center;justify-content:center;
-              text-decoration:none;color:var(--text);transition:.15s;flex-shrink:0}
-    .btn-back:hover{background:var(--surface2)}
-    .page-title{font-size:22px;font-weight:700;letter-spacing:-.5px}
-
-    /* FORM PRINCIPALE */
-    .form-area{display:grid;grid-template-columns:1fr 260px;gap:12px;flex-shrink:0}
-
-    .card{background:#fff;border:1px solid var(--border);border-radius:12px;
-          padding:12px;box-shadow:var(--shadow)}
-    .card-title{font-size:10px;font-weight:700;color:var(--text3);
-                text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px}
-
-    .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
-    .form-grid.cols3{grid-template-columns:1fr 1fr 1fr}
-    .form-grid.cols1{grid-template-columns:1fr}
-    .field{display:flex;flex-direction:column;gap:3px}
-    .field label{font-size:10.5px;color:var(--text2);font-weight:500;margin-bottom:1px}
-    .field.full{grid-column:1/-1}
-
-    input[type=text],input[type=number],input[type=date],select,textarea{
-      font-family:var(--font);font-size:12px;background:#fff;
-      border:1px solid var(--border);border-radius:var(--radius);
-      padding:4px 8px;color:var(--text);outline:none;width:100%;transition:border-color .15s}
-    input:focus,select:focus,textarea:focus{border-color:var(--blue)}
-    textarea{resize:vertical;min-height:56px}
-
-    /* Input con bottoni V e + */
-    .input-group{display:flex;gap:4px;align-items:center}
-    .input-group input,.input-group select{flex:1;min-width:0}
-    .btn-v{height:30px;padding:0 10px;border-radius:20px;border:1px solid var(--border);
-           background:var(--surface);color:var(--text2);cursor:pointer;font-size:11px;
-           font-family:var(--font);font-weight:600;white-space:nowrap;transition:.15s}
-    .btn-v:hover{background:var(--surface2);border-color:var(--blue);color:var(--blue)}
-    .btn-plus{width:28px;height:28px;border-radius:50%;border:none;background:var(--orange);
-              color:#fff;cursor:pointer;font-size:16px;font-weight:700;
-              display:flex;align-items:center;justify-content:center;transition:.15s;flex-shrink:0}
-    .btn-plus:hover{background:var(--orange2)}
-
-    /* Checkbox stilizzato */
-    .check-row{display:flex;align-items:center;gap:8px;padding:4px 0}
-    .check-row input[type=checkbox]{width:18px;height:18px;accent-color:var(--orange);cursor:pointer}
-    .check-row label{font-size:12px;font-weight:500;cursor:pointer}
-
-    /* Card dati rottamazione */
-    .rott-card{display:flex;flex-direction:column;gap:10px}
-    .rott-field{display:flex;flex-direction:column;gap:3px}
-    .rott-field label{font-size:11px;color:var(--text2);font-weight:600}
-    .rott-val{font-size:20px;font-weight:700;font-family:var(--mono);
-              color:var(--text);padding:4px 0}
-    .rott-val span{font-size:12px;font-weight:400;color:var(--text3);margin-left:4px}
-
-    /* Pulsanti azione destra */
-    .action-btns{display:flex;flex-direction:column;gap:8px;justify-content:flex-start;padding-top:28px}
-    .btn-action{padding:12px 20px;border-radius:10px;border:none;font-size:13px;font-weight:700;
-                font-family:var(--font);cursor:pointer;transition:.15s;text-align:center}
-    .btn-cdp{background:var(--cyan);color:#fff}.btn-cdp:hover{background:#38bdf8}
-    .btn-sottrai{background:var(--green);color:#fff}.btn-sottrai:hover{background:var(--green2)}
-
-    /* Azioni toolbar */
-    .actions{display:flex;gap:6px;flex-shrink:0}
-    .btn{display:inline-flex;align-items:center;gap:4px;padding:6px 12px;
-         border-radius:var(--radius);font-size:12px;font-weight:600;cursor:pointer;
-         border:none;font-family:var(--font);transition:.15s;white-space:nowrap}
-    .btn-primary{background:var(--orange);color:#fff}.btn-primary:hover{background:var(--orange2)}
-    .btn-ghost{background:#fff;color:var(--text2);border:1px solid var(--border)}
-    .btn-ghost:hover{background:var(--surface2)}
-    .btn-danger{background:#fff;color:var(--red);border:1px solid #fca5a5}
-    .btn-danger:hover{background:#fee2e2}
-    .btn-green{background:var(--green);color:#fff}.btn-green:hover{background:var(--green2)}
-
-    /* TABELLA */
-    .table-wrap{flex:1;overflow:auto;border:1px solid var(--border);border-radius:10px;
-                background:#fff;box-shadow:var(--shadow)}
-    table{width:100%;border-collapse:collapse;min-width:1000px}
-    thead th{position:sticky;top:0;z-index:5;background:var(--surface);color:var(--text2);
-             font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;
-             padding:8px 10px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap}
-    tbody tr{border-bottom:1px solid #f3f4f6;cursor:pointer;transition:background .1s}
-    tbody tr:hover{background:#fafafa}
-    tbody tr.selected{background:#fff7f4;outline:2px solid var(--orange);outline-offset:-1px}
-    tbody td{padding:7px 10px;font-size:12px}
-    td.num{text-align:center;font-family:var(--mono)}
-    .id-chip{display:inline-block;font-family:var(--mono);font-size:10px;background:#fff3ee;
-             color:var(--orange);border:1px solid #ffd0b5;padding:1px 6px;border-radius:4px}
-
-    .status-bar{font-size:11px;color:var(--text3);flex-shrink:0}
-
-    /* MODAL */
-    .overlay{position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.4);
-             display:flex;align-items:center;justify-content:center;padding:16px}
-    .overlay.hidden{display:none}
-    .modal{background:#fff;border-radius:16px;width:100%;max-height:92vh;
-           overflow-y:auto;box-shadow:0 24px 64px rgba(0,0,0,.2)}
-    .modal-hdr{display:flex;align-items:center;justify-content:space-between;
-               padding:16px 20px;border-bottom:1px solid var(--border);
-               position:sticky;top:0;background:#fff;z-index:10}
-    .modal-hdr h3{font-size:16px;font-weight:700}
-    .modal-close{background:none;border:none;font-size:24px;cursor:pointer;
-                 color:var(--text3);line-height:1}
-    .modal-close:hover{color:var(--text)}
-    .modal-body{padding:20px}
-    .modal-ftr{display:flex;justify-content:flex-end;gap:8px;padding:14px 20px;
-               border-top:1px solid var(--border);position:sticky;bottom:0;background:#fff}
-
-    /* CDP form */
-    .cdp-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
-    .cdp-col{display:flex;flex-direction:column;gap:10px}
-    .cdp-section-title{font-size:11px;font-weight:700;color:var(--text3);
-                       text-transform:uppercase;letter-spacing:.8px;
-                       padding-bottom:6px;border-bottom:1px solid var(--border)}
-
-    /* Sottrai ricambi */
-    .sr-form{background:var(--surface);border-radius:10px;padding:14px;margin-bottom:14px;
-             display:grid;grid-template-columns:2fr 1fr 2fr auto;gap:10px;align-items:end}
-
-    .ricambi-table{width:100%;border-collapse:collapse}
-    .ricambi-table th{padding:7px 10px;background:var(--surface);font-size:10px;
-                      font-weight:700;text-transform:uppercase;letter-spacing:.5px;
-                      color:var(--text2);border-bottom:1px solid var(--border);text-align:left}
-    .ricambi-table td{padding:7px 10px;border-bottom:1px solid #f3f4f6;font-size:12px}
-    .ricambi-table tr:last-child td{border-bottom:none}
-    .btn-del-r{width:28px;height:28px;border-radius:50%;border:none;background:#fee2e2;
-               color:var(--red);cursor:pointer;font-size:16px;font-weight:700;
-               display:flex;align-items:center;justify-content:center;transition:.15s}
-    .btn-del-r:hover{background:var(--red);color:#fff}
-    .peso-totale{font-weight:700;font-size:14px;color:var(--orange);font-family:var(--mono)}
-
-    /* TOAST */
-    .toast{position:fixed;bottom:18px;right:18px;z-index:9999;padding:10px 16px;
-           border-radius:10px;font-size:13px;font-weight:600;
-           box-shadow:0 4px 20px rgba(0,0,0,.12);animation:toastIn .2s ease}
-    .toast-ok{background:#fff;color:var(--green);border:1px solid #bbf7d0}
-    .toast-err{background:#fff;color:var(--red);border:1px solid #fca5a5}
-    @keyframes toastIn{from{transform:translateY(8px);opacity:0}to{opacity:1}}
-    .feedback{font-size:11px;min-height:16px;font-weight:500;padding:2px 0;text-align:center}
-    .feedback.ok{color:var(--green)}.feedback.err{color:var(--red)}
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Demolizioni — PerilCar</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono&display=swap" rel="stylesheet">
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#fff;--surface:#f7f8fa;--surface2:#eef0f4;--border:#dde1e8;
+  --orange:#e94c00;--orange2:#ff6b35;--blue:#3a5bd9;
+  --green:#16a34a;--green2:#22c55e;--red:#dc2626;--cyan:#0ea5e9;
+  --text:#111827;--text2:#4b5563;--text3:#9ca3af;
+  --radius:8px;--font:'DM Sans',system-ui,sans-serif;--mono:'DM Mono',monospace;
+  --shadow:0 1px 4px rgba(0,0,0,.08),0 4px 16px rgba(0,0,0,.06);
+}
+body{font-family:var(--font);background:var(--bg);color:var(--text);font-size:13px;height:100vh;overflow:hidden;display:flex;flex-direction:column}
+.topbar{height:50px;flex-shrink:0;background:#fff;border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 16px;gap:10px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.topbar-logo{font-weight:700;font-size:17px}.topbar-logo span{color:var(--orange)}
+.nav-link{padding:5px 12px;border-radius:6px;font-size:12.5px;font-weight:500;text-decoration:none;color:var(--text2);transition:.15s}
+.nav-link:hover{background:var(--surface2)}.nav-link.active{background:var(--orange);color:#fff}
+.topbar-right{margin-left:auto;display:flex;align-items:center;gap:10px}
+.user-chip{font-size:12px;color:var(--text2);background:var(--surface);border:1px solid var(--border);padding:4px 10px;border-radius:20px}
+.btn-logout{font-size:12px;padding:5px 12px;border-radius:6px;border:1px solid var(--border);background:#fff;color:var(--text2);cursor:pointer;font-family:var(--font)}
+.btn-logout:hover{background:#fee2e2;color:var(--red)}
+.main{flex:1;overflow:hidden;display:flex;flex-direction:column;padding:10px 14px 6px;gap:8px}
+.title-row{display:flex;align-items:center;gap:10px;flex-shrink:0}
+.btn-back{width:32px;height:32px;border-radius:8px;border:1px solid var(--border);background:#fff;font-size:16px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;text-decoration:none;color:var(--text)}
+.btn-back:hover{background:var(--surface2)}
+.page-title{font-size:20px;font-weight:700}
+.badge-nuova{display:none;background:var(--orange);color:#fff;border-radius:20px;font-size:11px;font-weight:700;padding:3px 12px}
+.form-area{display:grid;grid-template-columns:1fr 250px;gap:10px;flex-shrink:0}
+.card{background:#fff;border:1px solid var(--border);border-radius:10px;padding:12px;box-shadow:var(--shadow)}
+.card-title{font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px}
+.f-row{display:grid;gap:6px;margin-bottom:6px}
+.field{display:flex;flex-direction:column;gap:2px}
+.field label{font-size:10.5px;color:var(--text2);font-weight:500}
+input[type=text],input[type=number],input[type=date],input[type=time],select,textarea{font-family:var(--font);font-size:12px;background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:4px 8px;color:var(--text);outline:none;width:100%;transition:border-color .15s}
+input:focus,select:focus,textarea:focus{border-color:var(--blue)}
+input[readonly]{background:var(--surface2);color:var(--text3)}
+textarea{resize:vertical;min-height:60px}
+.ig{display:flex;gap:4px;align-items:center}
+.ig input,.ig select{flex:1;min-width:0}
+.btn-v{height:28px;padding:0 8px;border-radius:20px;border:1px solid var(--border);background:var(--surface);color:var(--text2);cursor:pointer;font-size:11px;font-family:var(--font);font-weight:600;flex-shrink:0}
+.btn-plus{width:26px;height:26px;border-radius:50%;border:none;background:var(--orange);color:#fff;cursor:pointer;font-size:15px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.btn-plus:hover{background:var(--orange2)}
+.btn-copy{width:26px;height:26px;border-radius:50%;border:1px solid var(--border);background:var(--surface);color:var(--text2);cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.check-pill{display:flex;align-items:center;gap:6px;border:2px solid var(--text);border-radius:20px;padding:4px 12px;cursor:pointer}
+.check-pill input{width:16px;height:16px;accent-color:var(--orange);cursor:pointer}
+.check-pill label{font-size:12px;font-weight:600;cursor:pointer}
+.rott-field{display:flex;flex-direction:column;gap:3px;margin-bottom:8px}
+.rott-field label{font-size:10.5px;font-weight:600;color:var(--text2)}
+.rott-kg{display:flex;align-items:center;gap:6px}
+.rott-kg span{font-size:11px;color:var(--text3);font-weight:600;flex-shrink:0}
+.rott-kg input{font-family:var(--mono);font-weight:700}
+.btn-action{width:100%;padding:11px;border-radius:10px;border:none;font-size:13px;font-weight:700;font-family:var(--font);cursor:pointer;margin-bottom:6px}
+.btn-cdp{background:var(--cyan);color:#fff}
+.btn-sottrai{background:var(--green);color:#fff}
+.toolbar{display:flex;gap:6px;align-items:center;flex-shrink:0}
+.btn{display:inline-flex;align-items:center;gap:4px;padding:6px 12px;border-radius:var(--radius);font-size:12px;font-weight:600;cursor:pointer;border:none;font-family:var(--font);white-space:nowrap}
+.btn-primary{background:var(--orange);color:#fff}
+.btn-ghost{background:#fff;color:var(--text2);border:1px solid var(--border)}
+.btn-danger{background:#fff;color:var(--red);border:1px solid #fca5a5}
+.btn-green{background:var(--green);color:#fff}
+.fb{font-size:11px;min-height:16px;font-weight:500}
+.fb.ok{color:var(--green)}.fb.err{color:var(--red)}
+.table-wrap{flex:1;overflow:auto;border:1px solid var(--border);border-radius:10px;background:#fff}
+table{width:100%;border-collapse:collapse;min-width:900px}
+thead th{position:sticky;top:0;z-index:5;background:var(--surface);color:var(--text2);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;padding:7px 10px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap}
+tbody tr{border-bottom:1px solid #f3f4f6;cursor:pointer}
+tbody tr:hover{background:#fafafa}
+tbody tr.sel{background:#fff7f4;outline:2px solid var(--orange);outline-offset:-1px}
+tbody td{padding:6px 10px;font-size:12px}
+.id-chip{display:inline-block;font-family:var(--mono);font-size:10px;background:#fff3ee;color:var(--orange);border:1px solid #ffd0b5;padding:1px 6px;border-radius:4px}
+.s-bar{font-size:11px;color:var(--text3);flex-shrink:0}
+.overlay{position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;padding:16px}
+.overlay.hidden{display:none}
+.modal{background:#fff;border-radius:14px;width:100%;max-height:94vh;overflow-y:auto;box-shadow:0 24px 64px rgba(0,0,0,.2)}
+.mhdr{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--border);position:sticky;top:0;background:#fff;z-index:10}
+.mhdr h3{font-size:15px;font-weight:700}
+.mclose{background:none;border:none;font-size:22px;cursor:pointer;color:var(--text3);line-height:1}
+.mbody{padding:16px}
+.mftr{display:flex;justify-content:flex-end;gap:8px;padding:12px 18px;border-top:1px solid var(--border);position:sticky;bottom:0;background:#fff}
+.mg{display:grid;gap:8px}
+.mg2{grid-template-columns:1fr 1fr}
+.mg4{grid-template-columns:1fr 1fr 1fr 1fr}
+.all-box{border:1px solid var(--border);border-radius:var(--radius);padding:8px;background:var(--surface)}
+.all-list{margin-top:6px;display:flex;flex-direction:column;gap:4px}
+.all-item{display:flex;align-items:center;gap:8px;padding:4px 8px;background:#fff;border:1px solid var(--border);border-radius:6px;font-size:11px}
+.all-item a{color:var(--blue);text-decoration:none;flex:1}
+.all-size{color:var(--text3);font-size:10px}
+.sr-form{display:grid;grid-template-columns:2fr 100px 1fr auto;gap:8px;align-items:end;background:var(--surface);border-radius:8px;padding:12px;margin-bottom:10px}
+.ric-table{width:100%;border-collapse:collapse}
+.ric-table th{padding:6px 10px;background:var(--surface);font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text2);border-bottom:1px solid var(--border);text-align:left}
+.ric-table td{padding:6px 10px;border-bottom:1px solid #f3f4f6;font-size:12px}
+.btn-del{width:26px;height:26px;border-radius:50%;border:none;background:#fee2e2;color:var(--red);cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center}
+.cdp-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.cdp-col{display:flex;flex-direction:column;gap:8px}
+.cdp-sep{font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;padding-bottom:4px;border-bottom:1px solid var(--border)}
+.cdp-result{border:1px solid var(--border);border-radius:8px;padding:10px 14px;cursor:pointer;margin-bottom:6px}
+.cdp-result:hover{background:var(--surface)}
+.toast{position:fixed;bottom:16px;right:16px;z-index:9999;padding:10px 16px;border-radius:10px;font-size:13px;font-weight:600;box-shadow:0 4px 20px rgba(0,0,0,.12)}
+.tok{background:#fff;color:var(--green);border:1px solid #bbf7d0}
+.terr{background:#fff;color:var(--red);border:1px solid #fca5a5}
+</style>
 </head>
 <body>
-
 <header class="topbar">
   <span class="topbar-logo">Peril<span>Car</span></span>
-  <nav style="display:flex;gap:4px;margin-left:12px">
-    <a href="/dashboard" class="nav-link">🏠 Home</a>
-    <a href="/magazzino" class="nav-link">📦 Magazzino</a>
-    <a href="/storico"   class="nav-link">📋 Storico</a>
-    <a href="/demolizioni" class="nav-link active">🚗 Demolizioni</a>
+  <nav style="display:flex;gap:4px;margin-left:10px">
+    <a href="/dashboard" class="nav-link">&#127968; Home</a>
+    <a href="/magazzino" class="nav-link">&#128230; Magazzino</a>
+    <a href="/storico" class="nav-link">&#128203; Storico</a>
+    <a href="/demolizioni" class="nav-link active">&#128663; Demolizioni</a>
   </nav>
   <div class="topbar-right">
-    <span class="user-chip">👤 {{ user.username }}</span>
+    <span class="user-chip">&#128100; {{ user.username }}</span>
     <button class="btn-logout" onclick="logout()">Esci</button>
   </div>
 </header>
-
 <div class="main">
   <div class="title-row">
-    <a href="/dashboard" class="btn-back">‹</a>
+    <a href="/dashboard" class="btn-back">&#8249;</a>
     <span class="page-title">DEMOLIZIONI</span>
+    <span class="badge-nuova" id="badge-nuova">&#9998; NUOVA &mdash; compila e clicca Inserisci</span>
   </div>
-
-  <!-- FORM PRINCIPALE -->
   <div class="form-area">
-
-    <!-- Card Generale -->
     <div class="card">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
         <div class="card-title" style="margin:0">Generale</div>
-        <div style="display:flex;gap:8px">
-          <button class="btn btn-primary" id="btn-nuova" onclick="modalitaNuova()" title="Compila automaticamente i progressivi">
-            ＋ Nuova demolizione
-          </button>
-          <button class="btn btn-ghost" id="btn-modalita-label" onclick="modalitaRicerca()" style="display:none">
-            🔍 Modalità ricerca
-          </button>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-primary" onclick="modalitaNuova()">+ Nuova demolizione</button>
+          <button class="btn btn-ghost" id="btn-ricerca" onclick="modalitaRicerca()" style="display:none">Ricerca</button>
         </div>
       </div>
-
-      <!-- Badge modalità -->
-      <div id="badge-modalita" style="display:none;margin-bottom:8px">
-        <span style="background:var(--orange);color:#fff;border-radius:20px;
-                     font-size:11px;font-weight:700;padding:3px 12px">
-          ✏ NUOVA DEMOLIZIONE — compila i campi e clicca Inserisci
-        </span>
+      <div class="f-row" style="grid-template-columns:70px 155px 110px 1fr 80px">
+        <div class="field"><label>ID</label><input type="text" id="f-id" readonly></div>
+        <div class="field"><label>Data presa in carico</label><input type="date" id="f-data" oninput="filtra()"></div>
+        <div class="field"><label>Ora</label><input type="time" id="f-ora"></div>
+        <div class="field"><label>Reg. demolitori</label><input type="text" id="f-reg" placeholder="01/2026" oninput="filtra()"></div>
+        <div class="field"><label>Pag. Reg.</label><input type="text" id="f-pag" oninput="filtra()"></div>
       </div>
-
-      <!-- Riga 1: ID | Data e ora | Reg. demolitori | Pag. Reg. -->
-      <div style="display:grid;grid-template-columns:80px 1fr 1fr 130px 90px;gap:8px;margin-bottom:8px;align-items:end">
-        <div class="field">
-          <label>ID</label>
-          <input type="text" id="f-id" readonly style="background:var(--surface2);color:var(--text3);font-family:var(--mono)">
-        </div>
-        <div class="field">
-          <label>Data presa in carico</label>
-          <input type="date" id="f-data" oninput="filtraTabella()">
-        </div>
-        <div class="field">
-          <label>Ora</label>
-          <input type="time" id="f-ora" oninput="filtraTabella()">
-        </div>
-        <div class="field">
-          <label>Reg. demolitori</label>
-          <input type="text" id="f-reg" placeholder="01/2026" oninput="filtraTabella()">
-        </div>
-        <div class="field">
-          <label>Pag. Reg.</label>
-          <input type="text" id="f-pag" placeholder="1" oninput="filtraTabella()">
-        </div>
-      </div>
-
-      <!-- Riga 2: Veicolo (targa → ricerca) -->
-      <div style="margin-bottom:8px">
-        <div class="field">
-          <label>Veicolo</label>
-          <div class="input-group">
-            <select id="f-veicolo" onchange="filtraTabella()">
-              <option value="">— cerca per targa o seleziona —</option>
-            </select>
-            <button class="btn-plus" onclick="openModalNuovoVeicolo()" title="Nuovo veicolo">+</button>
+      <div class="f-row" style="grid-template-columns:1fr">
+        <div class="field"><label>Veicolo</label>
+          <div class="ig">
+            <select id="f-veicolo" onchange="filtra()"><option value="">&#8212; cerca o seleziona &#8212;</option></select>
+            <button class="btn-plus" onclick="apreVeicolo()">+</button>
           </div>
         </div>
       </div>
-
-      <!-- Riga 3: Proprietario | Detentore + Copia -->
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
-        <div class="field">
-          <label>Proprietario</label>
-          <div class="input-group">
-            <select id="f-proprietario" onchange="filtraTabella()">
-              <option value="">— cerca o seleziona —</option>
-            </select>
-            <button class="btn-plus" onclick="openModalNuovaAnagrafica('proprietario')" title="Nuovo proprietario">+</button>
+      <div class="f-row" style="grid-template-columns:1fr 1fr">
+        <div class="field"><label>Proprietario</label>
+          <div class="ig">
+            <select id="f-prop" onchange="filtra()"><option value="">&#8212; cerca o seleziona &#8212;</option></select>
+            <button class="btn-plus" onclick="apreAna('prop')">+</button>
           </div>
         </div>
-        <div class="field">
-          <label>Detentore</label>
-          <div class="input-group">
-            <select id="f-detentore" onchange="filtraTabella()">
-              <option value="">— cerca o seleziona —</option>
-            </select>
-            <button class="btn-plus" onclick="openModalNuovaAnagrafica('detentore')" title="Nuovo detentore">+</button>
-            <button class="btn-v" onclick="copiaProprietario()" title="Copia dati proprietario" style="background:#fff3ee;color:var(--orange)">⎘</button>
+        <div class="field"><label>Detentore</label>
+          <div class="ig">
+            <select id="f-det" onchange="filtra()"><option value="">&#8212; cerca o seleziona &#8212;</option></select>
+            <button class="btn-plus" onclick="apreAna('det')">+</button>
+            <button class="btn-copy" onclick="copiaProp()" title="Copia proprietario">&#8663;</button>
           </div>
         </div>
       </div>
-
-      <!-- Riga 4: Ufficio Prov. | Concessionaria | Checkbox -->
-      <div style="display:grid;grid-template-columns:120px 1fr auto;gap:8px;align-items:end">
-        <div class="field">
-          <label>Ufficio Prov.</label>
-          <input type="text" id="f-ufficio" placeholder="es. VI" oninput="filtraTabella()">
-        </div>
-        <div class="field">
-          <label>Concessionaria</label>
-          <input type="text" id="f-concessionaria" oninput="filtraTabella()">
-        </div>
-        <div style="display:flex;gap:16px;padding-bottom:5px;flex-shrink:0">
-          <div class="check-row" style="border:2px solid var(--text);border-radius:20px;padding:4px 12px;gap:8px">
-            <label for="f-targhe" style="font-weight:600;font-size:12px;cursor:pointer">Targhe</label>
-            <input type="checkbox" id="f-targhe" style="width:16px;height:16px;accent-color:var(--orange)">
-          </div>
-          <div class="check-row" style="border:2px solid var(--text);border-radius:20px;padding:4px 12px;gap:8px">
-            <label for="f-carta" style="font-weight:600;font-size:12px;cursor:pointer">Carta circ.</label>
-            <input type="checkbox" id="f-carta" style="width:16px;height:16px;accent-color:var(--orange)">
-          </div>
+      <div class="f-row" style="grid-template-columns:100px 1fr auto">
+        <div class="field"><label>Ufficio Prov.</label><input type="text" id="f-ufficio" placeholder="es. VI" oninput="filtra()"></div>
+        <div class="field"><label>Concessionaria</label><input type="text" id="f-conc" oninput="filtra()"></div>
+        <div style="display:flex;gap:10px;align-items:flex-end;padding-bottom:2px">
+          <div class="check-pill"><input type="checkbox" id="f-targhe"><label for="f-targhe">Targhe</label></div>
+          <div class="check-pill"><input type="checkbox" id="f-carta"><label for="f-carta">Carta circ.</label></div>
         </div>
       </div>
     </div>
-
-        <!-- Colonna destra: dati rottamazione + pulsanti -->
-    <div style="display:flex;flex-direction:column;gap:10px">
-
-      <!-- Card Dati Rottamazione -->
-      <div class="card rott-card">
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div class="card">
         <div class="card-title">Dati rottamazione</div>
-
-        <div class="rott-field">
-          <label>Peso Effettivo</label>
-          <div style="display:flex;align-items:center;gap:6px">
-            <span style="font-size:12px;color:var(--text3);font-weight:600">Kg</span>
-            <input type="number" id="f-peso-eff" placeholder="0.00" step="0.01"
-                   oninput="aggiornaPesoNetto()">
-          </div>
-        </div>
-
-        <div class="rott-field">
-          <label>Peso netto (da ricambi)</label>
-          <div style="display:flex;align-items:center;gap:6px">
-            <span style="font-size:12px;color:var(--text3);font-weight:600">Kg</span>
-            <input type="number" id="f-peso-netto" placeholder="0.00" step="0.01" readonly
-                   style="background:var(--surface2);font-family:var(--mono);font-weight:700;color:var(--orange)">
-          </div>
-        </div>
-
-        <div class="rott-field">
-          <label>Modalità Radiazione</label>
-          <select id="f-modalita">
-            <option value="">— seleziona —</option>
-            <option value="Rottamazione">Rottamazione</option>
-            <option value="Demolizione">Demolizione</option>
-            <option value="Esportazione">Esportazione</option>
-            <option value="Furto">Furto</option>
-            <option value="Altro">Altro</option>
-          </select>
-        </div>
-
-
-
+        <div class="rott-field"><label>Peso Effettivo</label>
+          <div class="rott-kg"><span>Kg</span><input type="number" id="f-peso-eff" placeholder="0.00" step="0.01" oninput="aggNetto()"></div></div>
+        <div class="rott-field"><label>Peso netto (da ricambi)</label>
+          <div class="rott-kg"><span>Kg</span><input type="number" id="f-peso-netto" readonly style="color:var(--orange);font-weight:700"></div></div>
+        <div class="rott-field"><label>Modalita' Radiazione</label>
+          <select id="f-modalita"><option value="">&#8212; seleziona &#8212;</option>
+            <option>Rottamazione</option><option>Demolizione</option>
+            <option>Esportazione</option><option>Furto</option><option>Altro</option>
+          </select></div>
       </div>
-
-      <!-- Pulsanti azione -->
-      <div style="display:flex;flex-direction:column;gap:8px">
-        <button class="btn-action btn-cdp" onclick="openCDP()">🔍 Cerca CDP</button>
-        <button class="btn-action btn-sottrai" onclick="openSottrai()">⚖ Sottrai ricambi</button>
-      </div>
+      <button class="btn-action btn-cdp" onclick="apreCDP()">Cerca CDP</button>
+      <button class="btn-action btn-sottrai" onclick="apreSottrai()">Sottrai ricambi</button>
     </div>
-
   </div>
-
-  <!-- Toolbar -->
-  <div class="actions">
-    <button class="btn btn-green" id="btn-inserisci" onclick="inserisciDemolizione()" style="display:none;font-size:14px;padding:8px 20px">
-      ✅ Inserisci demolizione
-    </button>
-    <button class="btn btn-ghost"  onclick="salvaRecord()" id="btn-salva">💾 Aggiorna</button>
-    <button class="btn btn-danger" onclick="eliminaRecord()">🗑 Elimina</button>
-    <div class="feedback" id="feedback" style="margin-left:8px;align-self:center"></div>
+  <div class="toolbar">
+    <button class="btn btn-green" id="btn-inserisci" onclick="inserisci()" style="display:none">Inserisci demolizione</button>
+    <button class="btn btn-ghost" id="btn-salva" onclick="salva()">Aggiorna</button>
+    <button class="btn btn-danger" onclick="elimina()">Elimina</button>
+    <span class="fb" id="fb"></span>
   </div>
-
-  <!-- Tabella elenco demolizioni -->
   <div class="table-wrap">
     <table>
-      <thead>
-        <tr>
-          <th>ID</th>
-          <th>Reg. Demolitori</th>
-          <th>Pag. Reg.</th>
-          <th>Data presa in carico</th>
-          <th>Veicolo</th>
-          <th>Proprietario</th>
-          <th>Detentore</th>
-          <th>Peso effettivo</th>
-          <th>Peso netto</th>
-          <th>Num. Albatros</th>
-          <th>Modalità Radiazione</th>
-          <th>Targhe</th>
-          <th>Carta Circ.</th>
-        </tr>
-      </thead>
+      <thead><tr>
+        <th>ID</th><th>Reg.</th><th>Pag.</th><th>Data</th>
+        <th>Veicolo</th><th>Proprietario</th><th>Detentore</th>
+        <th>Peso eff.</th><th>Peso netto</th><th>Modalita'</th><th>Targhe</th><th>Carta</th>
+      </tr></thead>
       <tbody id="tbody"></tbody>
     </table>
   </div>
-
-  <div class="status-bar" id="s-tot">Caricamento...</div>
+  <div class="s-bar" id="sbar">Caricamento...</div>
 </div>
 
-<!-- ══ MODAL CERCA CDP ══════════════════════════════════════════════ -->
-<div class="overlay hidden" id="modal-cdp">
-  <div class="modal" style="max-width:860px">
-    <div class="modal-hdr">
-      <h3>🔍 Cerca CDP</h3>
-      <button class="modal-close" onclick="closeModal('modal-cdp')">×</button>
-    </div>
-    <div class="modal-body">
-      <div class="cdp-grid">
-        <!-- Colonna sinistra -->
-        <div class="cdp-col">
-          <div class="cdp-section-title">Dati ricerca</div>
-          <div class="field"><label>Data da</label><input type="date" id="cdp-data-da"></div>
-          <div class="field"><label>Data a</label><input type="date" id="cdp-data-a"></div>
-          <div class="field"><label>Classe Veicolo</label><input type="text" id="cdp-classe" placeholder="es. M1, N1..."></div>
-          <div class="field"><label>Marca</label><input type="text" id="cdp-marca" placeholder="es. Fiat"></div>
-          <div class="field"><label>Modello</label><input type="text" id="cdp-modello" placeholder="es. Punto"></div>
-          <div class="field"><label>Targa</label><input type="text" id="cdp-targa" placeholder="es. AB123CD"></div>
-          <div class="field"><label>Telaio</label><input type="text" id="cdp-telaio"></div>
-          <div class="field"><label>Proprietario</label><input type="text" id="cdp-proprietario"></div>
-          <div class="field"><label>Detentore</label><input type="text" id="cdp-detentore"></div>
-          <div class="field"><label>CF/PIVA Proprietario</label><input type="text" id="cdp-cf-prop"></div>
-          <div class="field"><label>CF/PIVA Detentore</label><input type="text" id="cdp-cf-det"></div>
-        </div>
-        <!-- Colonna destra -->
-        <div class="cdp-col">
-          <div class="cdp-section-title">Demolito</div>
-          <div class="field"><label>Reg. demolitori</label><input type="text" id="cdp-reg"></div>
-          <div class="field"><label>Pag. Reg. da</label><input type="text" id="cdp-pag-da"></div>
-          <div class="field"><label>Pag. Reg. a</label><input type="text" id="cdp-pag-a"></div>
-          <div class="field"><label>Reg. demolitori 2</label><input type="text" id="cdp-reg2"></div>
-          <div class="field"><label>Pag. Reg. 2 da</label><input type="text" id="cdp-pag2-da"></div>
-          <div class="field"><label>Pag. Reg. 2 a</label><input type="text" id="cdp-pag2-a"></div>
-          <div class="field"><label>Concessionaria</label><input type="text" id="cdp-conc"></div>
-          <div class="field"><label>Anno immatricolazione</label><input type="text" id="cdp-anno-imm"></div>
-          <div class="field"><label>Num. Motore</label><input type="text" id="cdp-motore"></div>
-        </div>
-      </div>
-
-      <!-- Risultati CDP -->
-      <div id="cdp-risultati" style="margin-top:16px;display:none">
-        <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;
-                    letter-spacing:.8px;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--border)">
-          Risultati ricerca
-        </div>
-        <div id="cdp-lista"></div>
-      </div>
-    </div>
-    <div class="modal-ftr">
-      <button class="btn btn-ghost" onclick="closeModal('modal-cdp')">Annulla</button>
-      <button class="btn" style="background:var(--cyan);color:#fff" onclick="cercaCDP()">🔍 Cerca</button>
-    </div>
-  </div>
-</div>
-
-<!-- ══ MODAL SOTTRAI RICAMBI ════════════════════════════════════════ -->
-<div class="overlay hidden" id="modal-sottrai">
+<!-- MODAL VEICOLO -->
+<div class="overlay hidden" id="m-veicolo">
   <div class="modal" style="max-width:700px">
-    <div class="modal-hdr">
-      <div>
-        <h3>⚖ Sottrai Ricambi</h3>
-        <p style="font-size:11px;color:var(--text3);margin-top:2px">
-          Aggiungi i ricambi smontati per calcolare il peso netto
-        </p>
-      </div>
-      <button class="modal-close" onclick="closeModal('modal-sottrai')">×</button>
-    </div>
-    <div class="modal-body">
-
-      <!-- Form aggiunta ricambio -->
-      <div class="sr-form">
-        <div class="field">
-          <label>Pezzo</label>
-          <select id="sr-pezzo">
-            <option value="">— seleziona dal magazzino —</option>
-          </select>
-        </div>
-        <div class="field">
-          <label>Peso (Kg)</label>
-          <input type="number" id="sr-peso" placeholder="0.00" step="0.01" min="0">
-        </div>
-        <div class="field">
-          <label>Note</label>
-          <input type="text" id="sr-note" placeholder="Note opzionali">
-        </div>
-        <button class="btn btn-green" onclick="aggiungiRicambio()" style="height:34px;align-self:flex-end">
-          + Aggiungi
-        </button>
-      </div>
-
-      <!-- Riepilogo peso -->
-      <div style="display:flex;align-items:center;gap:16px;padding:10px 0;border-bottom:1px solid var(--border);margin-bottom:12px">
-        <div style="font-size:12px;color:var(--text2)">
-          Peso effettivo: <b id="sr-peso-eff-show" style="font-family:var(--mono)">— Kg</b>
-        </div>
-        <div style="font-size:12px;color:var(--text2)">
-          Totale sottratto: <b id="sr-tot-sottratto" class="peso-totale">0.00 Kg</b>
-        </div>
-        <div style="font-size:12px;color:var(--text2)">
-          Peso netto: <b id="sr-peso-netto-show" style="font-family:var(--mono);color:var(--orange)">— Kg</b>
-        </div>
-      </div>
-
-      <!-- Tabella ricambi -->
-      <div style="overflow:auto;max-height:320px">
-        <table class="ricambi-table">
-          <thead>
-            <tr>
-              <th>Pezzo</th>
-              <th>Peso (Kg)</th>
-              <th>Note</th>
-              <th style="width:40px"></th>
-            </tr>
-          </thead>
-          <tbody id="sr-tbody">
-            <tr><td colspan="4" style="text-align:center;padding:24px;color:var(--text3)">
-              Nessun ricambio aggiunto
-            </td></tr>
-          </tbody>
-        </table>
-      </div>
-
-    </div>
-    <div class="modal-ftr">
-      <button class="btn btn-ghost" onclick="closeModal('modal-sottrai')">Chiudi</button>
-    </div>
-  </div>
-</div>
-
-<!-- ══ MODAL NUOVO VEICOLO ══════════════════════════════════════════ -->
-<div class="overlay hidden" id="modal-veicolo">
-  <div class="modal" style="max-width:720px">
-    <div class="modal-hdr">
-      <h3>🚗 Veicolo</h3>
-      <button class="modal-close" onclick="closeModal('modal-veicolo')">×</button>
-    </div>
-    <div class="modal-body">
-      <!-- Riga 1: ID Targa Telaio Classe -->
-      <div style="display:grid;grid-template-columns:80px 1fr 1fr 1fr;gap:8px;margin-bottom:10px">
-        <div class="field"><label>ID</label>
-          <input type="text" id="v-id" readonly style="background:var(--surface2);color:var(--text3);font-family:var(--mono)"></div>
+    <div class="mhdr"><h3>Veicolo</h3><button class="mclose" onclick="chiudi('m-veicolo')">x</button></div>
+    <div class="mbody">
+      <div class="mg" style="grid-template-columns:80px 1fr 1fr 1fr;margin-bottom:10px">
+        <div class="field"><label>ID</label><input type="text" id="v-id" readonly></div>
         <div class="field"><label>Targa</label><input type="text" id="v-targa"></div>
         <div class="field"><label>Telaio</label><input type="text" id="v-telaio"></div>
         <div class="field"><label>Classe</label>
-          <select id="v-classe">
-            <option value="">— seleziona —</option>
-            <option value="Nuovo">Nuovo</option>
-            <option value="Autoveicolo">Autoveicolo</option>
-            <option value="Motoveicolo">Motoveicolo</option>
-            <option value="Ciclomotore">Ciclomotore</option>
-            <option value="Rimorchio">Rimorchio</option>
-            <option value="Motociclo">Motociclo</option>
-            <option value="Autocarro">Autocarro</option>
-            <option value="Motocarro">Motocarro</option>
-            <option value="Autovettura">Autovettura</option>
-            <option value="Quadriciclo">Quadriciclo</option>
-            <option value="Autoveicolo promiscuo">Autoveicolo promiscuo</option>
-            <option value="Autobus">Autobus</option>
-            <option value="Trattore stradale">Trattore stradale</option>
-            <option value="Macchina semovente">Macchina semovente</option>
-            <option value="Trattore">Trattore</option>
-            <option value="Trattore per semirimorchio">Trattore per semirimorchio</option>
-            <option value="Macchina">Macchina</option>
-            <option value="Carrello elevatore">Carrello elevatore</option>
-            <option value="Autoveicolo speciale">Autoveicolo speciale</option>
-            <option value="Semirimorchio">Semirimorchio</option>
+          <select id="v-classe"><option value="">&#8212; seleziona &#8212;</option>
+            <option>Autoveicolo</option><option>Motoveicolo</option><option>Ciclomotore</option>
+            <option>Rimorchio</option><option>Motociclo</option><option>Autocarro</option>
+            <option>Motocarro</option><option>Autovettura</option><option>Quadriciclo</option>
+            <option>Autoveicolo promiscuo</option><option>Autobus</option>
+            <option>Trattore stradale</option><option>Macchina semovente</option>
+            <option>Trattore</option><option>Trattore per semirimorchio</option>
+            <option>Macchina</option><option>Carrello elevatore</option>
+            <option>Autoveicolo speciale</option><option>Semirimorchio</option>
           </select>
         </div>
       </div>
-      <!-- Riga 2: Marca Modello Anno Num.Motore -->
-      <div style="display:grid;grid-template-columns:1fr 1fr 100px 1fr;gap:8px;margin-bottom:10px">
+      <div class="mg mg4" style="margin-bottom:10px">
         <div class="field"><label>Marca</label><input type="text" id="v-marca"></div>
         <div class="field"><label>Modello</label><input type="text" id="v-modello"></div>
-        <div class="field"><label>Anno</label><input type="text" id="v-anno"></div>
+        <div class="field"><label>Anno imm.</label><input type="text" id="v-anno"></div>
         <div class="field"><label>Num. Motore</label><input type="text" id="v-motore"></div>
       </div>
-      <!-- Riga 3: Note + Allegati -->
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-        <div class="field"><label>Note</label><textarea id="v-note" rows="5"></textarea></div>
+      <div class="mg mg2">
+        <div class="field"><label>Note</label><textarea id="v-note" rows="4"></textarea></div>
         <div class="field"><label>Allegati</label>
-          <div style="border:1px solid var(--border);border-radius:var(--radius);min-height:80px;
-                      padding:8px;font-size:11px;color:var(--text3);background:#fafafa">
-            <input type="file" id="v-allegati" multiple
-                   style="font-size:11px;width:100%;cursor:pointer"
-                   onchange="mostraFileSelezionati('v-allegati','v-file-list')">
-            <div id="v-file-list" style="margin-top:6px;font-size:11px;color:var(--text2)"></div>
+          <div class="all-box">
+            <input type="file" id="v-files" multiple style="font-size:11px;width:100%" onchange="prevFile(this,'v-prev')">
+            <div id="v-prev" style="font-size:11px;color:var(--text3);margin-top:4px"></div>
           </div>
-          <div id="v-allegati-list" style="margin-top:6px"></div>
+          <div class="all-list" id="v-all-list"></div>
         </div>
       </div>
     </div>
-    <div class="modal-ftr">
-      <button class="btn btn-danger" onclick="closeModal('modal-veicolo')" style="margin-right:auto">Annulla</button>
+    <div class="mftr">
+      <button class="btn btn-danger" onclick="chiudi('m-veicolo')">Annulla</button>
       <button class="btn btn-green" onclick="salvaVeicolo()">Conferma</button>
     </div>
   </div>
 </div>
 
-<!-- ══ MODAL NUOVA ANAGRAFICA (Proprietario / Detentore) ════════════ -->
-<div class="overlay hidden" id="modal-anagrafica">
+<!-- MODAL ANAGRAFICA -->
+<div class="overlay hidden" id="m-ana">
   <div class="modal" style="max-width:820px">
-    <div class="modal-hdr">
-      <h3 id="ana-title">👤 Proprietario</h3>
-      <button class="modal-close" onclick="closeModal('modal-anagrafica')">×</button>
-    </div>
-    <div class="modal-body" style="display:flex;flex-direction:column;gap:10px">
-
-      <!-- Riga 1: ID | Cognome/Denom. | Nome | Sesso(v) | Tipo Società(v) -->
-      <div style="display:grid;grid-template-columns:80px 1fr 1fr 120px 140px;gap:8px">
-        <div class="field"><label>ID</label>
-          <input type="text" id="a-id" readonly style="background:var(--surface2);color:var(--text3);font-family:var(--mono)"></div>
+    <div class="mhdr"><h3 id="ana-titolo">Proprietario</h3><button class="mclose" onclick="chiudi('m-ana')">x</button></div>
+    <div class="mbody">
+      <div class="mg" style="grid-template-columns:80px 1fr 1fr 110px 130px;margin-bottom:8px">
+        <div class="field"><label>ID</label><input type="text" id="a-id" readonly></div>
         <div class="field"><label>Cognome/Denominazione</label><input type="text" id="a-cognome"></div>
         <div class="field"><label>Nome</label><input type="text" id="a-nome"></div>
         <div class="field"><label>Sesso</label>
-          <div class="input-group">
-            <select id="a-sesso">
-              <option value="">—</option>
-              <option value="M">M</option>
-              <option value="F">F</option>
-            </select>
-          </div>
-        </div>
-        <div class="field"><label>Tipo di Società</label>
-          <div class="input-group">
-            <select id="a-tipo-societa">
-              <option value="">—</option>
-              <option value="SRL">SRL</option>
-              <option value="SPA">SPA</option>
-              <option value="SNC">SNC</option>
-              <option value="SAS">SAS</option>
-              <option value="Ditt.Ind.">Ditt. Ind.</option>
-            </select>
-          </div>
-        </div>
+          <select id="a-sesso"><option value="">&#8212;</option><option value="M">M</option><option value="F">F</option></select></div>
+        <div class="field"><label>Tipo Societa'</label>
+          <select id="a-tsoc"><option value="">&#8212;</option><option>SRL</option><option>SPA</option><option>SNC</option><option>SAS</option><option>Ditt.Ind.</option></select></div>
       </div>
-
-      <!-- Riga 2: Data nascita | Luogo nascita | Provincia | CF/PIVA -->
-      <div style="display:grid;grid-template-columns:150px 1fr 120px 1fr;gap:8px">
-        <div class="field"><label>Data di nascita</label><input type="date" id="a-data-nascita"></div>
-        <div class="field"><label>Luogo di Nascita</label><input type="text" id="a-luogo-nascita"></div>
-        <div class="field"><label>Provincia</label><input type="text" id="a-prov-nascita" placeholder="es. VI"></div>
-        <div class="field"><label>CF/PIVA</label><input type="text" id="a-cfpiva"></div>
+      <div class="mg" style="grid-template-columns:140px 1fr 100px 1fr;margin-bottom:8px">
+        <div class="field"><label>Data di nascita</label><input type="date" id="a-datanascita"></div>
+        <div class="field"><label>Luogo di Nascita</label><input type="text" id="a-luogo"></div>
+        <div class="field"><label>Provincia nasc.</label><input type="text" id="a-provnascita" placeholder="es. VI"></div>
+        <div class="field"><label>CF/PIVA</label><input type="text" id="a-cf"></div>
       </div>
-
-      <!-- Riga 3: Comune residenza(v) | Provincia | Via | Num.Civico | CAP -->
-      <div style="display:grid;grid-template-columns:1fr 100px 1fr 90px 80px;gap:8px">
-        <div class="field"><label>Comune di residenza</label>
-          <div class="input-group">
-            <input type="text" id="a-comune">
-            <button class="btn-v">▾</button>
-          </div>
-        </div>
-        <div class="field"><label>Provincia</label><input type="text" id="a-provincia" placeholder="es. VI"></div>
+      <div class="mg" style="grid-template-columns:1fr 90px 1fr 80px 70px;margin-bottom:8px">
+        <div class="field"><label>Comune di residenza</label><input type="text" id="a-comune"></div>
+        <div class="field"><label>Provincia</label><input type="text" id="a-prov" placeholder="es. VI"></div>
         <div class="field"><label>Via</label><input type="text" id="a-via"></div>
         <div class="field"><label>Num. Civico</label><input type="text" id="a-civico"></div>
         <div class="field"><label>CAP</label><input type="text" id="a-cap"></div>
       </div>
-
-      <!-- Riga 4: Tipo documento(v) | Num.documento | Rilasciato il | Rilasciato da(v) -->
-      <div style="display:grid;grid-template-columns:1fr 1fr 130px 1fr;gap:8px">
-        <div class="field"><label>Tipo di documento</label>
-          <div class="input-group">
-            <select id="a-tipo-doc">
-              <option value="">— seleziona —</option>
-              <option value="Carta d'identità">Carta d'identità</option>
-              <option value="Passaporto">Passaporto</option>
-              <option value="Patente">Patente</option>
-              <option value="Altro">Altro</option>
-            </select>
-          </div>
-        </div>
-        <div class="field"><label>Num. documento</label><input type="text" id="a-num-doc"></div>
-        <div class="field"><label>Rilasciato il</label><input type="date" id="a-data-doc"></div>
-        <div class="field"><label>Rilasciato da</label>
-          <div class="input-group">
-            <input type="text" id="a-rilasciato-da">
-            <button class="btn-v">▾</button>
-          </div>
-        </div>
+      <div class="mg" style="grid-template-columns:1fr 1fr 120px 1fr;margin-bottom:8px">
+        <div class="field"><label>Tipo documento</label>
+          <select id="a-tdoc"><option value="">&#8212; seleziona &#8212;</option>
+            <option>Carta d'identita'</option><option>Passaporto</option><option>Patente</option><option>Altro</option>
+          </select></div>
+        <div class="field"><label>Num. documento</label><input type="text" id="a-numdoc"></div>
+        <div class="field"><label>Rilasciato il</label><input type="date" id="a-datadoc"></div>
+        <div class="field"><label>Rilasciato da</label><input type="text" id="a-rilda"></div>
       </div>
-
-      <!-- Riga 5: Telefono | Cellulare | Fax | Email -->
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px">
-        <div class="field"><label>Telefono</label><input type="text" id="a-telefono"></div>
-        <div class="field"><label>Cellulare</label><input type="text" id="a-cellulare"></div>
+      <div class="mg mg4" style="margin-bottom:8px">
+        <div class="field"><label>Telefono</label><input type="text" id="a-tel"></div>
+        <div class="field"><label>Cellulare</label><input type="text" id="a-cell"></div>
         <div class="field"><label>Fax</label><input type="text" id="a-fax"></div>
         <div class="field"><label>E-mail</label><input type="text" id="a-email"></div>
       </div>
-
-      <!-- Riga 6: Note | Allegati -->
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div class="mg mg2">
         <div class="field"><label>Note</label><input type="text" id="a-note"></div>
         <div class="field"><label>Allegati</label>
-          <div style="border:1px solid var(--border);border-radius:var(--radius);
-                      padding:6px 10px;font-size:11px;color:var(--text3);background:#fafafa">
-            <input type="file" id="a-allegati" multiple
-                   style="font-size:11px;width:100%;cursor:pointer"
-                   onchange="mostraFileSelezionati('a-allegati','a-file-list')">
-            <div id="a-file-list" style="margin-top:4px;font-size:11px;color:var(--text2)"></div>
+          <div class="all-box">
+            <input type="file" id="a-files" multiple style="font-size:11px;width:100%" onchange="prevFile(this,'a-prev')">
+            <div id="a-prev" style="font-size:11px;color:var(--text3);margin-top:4px"></div>
           </div>
-          <div id="a-allegati-list" style="margin-top:6px"></div>
+          <div class="all-list" id="a-all-list"></div>
         </div>
       </div>
-
     </div>
-    <div class="modal-ftr">
-      <button class="btn btn-danger" onclick="closeModal('modal-anagrafica')" style="margin-right:auto">Annulla</button>
-      <button class="btn btn-green" onclick="salvaAnagrafica()">Conferma</button>
+    <div class="mftr">
+      <button class="btn btn-danger" onclick="chiudi('m-ana')">Annulla</button>
+      <button class="btn btn-green" onclick="salvaAna()">Conferma</button>
     </div>
   </div>
 </div>
 
+<!-- MODAL CDP -->
+<div class="overlay hidden" id="m-cdp">
+  <div class="modal" style="max-width:860px">
+    <div class="mhdr"><h3>Cerca CDP</h3><button class="mclose" onclick="chiudi('m-cdp')">x</button></div>
+    <div class="mbody">
+      <div class="cdp-grid">
+        <div class="cdp-col">
+          <div class="cdp-sep">Dati ricerca</div>
+          <div class="field"><label>Data da</label><input type="date" id="cdp-dda"></div>
+          <div class="field"><label>Data a</label><input type="date" id="cdp-da"></div>
+          <div class="field"><label>Marca</label><input type="text" id="cdp-marca"></div>
+          <div class="field"><label>Modello</label><input type="text" id="cdp-modello"></div>
+          <div class="field"><label>Targa</label><input type="text" id="cdp-targa"></div>
+          <div class="field"><label>Proprietario</label><input type="text" id="cdp-prop"></div>
+          <div class="field"><label>Reg. demolitori</label><input type="text" id="cdp-reg"></div>
+        </div>
+        <div class="cdp-col">
+          <div class="cdp-sep">Risultati</div>
+          <div id="cdp-risultati" style="max-height:400px;overflow:auto"></div>
+        </div>
+      </div>
+    </div>
+    <div class="mftr">
+      <button class="btn btn-ghost" onclick="chiudi('m-cdp')">Annulla</button>
+      <button class="btn" style="background:var(--cyan);color:#fff" onclick="cercaCDP()">Cerca</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL SOTTRAI RICAMBI -->
+<div class="overlay hidden" id="m-sottrai">
+  <div class="modal" style="max-width:680px">
+    <div class="mhdr">
+      <div>
+        <h3>Sottrai Ricambi</h3>
+        <p style="font-size:11px;color:var(--text3);margin-top:2px">
+          Effettivo: <b id="sr-eff">&#8212; Kg</b> &nbsp;|&nbsp;
+          Sottratto: <b id="sr-tot" style="color:var(--orange)">0.00 Kg</b> &nbsp;|&nbsp;
+          Netto: <b id="sr-netto" style="color:var(--green)">&#8212; Kg</b>
+        </p>
+      </div>
+      <button class="mclose" onclick="chiudi('m-sottrai')">x</button>
+    </div>
+    <div class="mbody">
+      <div class="sr-form">
+        <div class="field"><label>Pezzo dal magazzino</label>
+          <select id="sr-pezzo"><option value="">&#8212; seleziona pezzo &#8212;</option></select></div>
+        <div class="field"><label>Peso (Kg)</label>
+          <input type="number" id="sr-peso" placeholder="0.00" step="0.01" min="0"></div>
+        <div class="field"><label>Note</label>
+          <input type="text" id="sr-note" placeholder="facoltativo"></div>
+        <button class="btn btn-green" onclick="aggRicambio()" style="height:32px;align-self:flex-end">+ Aggiungi</button>
+      </div>
+      <div style="overflow:auto;max-height:280px">
+        <table class="ric-table">
+          <thead><tr><th>Pezzo</th><th>Peso Kg</th><th>Note</th><th></th></tr></thead>
+          <tbody id="sr-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="mftr"><button class="btn btn-ghost" onclick="chiudi('m-sottrai')">Chiudi</button></div>
+  </div>
+</div>
+
 <script>
-io().on('reload', () => { setTimeout(()=>window.location.reload(),500); });
+io().on('reload', function(){ setTimeout(function(){ window.location.reload(); }, 500); });
 
-// ── STATO ────────────────────────────────────────────────────────────
-var _demolizioni = [];
-var _anagrafiche = [];
-var _veicoli     = [];
-var _componenti  = [];
-var _selId       = null;
-var _anaTarget   = null;
-var _ricambi     = [];
-var _modalita    = 'ricerca';  // 'ricerca' | 'nuova'
-var _filtroTimer = null;
+var _tutti=[], _anagrafiche=[], _veicoli=[], _componenti=[], _ricambi=[];
+var _selId=null, _anaTarget=null, _modalita='ricerca', _ftimer=null;
 
-// ── UTILS ────────────────────────────────────────────────────────────
-async function apiFetch(url, opts={}) {
-  opts.headers = {'Content-Type':'application/json',...(opts.headers||{})};
-  const r = await fetch(url, opts); return r.json();
+function esc(s){ return String(s==null?'':''+s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function apiFetch(url, opts) {
+  opts = opts || {};
+  opts.headers = {'Content-Type':'application/json'};
+  return fetch(url, opts).then(function(r){ return r.json(); });
 }
-function esc(s){ return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-function toast(msg, ok=true) {
+
+function toast(msg, ok) {
   document.querySelectorAll('.toast').forEach(function(e){ e.remove(); });
   var d=document.createElement('div');
-  d.className='toast '+(ok?'toast-ok':'toast-err');
+  d.className='toast '+(ok!==false?'tok':'terr');
   d.textContent=msg; document.body.appendChild(d);
-  setTimeout(function(){ d.remove(); },3500);
+  setTimeout(function(){ d.remove(); }, 3500);
 }
-function fb(msg,ok){
-  ok = ok !== false;
-  var el=document.getElementById('feedback');
-  el.textContent=msg; el.className='feedback '+(ok?'ok':'err');
-  setTimeout(function(){ el.textContent=''; el.className='feedback'; },4000);
+
+function fb(msg, ok) {
+  var el=document.getElementById('fb');
+  el.textContent=msg; el.className='fb '+(ok!==false?'ok':'err');
+  setTimeout(function(){ el.textContent=''; el.className='fb'; }, 4000);
 }
-async function logout(){ await apiFetch('/api/logout',{method:'POST'}); window.location.href='/login'; }
-function closeModal(id){ document.getElementById(id).classList.add('hidden'); }
-function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
+
+function logout(){ apiFetch('/api/logout',{method:'POST'}).then(function(){ window.location.href='/login'; }); }
+function chiudi(id){ document.getElementById(id).classList.add('hidden'); }
+function apri(id){ document.getElementById(id).classList.remove('hidden'); }
+
 document.querySelectorAll('.overlay').forEach(function(o){
-  o.addEventListener('click',function(e){ if(e.target===o) o.classList.add('hidden'); });
+  o.addEventListener('click', function(e){ if(e.target===o) o.classList.add('hidden'); });
 });
 
-// ── MODALITÀ NUOVA / RICERCA ──────────────────────────────────────────
-async function modalitaNuova() {
-  _modalita = 'nuova';
-  _selId    = null;
-  // Carica progressivi dal server
-  var prog = await apiFetch('/api/demolizioni/prossimi-progressivi');
-  document.getElementById('f-id').value  = prog.next_id;
-  document.getElementById('f-data').value= prog.data;
-  document.getElementById('f-ora').value = prog.ora;
-  document.getElementById('f-reg').value = prog.reg_demolitori;
-  document.getElementById('f-pag').value = prog.next_pag;
-  // Pulisci altri campi
-  ['f-veicolo','f-proprietario','f-detentore'].forEach(function(id){
-    document.getElementById(id).value='';
+function popolaVeicoli() {
+  var sv=document.getElementById('f-veicolo'), val=sv.value;
+  sv.innerHTML='<option value="">&#8212; cerca o seleziona &#8212;</option>';
+  _veicoli.forEach(function(v){
+    var o=document.createElement('option'); o.value=v.id;
+    o.textContent=((v.marca||'')+' '+(v.modello||'')+' ('+(v.targa||'&#8212;')+')').trim();
+    sv.appendChild(o);
   });
-  ['f-ufficio','f-concessionaria'].forEach(function(id){
-    document.getElementById(id).value='';
-  });
-  document.getElementById('f-targhe').checked=false;
-  document.getElementById('f-carta').checked=false;
-  // UI
-  document.getElementById('badge-modalita').style.display='block';
-  document.getElementById('btn-modalita-label').style.display='';
-  document.getElementById('btn-inserisci').style.display='';
-  document.getElementById('btn-salva').style.display='none';
-  // Mostra tutte le demolizioni (non filtrare)
-  renderTabella(_demolizioni);
+  if(val) sv.value=val;
 }
 
-function modalitaRicerca() {
-  _modalita = 'ricerca';
-  _selId    = null;
-  document.getElementById('badge-modalita').style.display='none';
-  document.getElementById('btn-modalita-label').style.display='none';
-  document.getElementById('btn-inserisci').style.display='none';
-  document.getElementById('btn-salva').style.display='';
-  // Pulisci campi e torna alla lista completa
-  ['f-id','f-data','f-ora','f-reg','f-pag','f-ufficio','f-concessionaria']
-    .forEach(function(id){ document.getElementById(id).value=''; });
-  ['f-veicolo','f-proprietario','f-detentore']
-    .forEach(function(id){ document.getElementById(id).value=''; });
-  document.getElementById('f-targhe').checked=false;
-  document.getElementById('f-carta').checked=false;
-  renderTabella(_demolizioni);
-}
-
-// ── FILTRO IN TEMPO REALE ─────────────────────────────────────────────
-function filtraTabella() {
-  if(_modalita === 'nuova') return;  // in modalità nuova non filtrare
-  clearTimeout(_filtroTimer);
-  _filtroTimer = setTimeout(function() {
-    var q = [
-      document.getElementById('f-reg').value,
-      document.getElementById('f-pag').value,
-      document.getElementById('f-ufficio').value,
-      document.getElementById('f-concessionaria').value,
-    ].join(' ').trim();
-    // Aggiunge veicolo/prop/det selezionati
-    var vId = document.getElementById('f-veicolo').value;
-    var pId = document.getElementById('f-proprietario').value;
-    var dId = document.getElementById('f-detentore').value;
-    var filtered = _demolizioni.filter(function(d) {
-      if(vId && String(d.veicolo_id) !== vId) return false;
-      if(pId && String(d.proprietario_id) !== pId) return false;
-      if(dId && String(d.detentore_id) !== dId) return false;
-      if(q) {
-        var testo = [d.reg_demolitori,d.pag_reg,d.ufficio_provinciale,
-                     d.concessionaria,d.veicolo_str,d.proprietario_str,d.detentore_str]
-          .join(' ').toLowerCase();
-        return q.toLowerCase().split(' ').every(function(w){ return !w || testo.includes(w); });
-      }
-      return true;
+function popolaAnagrafiche() {
+  ['f-prop','f-det'].forEach(function(id){
+    var sel=document.getElementById(id), val=sel.value;
+    sel.innerHTML='<option value="">&#8212; cerca o seleziona &#8212;</option>';
+    _anagrafiche.forEach(function(a){
+      var o=document.createElement('option'); o.value=a.id; o.textContent=a.nominativo||''; sel.appendChild(o);
     });
-    renderTabella(filtered);
-  }, 300);
+    if(val) sel.value=val;
+  });
 }
 
-// Copia proprietario → detentore
-function copiaProprietario() {
-  var pId = document.getElementById('f-proprietario').value;
-  if(!pId){ toast('Seleziona prima un proprietario',false); return; }
-  document.getElementById('f-detentore').value = pId;
-  toast('Dati proprietario copiati nel detentore');
+function popolaComponenti() {
+  var sp=document.getElementById('sr-pezzo');
+  sp.innerHTML='<option value="">&#8212; seleziona pezzo &#8212;</option>';
+  _componenti.forEach(function(c){
+    var o=document.createElement('option'); o.value=c.componente_id||c.id;
+    o.textContent=(c.cmp||'')+' &#8212; '+(c.articolo||''); sp.appendChild(o);
+  });
 }
 
-// ── CARICA DATI ───────────────────────────────────────────────────────
-async function init() {
-  var results = await Promise.all([
+function init() {
+  Promise.all([
     apiFetch('/api/demolizioni/cerca'),
     apiFetch('/api/anagrafiche'),
     apiFetch('/api/veicoli'),
-  ]);
-  _demolizioni = results[0];
-  _anagrafiche = results[1];
-  _veicoli     = results[2];
-  _componenti  = await apiFetch('/api/magazzino/componenti');
-  popolaSelects();
-  renderTabella(_demolizioni);
+    apiFetch('/api/magazzino/componenti')
+  ]).then(function(res){
+    _tutti=res[0]||[]; _anagrafiche=res[1]||[]; _veicoli=res[2]||[]; _componenti=res[3]||[];
+    popolaVeicoli(); popolaAnagrafiche(); popolaComponenti();
+    renderTabella(_tutti);
+  }).catch(function(e){ console.error('init:',e); });
 }
 
-function popolaSelects() {
-  // Veicoli
-  var sv = document.getElementById('f-veicolo');
-  sv.innerHTML = '<option value="">— seleziona —</option>' +
-    _veicoli.map(function(v){ return '<option value="'+v.id+'">'+esc(v.marca)+' '+esc(v.modello)+' ('+esc(v.targa||'—')+')</option>'; }).join('');
-
-  var opts = '<option value="">— seleziona —</option>' +
-    _anagrafiche.map(function(a){ return '<option value="'+a.id+'">'+esc(a.nominativo)+'</option>'; }).join('');
-  document.getElementById('f-proprietario').innerHTML = opts;
-  document.getElementById('f-detentore').innerHTML    = opts;
-
-  // Pezzi per sottrai ricambi
-  var sp = document.getElementById('sr-pezzo');
-  sp.innerHTML = '<option value="">— seleziona pezzo —</option>' +
-    _componenti.map(function(comp){ return '<option value="'+comp.componente_id+'">'+esc(comp.cmp)+' - '+esc(comp.articolo)+'</option>'; }).join('');
-}
-
-// ── TABELLA ───────────────────────────────────────────────────────────
 function renderTabella(data) {
-  if(data===undefined) data=_demolizioni;
-  var tbody = document.getElementById('tbody');
-  if(!data.length) {
-    tbody.innerHTML = '<tr><td colspan="13" style="text-align:center;padding:40px;color:var(--text3)">Nessuna demolizione</td></tr>';
-    document.getElementById('s-tot').textContent = '0 demolizioni';
+  var tbody=document.getElementById('tbody');
+  document.getElementById('sbar').textContent=data.length+' di '+_tutti.length+' demolizioni';
+  if(!data.length){
+    tbody.innerHTML='<tr><td colspan="12" style="text-align:center;padding:30px;color:var(--text3)">Nessuna demolizione</td></tr>';
     return;
   }
-  tbody.innerHTML = data.map(function(d) {
-    var sel = _selId===d.id ? ' selected':'';
-    return '<tr class="'+sel+'" onclick="selectRow('+d.id+',this)" ondblclick="selectRow('+d.id+',this)">'
+  var html='';
+  data.forEach(function(d){
+    var cls=_selId===d.id?' sel':'';
+    html+='<tr class="'+cls+'" onclick="seleziona('+d.id+',this)">'
       +'<td><span class="id-chip">'+d.id+'</span></td>'
       +'<td>'+esc(d.reg_demolitori||'')+'</td>'
       +'<td>'+esc(d.pag_reg||'')+'</td>'
@@ -884,491 +478,449 @@ function renderTabella(data) {
       +'<td>'+esc(d.veicolo_str||'')+'</td>'
       +'<td>'+esc(d.proprietario_str||'')+'</td>'
       +'<td>'+esc(d.detentore_str||'')+'</td>'
-      +'<td class="num">'+(d.peso_effettivo_kg!=null?d.peso_effettivo_kg+' Kg':'')+'</td>'
-      +'<td class="num">'+(d.peso_netto_kg!=null?d.peso_netto_kg+' Kg':'')+'</td>'
-      +'<td>'+esc(d.num_albatros||'')+'</td>'
+      +'<td style="text-align:center">'+(d.peso_effettivo_kg!=null?d.peso_effettivo_kg+' Kg':'')+'</td>'
+      +'<td style="text-align:center">'+(d.peso_netto_kg!=null?d.peso_netto_kg+' Kg':'')+'</td>'
       +'<td>'+esc(d.modalita_radiazione||'')+'</td>'
-      +'<td style="text-align:center">'+(d.targhe_consegnate?'✅':'')+'</td>'
-      +'<td style="text-align:center">'+(d.carta_circolazione?'✅':'')+'</td>'
+      +'<td style="text-align:center">'+(d.targhe_consegnate?'&#10003;':'')+'</td>'
+      +'<td style="text-align:center">'+(d.carta_circolazione?'&#10003;':'')+'</td>'
       +'</tr>';
-  }).join('');
-  document.getElementById('s-tot').textContent = data.length+' di '+_demolizioni.length+' demolizioni';
+  });
+  tbody.innerHTML=html;
 }
 
-// ── FORM ──────────────────────────────────────────────────────────────
-function selectRow(id, el) {
-  _selId = id;
-  document.querySelectorAll('#tbody tr').forEach(function(r){ r.classList.remove('selected'); });
-  if(el) el.classList.add('selected');
-  var d = _demolizioni.find(function(x){ return x.id===id; });
+function seleziona(id, el) {
+  if(_modalita==='nuova') return;
+  _selId=id;
+  document.querySelectorAll('#tbody tr').forEach(function(r){ r.classList.remove('sel'); });
+  if(el) el.classList.add('sel');
+  var d=null;
+  for(var i=0;i<_tutti.length;i++){ if(_tutti[i].id===id){ d=_tutti[i]; break; } }
   if(!d) return;
-  if(_modalita==='nuova') return;  // in modalità nuova non caricare
-  document.getElementById('f-id').value     = d.id;
-  document.getElementById('f-data').value   = (d.data_presa_in_carico||'').slice(0,10);
-  document.getElementById('f-ora').value    = d.ora_presa_in_carico||'';
-  document.getElementById('f-reg').value    = d.reg_demolitori||'';
-  document.getElementById('f-pag').value    = d.pag_reg||'';
-  document.getElementById('f-veicolo').value      = d.veicolo_id||'';
-  document.getElementById('f-proprietario').value = d.proprietario_id||'';
-  document.getElementById('f-detentore').value    = d.detentore_id||'';
-  document.getElementById('f-ufficio').value      = d.ufficio_provinciale||'';
-  document.getElementById('f-concessionaria').value = d.concessionaria||'';
+  document.getElementById('f-id').value    = d.id;
+  document.getElementById('f-data').value  = (d.data_presa_in_carico||'').slice(0,10);
+  document.getElementById('f-ora').value   = d.ora_presa_in_carico||'';
+  document.getElementById('f-reg').value   = d.reg_demolitori||'';
+  document.getElementById('f-pag').value   = d.pag_reg||'';
+  document.getElementById('f-veicolo').value = d.veicolo_id||'';
+  document.getElementById('f-prop').value    = d.proprietario_id||'';
+  document.getElementById('f-det').value     = d.detentore_id||'';
+  document.getElementById('f-ufficio').value = d.ufficio_provinciale||'';
+  document.getElementById('f-conc').value    = d.concessionaria||'';
   document.getElementById('f-targhe').checked = !!d.targhe_consegnate;
   document.getElementById('f-carta').checked  = !!d.carta_circolazione;
-  document.getElementById('f-peso-eff').value  = d.peso_effettivo_kg!=null ? d.peso_effettivo_kg : '';
-  document.getElementById('f-peso-netto').value= d.peso_netto_kg!=null ? d.peso_netto_kg : '';
-  var fm = document.getElementById('f-modalita'); if(fm) fm.value = d.modalita_radiazione||'';
-  document.getElementById('f-ora').value = d.ora_presa_in_carico||'';
+  document.getElementById('f-peso-eff').value  = d.peso_effettivo_kg!=null?d.peso_effettivo_kg:'';
+  document.getElementById('f-peso-netto').value= d.peso_netto_kg!=null?d.peso_netto_kg:'';
+  document.getElementById('f-modalita').value  = d.modalita_radiazione||'';
 }
 
-function nuovoRecord() {
-  _selId = null;
-  document.querySelectorAll('#tbody tr').forEach(function(r){ r.classList.remove('selected'); });
-  ['f-id','f-data','f-ora','f-reg','f-pag','f-ufficio','f-concessionaria',
-   'f-peso-eff','f-peso-netto'].forEach(function(id){
-    var el=document.getElementById(id); if(el) el.value='';
-  });
-  document.getElementById('f-veicolo').value='';
-  document.getElementById('f-proprietario').value='';
-  document.getElementById('f-detentore').value='';
-  var fm = document.getElementById('f-modalita'); if(fm) fm.value='';
-  document.getElementById('f-targhe').checked=false;
-  document.getElementById('f-carta').checked=false;
-}
-
-async function inserisciDemolizione() {
-  var dati = getFormData();
-  if(!dati.reg_demolitori){ fb('Compila almeno Reg. demolitori',false); return; }
-  var res = await apiFetch('/api/demolizioni',{method:'POST',body:JSON.stringify(dati)});
-  if(res.ok){
-    toast('Demolizione n.'+res.id+' inserita!');
-    _selId = res.id;
-    _demolizioni = await apiFetch('/api/demolizioni/cerca');
-    renderTabella(_demolizioni);
-    modalitaRicerca();
-    // Evidenzia la riga inserita
-    setTimeout(function(){
-      document.querySelectorAll('#tbody tr').forEach(function(r){
-        var chip = r.querySelector('.id-chip');
-        if(chip && chip.textContent.trim()==String(res.id)){
-          r.classList.add('selected');
-          r.scrollIntoView({block:'center'});
-        }
-      });
-    }, 200);
-  } else {
-    fb(res.msg||'Errore durante il salvataggio', false);
-  }
-}
-
-function getFormData() {
+function getForm() {
   return {
     data_presa_in_carico: document.getElementById('f-data').value||null,
     ora_presa_in_carico:  document.getElementById('f-ora').value||null,
     reg_demolitori:       document.getElementById('f-reg').value||null,
     pag_reg:              document.getElementById('f-pag').value||null,
     veicolo_id:           document.getElementById('f-veicolo').value||null,
-    proprietario_id:      document.getElementById('f-proprietario').value||null,
-    detentore_id:         document.getElementById('f-detentore').value||null,
+    proprietario_id:      document.getElementById('f-prop').value||null,
+    detentore_id:         document.getElementById('f-det').value||null,
     ufficio_provinciale:  document.getElementById('f-ufficio').value||null,
-    concessionaria:       document.getElementById('f-concessionaria').value||null,
+    concessionaria:       document.getElementById('f-conc').value||null,
     targhe_consegnate:    document.getElementById('f-targhe').checked?1:0,
     carta_circolazione:   document.getElementById('f-carta').checked?1:0,
     peso_effettivo_kg:    parseFloat(document.getElementById('f-peso-eff').value)||null,
     peso_netto_kg:        parseFloat(document.getElementById('f-peso-netto').value)||null,
-    modalita_radiazione:  document.getElementById('f-modalita').value||null,
-    num_albatros:         null,
+    modalita_radiazione:  document.getElementById('f-modalita').value||null
   };
 }
 
-async function salvaRecord() {
-  const dati = getFormData();
-  let res;
-  if(_selId) {
-    res = await apiFetch('/api/demolizioni/'+_selId,{method:'PUT',body:JSON.stringify(dati)});
-  } else {
-    res = await apiFetch('/api/demolizioni',{method:'POST',body:JSON.stringify(dati)});
-    if(res.ok) { _selId = res.id; document.getElementById('f-id').value = res.id; }
-  }
-  fb(res.msg, res.ok);
-  if(res.ok) { _demolizioni = await apiFetch('/api/demolizioni/cerca'); renderTabella(_demolizioni); }
+function svuotaForm() {
+  ['f-id','f-data','f-ora','f-reg','f-pag','f-ufficio','f-conc','f-peso-eff','f-peso-netto']
+    .forEach(function(id){ var el=document.getElementById(id); if(el) el.value=''; });
+  ['f-veicolo','f-prop','f-det','f-modalita'].forEach(function(id){ document.getElementById(id).value=''; });
+  document.getElementById('f-targhe').checked=false;
+  document.getElementById('f-carta').checked=false;
 }
 
-async function eliminaRecord() {
+function modalitaNuova() {
+  _modalita='nuova'; _selId=null; svuotaForm();
+  apiFetch('/api/demolizioni/prossimi-progressivi').then(function(p){
+    document.getElementById('f-id').value  = p.next_id||1;
+    document.getElementById('f-data').value= p.data||'';
+    document.getElementById('f-ora').value = p.ora||'';
+    document.getElementById('f-reg').value = p.reg_demolitori||'';
+    document.getElementById('f-pag').value = p.next_pag||1;
+  });
+  document.getElementById('badge-nuova').style.display='inline-block';
+  document.getElementById('btn-ricerca').style.display='';
+  document.getElementById('btn-inserisci').style.display='';
+  document.getElementById('btn-salva').style.display='none';
+  renderTabella(_tutti);
+}
+
+function modalitaRicerca() {
+  _modalita='ricerca'; _selId=null; svuotaForm();
+  document.getElementById('badge-nuova').style.display='none';
+  document.getElementById('btn-ricerca').style.display='none';
+  document.getElementById('btn-inserisci').style.display='none';
+  document.getElementById('btn-salva').style.display='';
+  renderTabella(_tutti);
+}
+
+function filtra() {
+  if(_modalita==='nuova') return;
+  clearTimeout(_ftimer);
+  _ftimer=setTimeout(function(){
+    var qv=document.getElementById('f-veicolo').value;
+    var qp=document.getElementById('f-prop').value;
+    var qd=document.getElementById('f-det').value;
+    var qr=document.getElementById('f-reg').value.toLowerCase();
+    var qpg=document.getElementById('f-pag').value;
+    var qu=document.getElementById('f-ufficio').value.toLowerCase();
+    var qc=document.getElementById('f-conc').value.toLowerCase();
+    var filtered=_tutti.filter(function(d){
+      if(qv  && String(d.veicolo_id)!==qv) return false;
+      if(qp  && String(d.proprietario_id)!==qp) return false;
+      if(qd  && String(d.detentore_id)!==qd) return false;
+      if(qr  && !(d.reg_demolitori||'').toLowerCase().includes(qr)) return false;
+      if(qpg && !(d.pag_reg||'').includes(qpg)) return false;
+      if(qu  && !(d.ufficio_provinciale||'').toLowerCase().includes(qu)) return false;
+      if(qc  && !(d.concessionaria||'').toLowerCase().includes(qc)) return false;
+      return true;
+    });
+    renderTabella(filtered);
+  }, 300);
+}
+
+function ricaricaDemolizioni() {
+  return apiFetch('/api/demolizioni/cerca').then(function(rows){ _tutti=rows||[]; renderTabella(_tutti); });
+}
+
+function inserisci() {
+  var d=getForm();
+  apiFetch('/api/demolizioni',{method:'POST',body:JSON.stringify(d)}).then(function(res){
+    if(res.ok){
+      _selId=res.id;
+      toast('Demolizione n.'+res.id+' inserita!');
+      ricaricaDemolizioni().then(function(){
+        modalitaRicerca();
+        setTimeout(function(){
+          document.querySelectorAll('#tbody tr').forEach(function(r){
+            var chip=r.querySelector('.id-chip');
+            if(chip && chip.textContent.trim()===String(res.id)){
+              r.classList.add('sel'); r.scrollIntoView({block:'center'});
+            }
+          });
+        }, 100);
+      });
+    } else fb(res.msg||'Errore', false);
+  }).catch(function(e){ fb('Errore: '+e, false); });
+}
+
+function salva() {
+  if(!_selId){ fb('Seleziona una demolizione',false); return; }
+  apiFetch('/api/demolizioni/'+_selId,{method:'PUT',body:JSON.stringify(getForm())}).then(function(res){
+    fb(res.ok?'Salvata':(res.msg||'Errore'), res.ok);
+    if(res.ok) ricaricaDemolizioni();
+  });
+}
+
+function elimina() {
   if(!_selId){ fb('Seleziona una demolizione',false); return; }
   if(!confirm('Eliminare questa demolizione?')) return;
-  const res = await apiFetch('/api/demolizioni/'+_selId,{method:'DELETE'});
-  fb(res.ok?'Eliminata':'Errore',res.ok);
-  if(res.ok){ _selId=null; nuovoRecord(); _demolizioni=await apiFetch('/api/demolizioni/cerca'); renderTabella(_demolizioni); }
+  apiFetch('/api/demolizioni/'+_selId,{method:'DELETE'}).then(function(res){
+    if(res.ok){ _selId=null; svuotaForm(); ricaricaDemolizioni(); fb('Eliminata'); }
+    else fb(res.msg||'Errore',false);
+  });
 }
 
-function aggiornaPesoNetto() {
-  const eff = parseFloat(document.getElementById('f-peso-eff').value)||0;
-  var sottratto = _ricambi.reduce(function(s,r){ return s+(parseFloat(r.peso_kg)||0); },0);
-  const netto = Math.max(0, eff - sottratto);
-  document.getElementById('f-peso-netto').value = netto.toFixed(2);
+function aggNetto() {
+  var eff=parseFloat(document.getElementById('f-peso-eff').value)||0;
+  var sot=_ricambi.reduce(function(s,r){ return s+(parseFloat(r.peso_kg)||0); },0);
+  document.getElementById('f-peso-netto').value=Math.max(0,eff-sot).toFixed(2);
 }
 
-// ── NUOVO VEICOLO ─────────────────────────────────────────────────────
-function openModalNuovoVeicolo() {
-  ['v-id','v-marca','v-modello','v-targa','v-telaio','v-motore','v-anno','v-note']
-    .forEach(function(id){ var el=document.getElementById(id); if(el) el.value=''; });
+function copiaProp() {
+  var pId=document.getElementById('f-prop').value;
+  if(!pId){ toast('Seleziona prima un proprietario',false); return; }
+  document.getElementById('f-det').value=pId; toast('Copiato nel detentore');
+}
+
+function prevFile(input, divId) {
+  var div=document.getElementById(divId);
+  var files=Array.from(input.files);
+  if(!files.length){ div.innerHTML=''; return; }
+  div.innerHTML=files.map(function(f){ return '&#128206; '+f.name+' ('+(f.size/1024).toFixed(1)+' KB)'; }).join('<br>');
+}
+
+function caricaAllegati(tipo, id, listId) {
+  var list=document.getElementById(listId);
+  if(!list || !id) return;
+  fetch('/api/'+tipo+'/'+id+'/allegati')
+    .then(function(r){ return r.json(); })
+    .then(function(files){
+      if(!files||!files.length){ list.innerHTML=''; return; }
+      list.innerHTML=files.map(function(f){
+        return '<div class="all-item"><a href="'+f.url+'" target="_blank">&#128206; '+esc(f.nome)+'</a><span class="all-size">'+(f.size/1024).toFixed(1)+' KB</span></div>';
+      }).join('');
+    }).catch(function(){ list.innerHTML=''; });
+}
+
+function salvaAllegatiFetch(tipo, id, inputId) {
+  var input=document.getElementById(inputId);
+  if(!input||!input.files.length) return Promise.resolve();
+  var fd=new FormData();
+  Array.from(input.files).forEach(function(f){ fd.append('files',f); });
+  return fetch('/api/'+tipo+'/'+id+'/allegati',{method:'POST',body:fd}).then(function(){ input.value=''; });
+}
+
+function apreVeicolo() {
+  var vid=document.getElementById('f-veicolo').value;
+  ['v-id','v-targa','v-telaio','v-marca','v-modello','v-anno','v-motore','v-note']
+    .forEach(function(id){ document.getElementById(id).value=''; });
   document.getElementById('v-classe').value='';
-  openModal('modal-veicolo');
-}
-function openModalVeicolo() { openModal('modal-veicolo'); }
-
-async function salvaVeicolo() {
-  var dati = {
-    targa:                document.getElementById('v-targa').value,
-    telaio:               document.getElementById('v-telaio').value,
-    classe:               document.getElementById('v-classe').value,
-    marca:                document.getElementById('v-marca').value,
-    modello:              document.getElementById('v-modello').value,
-    anno_immatricolazione:document.getElementById('v-anno').value,
-    num_motore:           document.getElementById('v-motore').value,
-    note:                 document.getElementById('v-note').value,
-  };
-  if(!dati.targa && !dati.telaio){ toast('Inserisci almeno Targa o Telaio',false); return; }
-  var res = await apiFetch('/api/veicoli',{method:'POST',body:JSON.stringify(dati)});
-  if(res.ok){
-    _veicoli = await apiFetch('/api/veicoli');
-    // Ricostruisci solo il select veicoli senza toccare proprietario/detentore
-    var sv = document.getElementById('f-veicolo');
-    var prevProp = document.getElementById('f-proprietario').value;
-    var prevDet  = document.getElementById('f-detentore').value;
-    sv.innerHTML = '<option value="">— cerca per targa o seleziona —</option>' +
-      _veicoli.map(function(v){
-        return '<option value="'+v.id+'">'+esc(v.marca||'')+' '+esc(v.modello||'')+' ('+esc(v.targa||'—')+')</option>';
-      }).join('');
-    sv.value = res.id;  // seleziona il veicolo appena inserito
-    // Ripristina proprietario e detentore
-    document.getElementById('f-proprietario').value = prevProp;
-    document.getElementById('f-detentore').value    = prevDet;
-    if(res.id) {
-      await salvaAllegati('veicoli', res.id, 'v-allegati', 'v-allegati-list');
-    }
-    closeModal('modal-veicolo');
-    toast(res.msg || 'Veicolo salvato');
-  } else toast(res.msg,false);
-}
-
-// ── NUOVA ANAGRAFICA ──────────────────────────────────────────────────
-async function openModalNuovaAnagrafica(target) {
-  _anaTarget = target;
-  const titolo = target==='proprietario' ? '👤 Proprietario' : '👤 Detentore';
-  document.getElementById('ana-title').textContent = titolo;
-
-  // Controlla se c'è già un'anagrafica selezionata per questo campo
-  var selId = document.getElementById('f-'+target).value;
-
-  if(selId) {
-    // Carica dati completi dal server
-    document.getElementById('a-id').value = selId;
-    var resp = await apiFetch('/api/anagrafiche/'+selId);
-    if(resp.ok && resp.data) {
-      var a = resp.data;
-      document.getElementById('a-cognome').value       = a.cognome||a.nominativo||'';
-      document.getElementById('a-nome').value          = a.nome||'';
-      document.getElementById('a-cfpiva').value        = a.cf_piva||'';
-      document.getElementById('a-sesso').value         = a.sesso||'';
-      document.getElementById('a-tipo-societa').value  = a.tipo_societa||'';
-      document.getElementById('a-data-nascita').value  = a.data_nascita||'';
-      document.getElementById('a-luogo-nascita').value = a.luogo_nascita||'';
-      document.getElementById('a-prov-nascita').value  = a.prov_nascita||'';
-      document.getElementById('a-comune').value        = a.comune||'';
-      document.getElementById('a-provincia').value     = a.provincia||'';
-      document.getElementById('a-via').value           = a.via||'';
-      document.getElementById('a-civico').value        = a.civico||'';
-      document.getElementById('a-cap').value           = a.cap||'';
-      document.getElementById('a-tipo-doc').value      = a.tipo_doc||'';
-      document.getElementById('a-num-doc').value       = a.num_doc||'';
-      document.getElementById('a-data-doc').value      = a.data_doc||'';
-      document.getElementById('a-rilasciato-da').value = a.rilasciato_da||'';
-      document.getElementById('a-telefono').value      = a.telefono||'';
-      document.getElementById('a-cellulare').value     = a.cellulare||'';
-      document.getElementById('a-fax').value           = a.fax||'';
-      document.getElementById('a-email').value         = a.email||'';
-      document.getElementById('a-note').value          = a.note||'';
-      // Carica allegati
-      caricaAllegati('anagrafiche', selId, 'a-allegati-list');
-    }
-  } else {
-    // Nuovo: svuota tutto
-    document.getElementById('a-id').value = '';
-    ['a-cognome','a-nome','a-cfpiva','a-luogo-nascita','a-prov-nascita',
-     'a-comune','a-provincia','a-via','a-civico','a-cap','a-num-doc',
-     'a-rilasciato-da','a-telefono','a-cellulare','a-fax','a-email','a-note']
-      .forEach(function(id){ const el=document.getElementById(id); if(el) el.value=''; });
-    ['a-sesso','a-tipo-societa','a-tipo-doc'].forEach(function(id){
-      const el=document.getElementById(id); if(el) el.value='';
-    });
-    ['a-data-nascita','a-data-doc'].forEach(function(id){
-      const el=document.getElementById(id); if(el) el.value='';
+  document.getElementById('v-all-list').innerHTML='';
+  document.getElementById('v-prev').innerHTML='';
+  if(vid) {
+    apiFetch('/api/veicoli/'+vid).then(function(res){
+      if(res.ok&&res.data) {
+        var v=res.data;
+        document.getElementById('v-id').value    =v.id||'';
+        document.getElementById('v-targa').value  =v.targa||'';
+        document.getElementById('v-telaio').value =v.telaio||'';
+        document.getElementById('v-classe').value =v.classe||'';
+        document.getElementById('v-marca').value  =v.marca||'';
+        document.getElementById('v-modello').value=v.modello||'';
+        document.getElementById('v-anno').value   =v.anno_immatricolazione||'';
+        document.getElementById('v-motore').value =v.num_motore||'';
+        document.getElementById('v-note').value   =v.note||'';
+        caricaAllegati('veicoli', vid, 'v-all-list');
+      }
     });
   }
-  openModal('modal-anagrafica');
+  apri('m-veicolo');
 }
 
-async function salvaAnagrafica() {
-  const cognome = document.getElementById('a-cognome').value.trim();
-  const nome    = document.getElementById('a-nome').value.trim();
-  const nominativo = cognome + (nome ? ' '+nome : '');
-  const dati = {
-    nominativo: nominativo,
-    cf_piva:    document.getElementById('a-cfpiva').value,
-    tipo:       document.getElementById('a-sesso').value || 'privato',
-    telefono:   document.getElementById('a-telefono').value,
-    email:      document.getElementById('a-email').value,
-    indirizzo:  (document.getElementById('a-via').value||'') + ' ' +
-                (document.getElementById('a-civico').value||'') + ', ' +
-                (document.getElementById('a-comune').value||'') + ' ' +
-                (document.getElementById('a-cap').value||'') + ' ' +
-                (document.getElementById('a-provincia').value||''),
-  };
-  if(!cognome){ toast('Inserisci almeno il Cognome/Denominazione',false); return; }
-  // Aggiungi tutti i campi extra
-  dati.cognome       = document.getElementById('a-cognome').value||null;
-  dati.nome          = document.getElementById('a-nome').value||null;
-  dati.sesso         = document.getElementById('a-sesso').value||null;
-  dati.data_nascita  = document.getElementById('a-data-nascita').value||null;
-  dati.luogo_nascita = document.getElementById('a-luogo-nascita').value||null;
-  dati.prov_nascita  = document.getElementById('a-prov-nascita').value||null;
-  dati.comune        = document.getElementById('a-comune').value||null;
-  dati.provincia     = document.getElementById('a-provincia').value||null;
-  dati.via           = document.getElementById('a-via').value||null;
-  dati.civico        = document.getElementById('a-civico').value||null;
-  dati.cap           = document.getElementById('a-cap').value||null;
-  dati.tipo_doc      = document.getElementById('a-tipo-doc').value||null;
-  dati.num_doc       = document.getElementById('a-num-doc').value||null;
-  dati.data_doc      = document.getElementById('a-data-doc').value||null;
-  dati.rilasciato_da = document.getElementById('a-rilasciato-da').value||null;
-  dati.cellulare     = document.getElementById('a-cellulare').value||null;
-  dati.fax           = document.getElementById('a-fax').value||null;
-  // Se ha già un ID, aggiorna invece di inserire
-  var anaId = document.getElementById('a-id').value;
-  var res;
-  if(anaId) {
-    res = await apiFetch('/api/anagrafiche/'+anaId, {method:'PUT', body:JSON.stringify(dati)});
-    res.id = parseInt(anaId);
-  } else {
-    res = await apiFetch('/api/anagrafiche',{method:'POST',body:JSON.stringify(dati)});
+function salvaVeicolo() {
+  var dati={targa:document.getElementById('v-targa').value||null,telaio:document.getElementById('v-telaio').value||null,
+    classe:document.getElementById('v-classe').value||null,marca:document.getElementById('v-marca').value||null,
+    modello:document.getElementById('v-modello').value||null,
+    anno_immatricolazione:document.getElementById('v-anno').value||null,
+    num_motore:document.getElementById('v-motore').value||null,note:document.getElementById('v-note').value||null};
+  var vid=document.getElementById('v-id').value;
+  var promise=vid
+    ? apiFetch('/api/veicoli/'+vid,{method:'PUT',body:JSON.stringify(dati)}).then(function(r){ r.id=parseInt(vid); return r; })
+    : apiFetch('/api/veicoli',{method:'POST',body:JSON.stringify(dati)});
+  promise.then(function(res){
+    if(!res.ok){ toast(res.msg||'Errore',false); return; }
+    var newVid=res.id;
+    salvaAllegatiFetch('veicoli', newVid, 'v-files').then(function(){
+      return apiFetch('/api/veicoli').then(function(vei){
+        _veicoli=vei||[];
+        var pp=document.getElementById('f-prop').value, pd=document.getElementById('f-det').value;
+        popolaVeicoli();
+        document.getElementById('f-veicolo').value=newVid;
+        document.getElementById('f-prop').value=pp;
+        document.getElementById('f-det').value=pd;
+        chiudi('m-veicolo');
+        toast(vid?'Veicolo aggiornato':'Veicolo salvato');
+      });
+    });
+  });
+}
+
+function apreAna(target) {
+  _anaTarget=target;
+  document.getElementById('ana-titolo').textContent=target==='prop'?'Proprietario':'Detentore';
+  var aid=document.getElementById(target==='prop'?'f-prop':'f-det').value;
+  ['a-id','a-cognome','a-nome','a-cf','a-luogo','a-provnascita',
+   'a-comune','a-prov','a-via','a-civico','a-cap',
+   'a-numdoc','a-rilda','a-tel','a-cell','a-fax','a-email','a-note']
+    .forEach(function(id){ document.getElementById(id).value=''; });
+  ['a-sesso','a-tsoc','a-tdoc'].forEach(function(id){ document.getElementById(id).value=''; });
+  ['a-datanascita','a-datadoc'].forEach(function(id){ document.getElementById(id).value=''; });
+  document.getElementById('a-all-list').innerHTML='';
+  document.getElementById('a-prev').innerHTML='';
+  if(aid) {
+    apiFetch('/api/anagrafiche/'+aid).then(function(res){
+      if(res.ok&&res.data) {
+        var a=res.data;
+        document.getElementById('a-id').value         =a.id||'';
+        document.getElementById('a-cognome').value     =a.cognome||(a.nominativo||'').split(' ')[0]||'';
+        document.getElementById('a-nome').value        =a.nome||(a.nominativo||'').split(' ').slice(1).join(' ')||'';
+        document.getElementById('a-cf').value          =a.cf_piva||'';
+        document.getElementById('a-sesso').value       =a.sesso||'';
+        document.getElementById('a-tsoc').value        =a.tipo_societa||'';
+        document.getElementById('a-datanascita').value =a.data_nascita||'';
+        document.getElementById('a-luogo').value       =a.luogo_nascita||'';
+        document.getElementById('a-provnascita').value =a.prov_nascita||'';
+        document.getElementById('a-comune').value      =a.comune||'';
+        document.getElementById('a-prov').value        =a.provincia||'';
+        document.getElementById('a-via').value         =a.via||'';
+        document.getElementById('a-civico').value      =a.civico||'';
+        document.getElementById('a-cap').value         =a.cap||'';
+        document.getElementById('a-tdoc').value        =a.tipo_doc||'';
+        document.getElementById('a-numdoc').value      =a.num_doc||'';
+        document.getElementById('a-datadoc').value     =a.data_doc||'';
+        document.getElementById('a-rilda').value       =a.rilasciato_da||'';
+        document.getElementById('a-tel').value         =a.telefono||'';
+        document.getElementById('a-cell').value        =a.cellulare||'';
+        document.getElementById('a-fax').value         =a.fax||'';
+        document.getElementById('a-email').value       =a.email||'';
+        document.getElementById('a-note').value        =a.note||'';
+        caricaAllegati('anagrafiche', aid, 'a-all-list');
+      }
+    });
   }
-  if(res.ok){
-    _anagrafiche = await apiFetch('/api/anagrafiche');
-    // Salva selezioni correnti
-    var prevVeicolo = document.getElementById('f-veicolo').value;
-    var prevProp    = document.getElementById('f-proprietario').value;
-    var prevDet     = document.getElementById('f-detentore').value;
-    // Aggiorna solo i select anagrafiche
-    var optsHtml = '<option value="">— cerca o seleziona —</option>' +
-      _anagrafiche.map(function(a){
-        return '<option value="'+a.id+'">'+esc(a.nominativo)+'</option>';
-      }).join('');
-    document.getElementById('f-proprietario').innerHTML = optsHtml;
-    document.getElementById('f-detentore').innerHTML    = optsHtml;
-    // Ripristina selezioni: il campo target prende il nuovo id, gli altri mantengono
-    document.getElementById('f-veicolo').value      = prevVeicolo;
-    document.getElementById('f-proprietario').value = _anaTarget==='proprietario' ? String(res.id) : prevProp;
-    document.getElementById('f-detentore').value    = _anaTarget==='detentore'    ? String(res.id) : prevDet;
-    // Salva allegati se presenti
-    if(res.id) {
-      await salvaAllegati('anagrafiche', res.id, 'a-allegati', 'a-allegati-list');
-    }
-    closeModal('modal-anagrafica');
-    toast(res.msg || 'Anagrafica salvata');
-  } else toast(res.msg,false);
+  apri('m-ana');
 }
 
-// ── CERCA CDP ─────────────────────────────────────────────────────────
-function openCDP() { openModal('modal-cdp'); }
-
-async function cercaCDP() {
-  const filtri = {
-    data_da:     document.getElementById('cdp-data-da').value,
-    data_a:      document.getElementById('cdp-data-a').value,
-    classe:      document.getElementById('cdp-classe').value,
-    marca:       document.getElementById('cdp-marca').value,
-    modello:     document.getElementById('cdp-modello').value,
-    targa:       document.getElementById('cdp-targa').value,
-    telaio:      document.getElementById('cdp-telaio').value,
-    proprietario:document.getElementById('cdp-proprietario').value,
-    detentore:   document.getElementById('cdp-detentore').value,
-    reg:         document.getElementById('cdp-reg').value,
-    pag_da:      document.getElementById('cdp-pag-da').value,
-    pag_a:       document.getElementById('cdp-pag-a').value,
+function salvaAna() {
+  var cognome=document.getElementById('a-cognome').value.trim();
+  if(!cognome){ toast('Inserisci almeno Cognome/Denominazione',false); return; }
+  var nome=document.getElementById('a-nome').value.trim();
+  var dati={
+    nominativo:cognome+(nome?' '+nome:''),cognome:cognome,nome:nome||null,
+    cf_piva:document.getElementById('a-cf').value||null,
+    sesso:document.getElementById('a-sesso').value||null,
+    tipo_societa:document.getElementById('a-tsoc').value||null,
+    data_nascita:document.getElementById('a-datanascita').value||null,
+    luogo_nascita:document.getElementById('a-luogo').value||null,
+    prov_nascita:document.getElementById('a-provnascita').value||null,
+    comune:document.getElementById('a-comune').value||null,
+    provincia:document.getElementById('a-prov').value||null,
+    via:document.getElementById('a-via').value||null,
+    civico:document.getElementById('a-civico').value||null,
+    cap:document.getElementById('a-cap').value||null,
+    tipo_doc:document.getElementById('a-tdoc').value||null,
+    num_doc:document.getElementById('a-numdoc').value||null,
+    data_doc:document.getElementById('a-datadoc').value||null,
+    rilasciato_da:document.getElementById('a-rilda').value||null,
+    telefono:document.getElementById('a-tel').value||null,
+    cellulare:document.getElementById('a-cell').value||null,
+    fax:document.getElementById('a-fax').value||null,
+    email:document.getElementById('a-email').value||null,
+    note:document.getElementById('a-note').value||null,
+    tipo:'privato'
   };
+  var aid=document.getElementById('a-id').value;
+  var promise=aid
+    ? apiFetch('/api/anagrafiche/'+aid,{method:'PUT',body:JSON.stringify(dati)}).then(function(r){ r.id=parseInt(aid); return r; })
+    : apiFetch('/api/anagrafiche',{method:'POST',body:JSON.stringify(dati)});
+  promise.then(function(res){
+    if(!res.ok){ toast(res.msg||'Errore',false); return; }
+    var newId=res.id;
+    salvaAllegatiFetch('anagrafiche', newId, 'a-files').then(function(){
+      return apiFetch('/api/anagrafiche').then(function(ana){
+        _anagrafiche=ana||[];
+        var prevV=document.getElementById('f-veicolo').value;
+        var prevP=document.getElementById('f-prop').value;
+        var prevD=document.getElementById('f-det').value;
+        popolaAnagrafiche();
+        document.getElementById('f-veicolo').value=prevV;
+        document.getElementById('f-prop').value=_anaTarget==='prop'?String(newId):prevP;
+        document.getElementById('f-det').value=_anaTarget==='det'?String(newId):prevD;
+        chiudi('m-ana');
+        toast(aid?'Anagrafica aggiornata':'Anagrafica salvata');
+      });
+    });
+  });
+}
 
-  // Filtra demolizioni localmente
-  var risultati = _demolizioni.filter(function(d) {
-    if(filtri.marca && !d.veicolo_str?.toLowerCase().includes(filtri.marca.toLowerCase())) return false;
-    if(filtri.modello && !d.veicolo_str?.toLowerCase().includes(filtri.modello.toLowerCase())) return false;
-    if(filtri.proprietario && !d.proprietario_str?.toLowerCase().includes(filtri.proprietario.toLowerCase())) return false;
-    if(filtri.detentore && !d.detentore_str?.toLowerCase().includes(filtri.detentore.toLowerCase())) return false;
-    if(filtri.reg && !d.reg_demolitori?.toLowerCase().includes(filtri.reg.toLowerCase())) return false;
-    if(filtri.data_da && (d.data_presa_in_carico||'') < filtri.data_da) return false;
-    if(filtri.data_a  && (d.data_presa_in_carico||'') > filtri.data_a)  return false;
+function apreCDP(){ apri('m-cdp'); document.getElementById('cdp-risultati').innerHTML=''; }
+
+function cercaCDP() {
+  var marca=document.getElementById('cdp-marca').value.toLowerCase();
+  var modello=document.getElementById('cdp-modello').value.toLowerCase();
+  var targa=document.getElementById('cdp-targa').value.toLowerCase();
+  var prop=document.getElementById('cdp-prop').value.toLowerCase();
+  var reg=document.getElementById('cdp-reg').value.toLowerCase();
+  var dda=document.getElementById('cdp-dda').value;
+  var da=document.getElementById('cdp-da').value;
+  var ris=_tutti.filter(function(d){
+    if(marca&&!(d.veicolo_str||'').toLowerCase().includes(marca)) return false;
+    if(modello&&!(d.veicolo_str||'').toLowerCase().includes(modello)) return false;
+    if(targa&&!(d.veicolo_str||'').toLowerCase().includes(targa)) return false;
+    if(prop&&!(d.proprietario_str||'').toLowerCase().includes(prop)) return false;
+    if(reg&&!(d.reg_demolitori||'').toLowerCase().includes(reg)) return false;
+    if(dda&&(d.data_presa_in_carico||'')< dda) return false;
+    if(da &&(d.data_presa_in_carico||'')> da)  return false;
     return true;
   });
-
-  const div = document.getElementById('cdp-risultati');
-  const lista = document.getElementById('cdp-lista');
-  div.style.display = 'block';
-
-  if(!risultati.length) {
-    lista.innerHTML = '<p style="color:var(--text3);text-align:center;padding:20px">Nessun risultato trovato</p>';
-    return;
-  }
-
-  lista.innerHTML = '';
-  risultati.forEach(function(d) {
-    var el = document.createElement('div');
-    el.style.cssText = 'border:1px solid #dde1e8;border-radius:8px;padding:12px 16px;margin-bottom:8px;cursor:pointer';
-    el.onmouseover = function(){ this.style.background='#f7f8fa'; };
-    el.onmouseout  = function(){ this.style.background=''; };
-    el.onclick = function(){ selezionaCDP(d.id); };
-    el.innerHTML = '<div style="display:flex;justify-content:space-between">'
-      + '<strong>' + esc(d.veicolo_str||'') + '</strong>'
-      + '<span style="font-size:11px;color:#9ca3af">' + esc((d.data_presa_in_carico||'').slice(0,10)) + '</span>'
-      + '</div>'
-      + '<div style="font-size:11px;color:#4b5563;margin-top:4px">'
-      + 'Proprietario: ' + esc(d.proprietario_str||'') + ' &nbsp;|&nbsp; '
-      + 'Reg: ' + esc(d.reg_demolitori||'') + ' p.' + esc(d.pag_reg||'') + ' &nbsp;|&nbsp; '
-      + 'Albatros: ' + esc(d.num_albatros||'') + '</div>';
-    lista.appendChild(el);
+  var div=document.getElementById('cdp-risultati');
+  if(!ris.length){ div.innerHTML='<p style="color:var(--text3);padding:16px;text-align:center">Nessun risultato</p>'; return; }
+  var cont=document.createElement('div');
+  ris.forEach(function(d){
+    var el=document.createElement('div');
+    el.className='cdp-result';
+    el.innerHTML='<div style="display:flex;justify-content:space-between"><strong>'+esc(d.veicolo_str||'&#8212;')+'</strong>'
+      +'<span style="font-size:11px;color:var(--text3)">'+esc((d.data_presa_in_carico||'').slice(0,10))+'</span></div>'
+      +'<div style="font-size:11px;color:var(--text2);margin-top:3px">Prop: '+esc(d.proprietario_str||'&#8212;')+' | Reg: '+esc(d.reg_demolitori||'&#8212;')+' p.'+esc(d.pag_reg||'')+'</div>';
+    el.onclick=function(){ selCDP(d.id); };
+    cont.appendChild(el);
   });
+  div.innerHTML='<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:6px">Risultati ('+ris.length+')</div>';
+  div.appendChild(cont);
 }
 
-function selezionaCDP(id) {
-  // Porta il record selezionato nel form principale
-  const rows = document.querySelectorAll('#tbody tr');
-  rows.forEach(function(r){ if(parseInt(r.children[0] && r.children[0].textContent)===id) r.click(); });
-  closeModal('modal-cdp');
+function selCDP(id) {
+  chiudi('m-cdp');
+  var d=null;
+  for(var i=0;i<_tutti.length;i++){ if(_tutti[i].id===id){ d=_tutti[i]; break; } }
+  if(d) seleziona(d.id, null);
   toast('Demolizione n.'+id+' caricata');
 }
 
-// ── SOTTRAI RICAMBI ───────────────────────────────────────────────────
-async function openSottrai() {
-  // Se non ancora salvato, salva automaticamente
-  if(!_selId) {
-    const res = await apiFetch('/api/demolizioni',{method:'POST',body:JSON.stringify(getFormData())});
-    if(!res.ok){ fb(res.msg,false); return; }
-    _selId = res.id;
-    document.getElementById('f-id').value = res.id;
-    _demolizioni = await apiFetch('/api/demolizioni');
-    renderTabella();
-    toast('Demolizione salvata automaticamente');
-  } else {
-    // Aggiorna peso effettivo sul server prima di aprire
-    await apiFetch('/api/demolizioni/'+_selId,{method:'PUT',
-      body:JSON.stringify({peso_effettivo_kg:parseFloat(document.getElementById('f-peso-eff').value)||null})});
-  }
-  _ricambi = await apiFetch('/api/demolizioni/'+_selId+'/ricambi');
-  var pesoEff = parseFloat(document.getElementById('f-peso-eff').value)||0;
-  document.getElementById('sr-peso-eff-show').textContent = pesoEff.toFixed(2)+' Kg';
-  renderRicambi();
-  openModal('modal-sottrai');
+function apreSottrai() {
+  if(!_selId){ fb('Seleziona prima una demolizione',false); return; }
+  var pesoEff=parseFloat(document.getElementById('f-peso-eff').value)||0;
+  document.getElementById('sr-eff').textContent=pesoEff.toFixed(2)+' Kg';
+  apiFetch('/api/demolizioni/'+_selId+'/ricambi').then(function(rows){
+    _ricambi=rows||[]; renderRicambi(); apri('m-sottrai');
+  });
 }
 
 function renderRicambi() {
-  const tbody = document.getElementById('sr-tbody');
-  var tot = _ricambi.reduce(function(s,r){ return s+(parseFloat(r.peso_kg)||0); },0);
-  const pesoEff = parseFloat(document.getElementById('f-peso-eff').value)||0;
-  const netto = Math.max(0, pesoEff - tot);
-
-  document.getElementById('sr-tot-sottratto').textContent = tot.toFixed(2)+' Kg';
-  document.getElementById('sr-peso-netto-show').textContent = netto.toFixed(2)+' Kg';
-  document.getElementById('f-peso-netto').value = netto.toFixed(2);
-
-  if(!_ricambi.length) {
-    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:24px;color:var(--text3)">Nessun ricambio aggiunto</td></tr>';
+  var tot=_ricambi.reduce(function(s,r){ return s+(parseFloat(r.peso_kg)||0); },0);
+  var eff=parseFloat(document.getElementById('f-peso-eff').value)||0;
+  var netto=Math.max(0,eff-tot);
+  document.getElementById('sr-tot').textContent=tot.toFixed(2)+' Kg';
+  document.getElementById('sr-netto').textContent=netto.toFixed(2)+' Kg';
+  document.getElementById('f-peso-netto').value=netto.toFixed(2);
+  var tbody=document.getElementById('sr-tbody');
+  if(!_ricambi.length){
+    tbody.innerHTML='<tr><td colspan="4" style="text-align:center;padding:16px;color:var(--text3)">Nessun ricambio</td></tr>';
     return;
   }
-  tbody.innerHTML = _ricambi.map(function(r) {
-    return '<tr>'
-      +'<td>'+esc(r.pezzo_nome||String(r.componente_id||'—'))+'</td>'
-      +'<td class="num">'+((r.peso_kg||0).toFixed(2))+' Kg</td>'
+  tbody.innerHTML=_ricambi.map(function(r){
+    return '<tr><td>'+esc(r.pezzo_nome||String(r.componente_id||'&#8212;'))+'</td>'
+      +'<td style="font-family:var(--mono)">'+(r.peso_kg||0).toFixed(2)+' Kg</td>'
       +'<td>'+esc(r.note||'')+'</td>'
-      +'<td><button class="btn-del-r" onclick="rimuoviRicambio('+r.id+')">−</button></td>'
+      +'<td><button class="btn-del" onclick="delRic('+r.id+')">&#8722;</button></td>'
       +'</tr>';
   }).join('');
 }
 
-async function aggiungiRicambio() {
-  if(!_selId){ toast('Salva prima la demolizione',false); return; }
-  const cid  = document.getElementById('sr-pezzo').value;
-  const peso = parseFloat(document.getElementById('sr-peso').value);
-  const note = document.getElementById('sr-note').value;
+function aggRicambio() {
+  var cid=document.getElementById('sr-pezzo').value;
+  var peso=parseFloat(document.getElementById('sr-peso').value);
+  var note=document.getElementById('sr-note').value;
   if(!peso||peso<=0){ toast('Inserisci un peso valido',false); return; }
-  const res = await apiFetch('/api/demolizioni/'+_selId+'/ricambi',{
-    method:'POST', body:JSON.stringify({componente_id:cid||null, peso_kg:peso, note})
+  apiFetch('/api/demolizioni/'+_selId+'/ricambi',{method:'POST',body:JSON.stringify({componente_id:cid||null,peso_kg:peso,note:note})})
+    .then(function(res){
+      if(res.ok){
+        document.getElementById('sr-peso').value='';
+        document.getElementById('sr-note').value='';
+        document.getElementById('sr-pezzo').value='';
+        return apiFetch('/api/demolizioni/'+_selId+'/ricambi').then(function(rows){ _ricambi=rows||[]; renderRicambi(); });
+      } else toast(res.msg||'Errore',false);
+    });
+}
+
+function delRic(rid) {
+  apiFetch('/api/demolizioni/ricambi/'+rid,{method:'DELETE'}).then(function(res){
+    if(res.ok) apiFetch('/api/demolizioni/'+_selId+'/ricambi').then(function(rows){ _ricambi=rows||[]; renderRicambi(); });
   });
-  if(res.ok){
-    _ricambi = await apiFetch('/api/demolizioni/'+_selId+'/ricambi');
-    document.getElementById('sr-peso').value='';
-    document.getElementById('sr-note').value='';
-    document.getElementById('sr-pezzo').value='';
-    renderRicambi();
-    // Aggiorna anche il campo peso netto nel form principale
-    const netto = Math.max(0,(parseFloat(document.getElementById('f-peso-eff').value)||0)
-      - _ricambi.reduce(function(s,r){ return s+(parseFloat(r.peso_kg)||0); },0));
-    document.getElementById('f-peso-netto').value = netto.toFixed(2);
-  } else toast(res.msg,false);
 }
 
-async function rimuoviRicambio(rid) {
-  var res = await apiFetch('/api/demolizioni/ricambi/'+rid,{method:'DELETE'});
-  if(res.ok){
-    _ricambi = await apiFetch('/api/demolizioni/'+_selId+'/ricambi');
-    renderRicambi();
-    const netto = Math.max(0,(parseFloat(document.getElementById('f-peso-eff').value)||0)
-      - _ricambi.reduce(function(s,r){ return s+(parseFloat(r.peso_kg)||0); },0));
-    document.getElementById('f-peso-netto').value = netto.toFixed(2);
-  }
-}
-
-// ── ALLEGATI ─────────────────────────────────────────────────────────
-async function caricaAllegati(tipo, id, containerId) {
-  var cont = document.getElementById(containerId);
-  if(!cont) return;
-  try {
-    var files = await apiFetch('/api/'+tipo+'/'+id+'/allegati');
-    if(!files || !files.length) { cont.innerHTML=''; return; }
-    cont.innerHTML = '<div style="margin-top:6px;font-size:11px;font-weight:600;color:var(--text2)">📁 Allegati salvati:</div>'
-      + files.map(function(f){
-        var kb = (f.size/1024).toFixed(1);
-        return '<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid #f3f4f6">'
-          + '<a href="'+f.url+'" target="_blank" style="color:var(--blue);font-size:11px;flex:1">📎 '+f.nome+'</a>'
-          + '<span style="font-size:10px;color:var(--text3)">'+kb+' KB</span>'
-          + '</div>';
-      }).join('');
-  } catch(e) { cont.innerHTML=''; }
-}
-
-async function salvaAllegati(tipo, id, inputId, listContainerId) {
-  var input = document.getElementById(inputId);
-  if(!input || !input.files.length) return;
-  var fd = new FormData();
-  Array.from(input.files).forEach(function(f){ fd.append('files', f); });
-  await fetch('/api/'+tipo+'/'+id+'/allegati', {method:'POST', body:fd});
-  await caricaAllegati(tipo, id, listContainerId);
-  input.value='';
-  document.getElementById(listContainerId.replace('-list','-list')).innerHTML='';
-}
-
-function mostraFileSelezionati(inputId, listId) {
-  var input = document.getElementById(inputId);
-  var list  = document.getElementById(listId);
-  if(!input || !list) return;
-  var files = Array.from(input.files);
-  if(!files.length) { list.innerHTML=''; return; }
-  list.innerHTML = files.map(function(f){
-    var kb = (f.size/1024).toFixed(1);
-    return '<div style="padding:2px 0">📎 '+f.name+' <span style="color:var(--text3)">('+kb+' KB)</span></div>';
-  }).join('');
-}
-
-// ── INIT ─────────────────────────────────────────────────────────────
 init();
 </script>
 </body>

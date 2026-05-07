@@ -1568,11 +1568,40 @@ def serve_upload(filename):
 @require_login
 def api_veicoli():
     try:
-        rows = db.fetchall("SELECT id, targa, telaio, classe, marca, modello, anno_immatricolazione, num_motore, colore, note FROM veicoli ORDER BY id DESC")
+        rows = db.fetchall("SELECT * FROM veicoli ORDER BY id DESC")
         return jsonify([dict(r) for r in rows])
     except Exception as e:
         log.error(f"api_veicoli GET error: {e}")
         return jsonify([])
+
+@app.route("/api/veicoli/<int:vid>", methods=["GET"])
+@require_login
+def api_veicolo_get(vid):
+    row = db.fetchone("SELECT * FROM veicoli WHERE id=?", (vid,))
+    if not row: return jsonify({"ok": False}), 404
+    return jsonify({"ok": True, "data": row})
+
+@app.route("/api/veicoli/<int:vid>", methods=["PUT"])
+@require_login
+def api_veicolo_update(vid):
+    d = request.json or {}
+    try:
+        with db._write_lock:
+            conn = db.get_connection()
+            try:
+                db_cols = [r[1] for r in conn.execute("PRAGMA table_info(veicoli)").fetchall()]
+                campi = [f for f in ["targa","telaio","classe","marca","modello",
+                         "anno_immatricolazione","num_motore","colore","note"] 
+                         if f in db_cols and f in d]
+                if campi:
+                    conn.execute("UPDATE veicoli SET "+",".join(f+"=?" for f in campi)+" WHERE id=?",
+                                 [d[f] for f in campi]+[vid])
+                conn.commit()
+            finally:
+                conn.close()
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "msg": str(e)}), 500
 
 @app.route("/api/veicoli", methods=["POST"])
 @require_login
