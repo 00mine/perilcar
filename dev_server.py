@@ -1374,6 +1374,11 @@ Rispondi basandoti ESCLUSIVAMENTE sui dati sopra."""
 def page_demolizioni():
     return render_template("demolizioni.html", user=cu())
 
+@app.route("/demolisci")
+@require_login
+def page_demolisci():
+    return render_template("demolisci.html", user=cu())
+
 # ── ANAGRAFICHE ───────────────────────────────────────────────────────────────
 
 @app.route("/api/anagrafiche", methods=["GET"])

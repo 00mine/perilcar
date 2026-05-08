@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Scheda Demolizione — PerilCar</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f7f8fa;--surface:#fff;--border:#dde1e8;
+  --orange:#e94c00;--purple:#7c3aed;--green:#16a34a;--red:#dc2626;--blue:#3a5bd9;
+  --text:#111827;--text2:#4b5563;--text3:#9ca3af;
+  --radius:8px;--font:'DM Sans',system-ui,sans-serif;--mono:'DM Mono',monospace;
+  --shadow:0 1px 4px rgba(0,0,0,.08),0 4px 16px rgba(0,0,0,.06);
+}
+body{font-family:var(--font);background:var(--bg);color:var(--text);font-size:13px;min-height:100vh}
+.topbar{height:50px;background:#fff;border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 20px;gap:12px;box-shadow:0 1px 3px rgba(0,0,0,.06);position:sticky;top:0;z-index:100}
+.topbar-logo{font-weight:700;font-size:17px}.topbar-logo span{color:var(--orange)}
+.topbar-right{margin-left:auto;display:flex;gap:8px}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:var(--radius);font-size:12px;font-weight:600;cursor:pointer;border:none;font-family:var(--font);white-space:nowrap}
+.btn-ghost{background:#fff;color:var(--text2);border:1px solid var(--border)}
+.btn-ghost:hover{background:var(--bg)}
+.btn-purple{background:var(--purple);color:#fff}
+.btn-purple:hover{opacity:.9}
+.btn-green{background:var(--green);color:#fff}
+.btn-red{background:var(--red);color:#fff}
+
+.page{max-width:1100px;margin:0 auto;padding:24px 16px}
+
+/* BANNER */
+.banner{background:#fff;border:1px solid var(--border);border-radius:14px;padding:20px 24px;margin-bottom:24px;box-shadow:var(--shadow)}
+.banner-title{font-size:11px;font-weight:700;color:var(--purple);text-transform:uppercase;letter-spacing:.8px;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.banner-grid{display:grid;grid-template-columns:200px 1fr 1fr 1fr;gap:16px;align-items:end}
+.b-field{display:flex;flex-direction:column;gap:4px}
+.b-field label{font-size:10.5px;font-weight:600;color:var(--text2)}
+.b-val{font-family:var(--mono);font-size:22px;font-weight:700;color:var(--text)}
+.b-val.orange{color:var(--orange)}
+.b-val.green{color:var(--green)}
+.b-val.purple{color:var(--purple)}
+.b-unit{font-size:11px;color:var(--text3);font-weight:400}
+input[type=date]{font-family:var(--font);font-size:13px;border:1px solid var(--border);border-radius:var(--radius);padding:6px 10px;color:var(--text);outline:none;width:100%}
+input[type=date]:focus{border-color:var(--blue)}
+
+/* AUTO SELEZIONATE */
+.auto-strip{background:#fff7f4;border:1px solid #ffd0b5;border-radius:10px;padding:12px 16px;margin-bottom:20px;font-size:11px;color:var(--orange);font-weight:600}
+.auto-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.auto-chip{background:#fff;border:1px solid #ffd0b5;border-radius:20px;padding:2px 10px;font-size:11px;color:var(--text2)}
+
+/* TABELLA MATERIALI */
+.card{background:#fff;border:1px solid var(--border);border-radius:14px;overflow:hidden;box-shadow:var(--shadow)}
+.card-hdr{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--border);background:var(--bg)}
+.card-hdr h3{font-size:14px;font-weight:700}
+table{width:100%;border-collapse:collapse}
+thead th{background:var(--bg);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text2);padding:10px 12px;text-align:left;border-bottom:1px solid var(--border)}
+tbody tr{border-bottom:1px solid #f3f4f6}
+tbody tr:last-child{border-bottom:none}
+tbody td{padding:7px 8px;font-size:12px;vertical-align:middle}
+tbody tr:hover{background:#fafafa}
+tbody tr.locked{background:#fafafa}
+tbody tr.locked td input{background:var(--bg);color:var(--text2)}
+
+td input[type=text],td input[type=number]{
+  width:100%;padding:5px 8px;border:1px solid transparent;border-radius:6px;
+  font-family:var(--font);font-size:12px;color:var(--text);background:transparent;outline:none}
+td input[type=text]:focus,td input[type=number]:focus{border-color:var(--blue);background:#fff}
+td input[readonly]{color:var(--text3);cursor:default}
+.n-chip{display:inline-block;width:24px;height:24px;border-radius:50%;background:var(--purple);color:#fff;font-size:11px;font-weight:700;text-align:center;line-height:24px;flex-shrink:0}
+.perc-wrap{position:relative;display:flex;align-items:center}
+.perc-wrap input{width:70px;text-align:center;font-family:var(--mono);font-size:12px}
+.perc-wrap span{position:absolute;right:8px;font-size:11px;color:var(--text3)}
+td.ta-right{text-align:right;font-family:var(--mono)}
+td.ta-center{text-align:center}
+
+.btn-row-act{width:26px;height:26px;border-radius:6px;border:none;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center}
+.btn-edit{background:#eff6ff;color:var(--blue)}
+.btn-lock{background:#f0fdf4;color:var(--green)}
+.btn-del-row{background:#fee2e2;color:var(--red)}
+.btn-edit:hover{background:var(--blue);color:#fff}
+.btn-lock:hover{background:var(--green);color:#fff}
+.btn-del-row:hover{background:var(--red);color:#fff}
+
+.footer-row{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:14px 18px;border-top:1px solid var(--border);background:var(--bg)}
+.toast{position:fixed;bottom:20px;right:20px;z-index:9999;padding:10px 18px;border-radius:10px;font-size:13px;font-weight:600;box-shadow:0 4px 20px rgba(0,0,0,.15)}
+.tok{background:#fff;color:var(--green);border:1px solid #bbf7d0}
+.terr{background:#fff;color:var(--red);border:1px solid #fca5a5}
+
+@media print {
+  .topbar,.footer-row,.btn,.btn-row-act{display:none!important}
+  body{background:#fff}
+  .page{padding:8px}
+  .banner,.card{box-shadow:none;border:1px solid #ccc}
+}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <span class="topbar-logo">Peril<span>Car</span></span>
+  <span style="font-size:12px;color:var(--text3)">&#8250;</span>
+  <a href="/demolizioni" style="font-size:13px;font-weight:600;color:var(--text2);text-decoration:none">Demolizioni</a>
+  <span style="font-size:12px;color:var(--text3)">&#8250;</span>
+  <span style="font-size:13px;font-weight:700;color:var(--purple)">Scheda Demolizione</span>
+  <div class="topbar-right">
+    <button class="btn btn-ghost" onclick="window.print()">&#128438; Stampa</button>
+    <button class="btn btn-ghost" onclick="window.location.href='/demolizioni'">&#8592; Torna</button>
+  </div>
+</header>
+
+<div class="page">
+
+  <!-- BANNER -->
+  <div class="banner">
+    <div class="banner-title">&#9881; Scheda di Demolizione</div>
+    <div class="banner-grid">
+      <div class="b-field">
+        <label>Data demolizione</label>
+        <input type="date" id="b-data">
+      </div>
+      <div class="b-field">
+        <label>Peso Effettivo Totale</label>
+        <div class="b-val orange" id="b-eff">0,00 <span class="b-unit">Kg</span></div>
+      </div>
+      <div class="b-field">
+        <label>Peso Ricambi Sottratti</label>
+        <div class="b-val green" id="b-ric">0,00 <span class="b-unit">Kg</span></div>
+      </div>
+      <div class="b-field">
+        <label>Peso Netto da Smaltire</label>
+        <div class="b-val purple" id="b-netto">0,00 <span class="b-unit">Kg</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- AUTO -->
+  <div class="auto-strip" id="auto-strip" style="display:none">
+    <div>&#128663; Veicoli demoliti: <span id="n-auto">0</span></div>
+    <div class="auto-chips" id="auto-chips"></div>
+  </div>
+
+  <!-- TABELLA MATERIALI -->
+  <div class="card">
+    <div class="card-hdr">
+      <h3>&#128203; Elenco Materiali da Smaltire</h3>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-ghost" onclick="aggiungiRiga()">+ Aggiungi riga</button>
+        <button class="btn btn-purple" onclick="salvaScheda()">&#128190; Salva scheda</button>
+      </div>
+    </div>
+    <table>
+      <thead><tr>
+        <th style="width:36px"></th>
+        <th style="width:100px">Codice</th>
+        <th>Descrizione</th>
+        <th style="width:110px;text-align:center">Percentuale (%)</th>
+        <th style="width:130px;text-align:right">Q.tà Calcolata (Kg)</th>
+        <th style="width:130px;text-align:right">Q.tà da Smaltire (Kg)</th>
+        <th style="width:90px;text-align:center">Azioni</th>
+      </tr></thead>
+      <tbody id="mat-tbody"></tbody>
+    </table>
+    <div class="footer-row">
+      <span style="font-size:12px;color:var(--text2)">Totale Q.tà da smaltire:</span>
+      <span style="font-family:var(--mono);font-size:16px;font-weight:700;color:var(--purple)" id="tot-smaltire">0,00 Kg</span>
+    </div>
+  </div>
+</div>
+
+<script>
+var _payload = null;
+var _righe = [];
+var _nextId = 1;
+
+function fmt(n) { return parseFloat(n||0).toFixed(2).replace('.',','); }
+
+function toast(msg, ok) {
+  document.querySelectorAll('.toast').forEach(function(e){ e.remove(); });
+  var d=document.createElement('div');
+  d.className='toast '+(ok!==false?'tok':'terr');
+  d.textContent=msg; document.body.appendChild(d);
+  setTimeout(function(){ d.remove(); }, 3000);
+}
+
+function init() {
+  // Leggi payload da sessionStorage
+  var raw = sessionStorage.getItem('demolisci_payload');
+  if(!raw) { document.body.innerHTML='<div style="padding:40px;text-align:center;color:#9ca3af">Nessuna demolizione selezionata. <a href="/demolizioni">Torna</a></div>'; return; }
+  _payload = JSON.parse(raw);
+
+  // Data odierna
+  document.getElementById('b-data').value = _payload.data;
+
+  // Banner pesi
+  document.getElementById('b-eff').innerHTML   = fmt(_payload.pesoEffTot)   + ' <span class="b-unit">Kg</span>';
+  document.getElementById('b-ric').innerHTML   = fmt(_payload.ricambiTot)   + ' <span class="b-unit">Kg</span>';
+  document.getElementById('b-netto').innerHTML = fmt(_payload.pesoNettoTot) + ' <span class="b-unit">Kg</span>';
+
+  // Auto chips
+  var chips = document.getElementById('auto-chips');
+  var nAuto = 0;
+  _payload.demolizioni.forEach(function(d){
+    if(d.veicolo_str) {
+      var chip = document.createElement('span');
+      chip.className = 'auto-chip';
+      chip.textContent = d.veicolo_str + ' (Reg.' + (d.reg_demolitori||'') + ' p.' + (d.pag_reg||'') + ')';
+      chips.appendChild(chip);
+      nAuto++;
+    }
+  });
+  document.getElementById('n-auto').textContent = nAuto || _payload.demolizioni.length;
+  document.getElementById('auto-strip').style.display = '';
+
+  // Carica righe salvate o crea 16 vuote
+  var saved = sessionStorage.getItem('demolisci_righe');
+  if(saved) {
+    _righe = JSON.parse(saved);
+    _nextId = _righe.reduce(function(m,r){ return Math.max(m,r.id); },0)+1;
+  } else {
+    for(var i=0;i<16;i++) aggiungiRiga(true);
+  }
+  renderTabella();
+}
+
+function aggiungiRiga(silent) {
+  _righe.push({id:_nextId++, codice:'', descrizione:'', percentuale:'', qtaSmaltire:'', locked:false});
+  if(!silent) renderTabella();
+}
+
+function renderTabella() {
+  var tbody = document.getElementById('mat-tbody');
+  tbody.innerHTML = '';
+  _righe.forEach(function(r, idx) {
+    var tr = document.createElement('tr');
+    tr.className = r.locked ? 'locked' : '';
+    tr.id = 'tr-'+r.id;
+
+    var pesoNetto = parseFloat((_payload && _payload.pesoNettoTot)||0);
+    var perc = parseFloat(r.percentuale)||0;
+    var qtaCalc = perc>0 ? (pesoNetto * perc / 100) : 0;
+
+    var ro = r.locked ? ' readonly' : '';
+    var roSmaltire = (r.locked && r.qtaSmaltire!=='') ? ' readonly' : '';
+
+    tr.innerHTML =
+      '<td class="ta-center"><span class="n-chip">'+(idx+1)+'</span></td>'
+      +'<td><input type="text" value="'+esc(r.codice)+'" placeholder="Cod."'+ro
+        +' onchange="aggiornaCampo('+r.id+',\'codice\',this.value)"></td>'
+      +'<td><input type="text" value="'+esc(r.descrizione)+'" placeholder="Descrizione materiale"'+ro
+        +' onchange="aggiornaCampo('+r.id+',\'descrizione\',this.value)"></td>'
+      +'<td class="ta-center"><div class="perc-wrap">'
+        +'<input type="number" value="'+(r.percentuale||'')+'" placeholder="0" step="0.01" min="0" max="100"'
+        +' oninput="aggiornaCampo('+r.id+',\'percentuale\',this.value); ricalcola('+r.id+')">'
+        +'<span>%</span></div></td>'
+      +'<td class="ta-right" id="calc-'+r.id+'" style="font-family:var(--mono);color:var(--text2)">'
+        +(qtaCalc>0 ? fmt(qtaCalc) : '&mdash;')+'</td>'
+      +'<td><input type="number" value="'+(r.qtaSmaltire||'')+'" placeholder="0.00" step="0.01" min="0"'
+        +' oninput="aggiornaCampo('+r.id+',\'qtaSmaltire\',this.value); aggiornaTotale()"></td>'
+      +'<td class="ta-center"><div style="display:flex;gap:4px;justify-content:center">'
+        +(r.locked
+          ? '<button class="btn-row-act btn-edit" onclick="sblocca('+r.id+')" title="Modifica">&#9998;</button>'
+          : '<button class="btn-row-act btn-lock" onclick="blocca('+r.id+')" title="Conferma">&#10003;</button>')
+        +'<button class="btn-row-act btn-del-row" onclick="eliminaRiga('+r.id+')" title="Elimina">&#215;</button>'
+      +'</div></td>';
+
+    tbody.appendChild(tr);
+  });
+  aggiornaTotale();
+}
+
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function aggiornaCampo(id, campo, val) {
+  for(var i=0;i<_righe.length;i++){
+    if(_righe[i].id===id){ _righe[i][campo]=val; break; }
+  }
+}
+
+function ricalcola(id) {
+  var pesoNetto = parseFloat((_payload && _payload.pesoNettoTot)||0);
+  for(var i=0;i<_righe.length;i++){
+    if(_righe[i].id===id){
+      var perc = parseFloat(_righe[i].percentuale)||0;
+      var qtaCalc = perc>0 ? (pesoNetto * perc / 100) : 0;
+      var el = document.getElementById('calc-'+id);
+      if(el) el.textContent = qtaCalc>0 ? fmt(qtaCalc) : '\u2014';
+      break;
+    }
+  }
+}
+
+function aggiornaTotale() {
+  var tot = 0;
+  _righe.forEach(function(r){ tot += parseFloat(r.qtaSmaltire)||0; });
+  document.getElementById('tot-smaltire').textContent = fmt(tot) + ' Kg';
+}
+
+function blocca(id) {
+  // Leggi i valori attuali prima di bloccare
+  var tr = document.getElementById('tr-'+id);
+  if(tr) {
+    var inputs = tr.querySelectorAll('input');
+    for(var i=0;i<_righe.length;i++){
+      if(_righe[i].id===id){
+        // Prende i valori dai campi visibili
+        _righe[i].codice      = inputs[0] ? inputs[0].value : _righe[i].codice;
+        _righe[i].descrizione = inputs[1] ? inputs[1].value : _righe[i].descrizione;
+        _righe[i].percentuale = inputs[2] ? inputs[2].value : _righe[i].percentuale;
+        _righe[i].qtaSmaltire = inputs[3] ? inputs[3].value : _righe[i].qtaSmaltire;
+        _righe[i].locked = true;
+        break;
+      }
+    }
+  }
+  renderTabella();
+}
+
+function sblocca(id) {
+  for(var i=0;i<_righe.length;i++){
+    if(_righe[i].id===id){ _righe[i].locked=false; break; }
+  }
+  renderTabella();
+}
+
+function eliminaRiga(id) {
+  _righe = _righe.filter(function(r){ return r.id!==id; });
+  renderTabella();
+}
+
+function salvaScheda() {
+  sessionStorage.setItem('demolisci_righe', JSON.stringify(_righe));
+  toast('Scheda salvata');
+}
+
+init();
+</script>
+</body>
+</html>

@@ -204,17 +204,22 @@ thead th .f-inp-range span{font-size:10px;color:var(--text3);align-self:center;f
     <button class="btn btn-green" id="btn-inserisci" onclick="inserisci()" style="display:none">Inserisci demolizione</button>
     <button class="btn btn-ghost" id="btn-salva" onclick="salva()">Aggiorna</button>
     <button class="btn btn-danger" onclick="elimina()">Elimina</button>
+    <div style="width:1px;height:24px;background:var(--border);margin:0 4px"></div>
+    <button class="btn" style="background:#7c3aed;color:#fff;font-size:13px" onclick="apriDemolisci()">&#9881; DEMOLISCI</button>
+    <span style="font-size:11px;color:var(--text3)" id="sel-count"></span>
     <span class="fb" id="fb"></span>
   </div>
   <div class="table-wrap">
     <table>
       <thead>
   <tr>
+    <th style="width:32px"><input type="checkbox" id="chk-all" onchange="selTutte(this.checked)" title="Seleziona/deseleziona tutte"></th>
     <th>ID</th><th>Reg.</th><th>Pag.</th><th>Data</th>
     <th>Veicolo</th><th>Proprietario</th><th>Detentore</th>
     <th>Peso eff.</th><th>Peso netto</th><th>Modalita'</th><th>Targhe</th><th>Carta</th>
   </tr>
   <tr id="tr-filtri" style="background:var(--surface)">
+    <th></th>
     <th><input class="f-inp" id="tf-id" placeholder="ID" oninput="filtraTabella()"></th>
     <th><input class="f-inp" id="tf-reg" placeholder="es. 01/2026" oninput="filtraTabella()"></th>
     <th>
@@ -405,6 +410,7 @@ thead th .f-inp-range span{font-size:10px;color:var(--text3);align-self:center;f
 io().on('reload', function(){ setTimeout(function(){ window.location.reload(); }, 500); });
 
 var _tutti=[], _anagrafiche=[], _veicoli=[], _ricambi=[];
+var _selezionate={};  // {id: demolizione_obj}
 var _selId=null, _anaTarget=null, _modalita='ricerca', _ftimer=null;
 
 function esc(s){ return String(s==null?'':''+s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
@@ -527,13 +533,16 @@ function renderTabella(data) {
   var tbody=document.getElementById('tbody');
   document.getElementById('sbar').textContent=data.length+' di '+_tutti.length+' demolizioni';
   if(!data.length){
-    tbody.innerHTML='<tr><td colspan="12" style="text-align:center;padding:30px;color:var(--text3)">Nessuna demolizione</td></tr>';
+    tbody.innerHTML='<tr><td colspan="13" style="text-align:center;padding:30px;color:var(--text3)">Nessuna demolizione</td></tr>';
+    aggiornaContatore();
     return;
   }
   var html='';
   data.forEach(function(d){
     var cls=_selId===d.id?' sel':'';
+    var chk=_selezionate[d.id]?'checked':'';
     html+='<tr class="'+cls+'" onclick="seleziona('+d.id+',this)">'
+      +'<td onclick="event.stopPropagation()"><input type="checkbox" class="chk-row" data-id="'+d.id+'" '+chk+' onchange="toggleSel('+d.id+',this.checked)"></td>'
       +'<td><span class="id-chip">'+d.id+'</span></td>'
       +'<td>'+esc(d.reg_demolitori||'')+'</td>'
       +'<td>'+esc(d.pag_reg||'')+'</td>'
@@ -549,6 +558,7 @@ function renderTabella(data) {
       +'</tr>';
   });
   tbody.innerHTML=html;
+  aggiornaContatore();
 }
 
 function seleziona(id, el) {
@@ -651,6 +661,71 @@ function filtra() {
     });
     renderTabella(filtered);
   }, 300);
+}
+
+function toggleSel(id, checked) {
+  if(checked) {
+    var d=null;
+    for(var i=0;i<_tutti.length;i++){ if(_tutti[i].id===id){ d=_tutti[i]; break; } }
+    if(d) _selezionate[id]=d;
+  } else {
+    delete _selezionate[id];
+  }
+  aggiornaContatore();
+}
+
+function selTutte(checked) {
+  // Seleziona/deseleziona solo quelle visibili
+  document.querySelectorAll('.chk-row').forEach(function(cb){
+    var id=parseInt(cb.dataset.id);
+    cb.checked=checked;
+    if(checked) {
+      var d=null;
+      for(var i=0;i<_tutti.length;i++){ if(_tutti[i].id===id){ d=_tutti[i]; break; } }
+      if(d) _selezionate[id]=d;
+    } else {
+      delete _selezionate[id];
+    }
+  });
+  aggiornaContatore();
+}
+
+function aggiornaContatore() {
+  var n=Object.keys(_selezionate).length;
+  var el=document.getElementById('sel-count');
+  if(el) el.textContent = n>0 ? n+' selezionate' : '';
+  // Sincronizza chk-all
+  var rows=document.querySelectorAll('.chk-row');
+  var chkAll=document.getElementById('chk-all');
+  if(chkAll && rows.length>0) {
+    var checked=document.querySelectorAll('.chk-row:checked').length;
+    chkAll.checked=(checked===rows.length && rows.length>0);
+    chkAll.indeterminate=(checked>0 && checked<rows.length);
+  }
+}
+
+function apriDemolisci() {
+  var ids=Object.keys(_selezionate);
+  if(!ids.length){ fb('Nessuna demolizione selezionata - usa i filtri e seleziona con le checkbox',false); return; }
+  // Calcola totali
+  var pesoEffTot=0, pesoNettoTot=0, ricambiTot=0;
+  ids.forEach(function(id){
+    var d=_selezionate[id];
+    pesoEffTot  += parseFloat(d.peso_effettivo_kg)||0;
+    pesoNettoTot+= parseFloat(d.peso_netto_kg)||0;
+  });
+  ricambiTot = pesoEffTot - pesoNettoTot;
+  // Salva in localStorage per la pagina demolisci
+  var payload={
+    ids: ids.map(function(id){ return parseInt(id); }),
+    demolizioni: ids.map(function(id){ return _selezionate[id]; }),
+    pesoEffTot: pesoEffTot.toFixed(2),
+    pesoNettoTot: pesoNettoTot.toFixed(2),
+    ricambiTot: ricambiTot.toFixed(2),
+    data: new Date().toISOString().slice(0,10)
+  };
+  sessionStorage.setItem('demolisci_payload', JSON.stringify(payload));
+  window.location.href='/demolisci';
 }
 
 function ricaricaDemolizioni() {
