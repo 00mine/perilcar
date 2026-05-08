@@ -82,7 +82,8 @@ class _DemDB:
             carta_circolazione INTEGER DEFAULT 0, concessionaria TEXT,
             peso_effettivo_kg REAL, peso_netto_kg REAL, modalita_radiazione TEXT,
             num_albatros TEXT, certificato_id TEXT, note TEXT,
-            creato_da INTEGER, creato_il TEXT DEFAULT (datetime('now'))
+            creato_da INTEGER, primo_trattamento INTEGER DEFAULT 0,
+            creato_il TEXT DEFAULT (datetime('now'))
         );
         CREATE TABLE IF NOT EXISTS ricambi_sottratti (
             id INTEGER PRIMARY KEY AUTOINCREMENT, demolizione_id INTEGER NOT NULL,
@@ -1528,7 +1529,7 @@ def _dem_query(q="", params=()):
                d.reg_demolitori, d.pag_reg, d.veicolo_id, d.proprietario_id, d.detentore_id,
                d.ufficio_provinciale, d.targhe_consegnate, d.carta_circolazione,
                d.concessionaria, d.peso_effettivo_kg, d.peso_netto_kg,
-               d.modalita_radiazione, d.num_albatros, d.note,
+               d.modalita_radiazione, d.num_albatros, d.note, d.primo_trattamento,
                COALESCE(v.marca||' '||v.modello||' ('||v.targa||')','') AS veicolo_str,
                COALESCE(p.nominativo,'') AS proprietario_str,
                COALESCE(det.nominativo,'') AS detentore_str
@@ -1580,7 +1581,7 @@ def api_demolizioni_update(did):
     campi = ["data_presa_in_carico","ora_presa_in_carico","reg_demolitori","pag_reg",
              "veicolo_id","proprietario_id","detentore_id","ufficio_provinciale",
              "targhe_consegnate","carta_circolazione","concessionaria",
-             "peso_effettivo_kg","peso_netto_kg","modalita_radiazione","note"]
+             "peso_effettivo_kg","peso_netto_kg","modalita_radiazione","note","primo_trattamento"]
     cols = [f for f in campi if f in d]
     if cols:
         dem.run("UPDATE demolizioni SET "+",".join(f+"=?" for f in cols)+" WHERE id=?",

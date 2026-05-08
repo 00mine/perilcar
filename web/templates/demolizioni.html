@@ -217,6 +217,7 @@ thead th .f-inp-range span{font-size:10px;color:var(--text3);align-self:center;f
     <th>ID</th><th>Reg.</th><th>Pag.</th><th>Data</th>
     <th>Veicolo</th><th>Proprietario</th><th>Detentore</th>
     <th>Peso eff.</th><th>Peso netto</th><th>Modalita'</th><th>Targhe</th><th>Carta</th>
+    <th style="white-space:nowrap">1° Trattamento</th>
   </tr>
   <tr id="tr-filtri" style="background:var(--surface)">
     <th></th>
@@ -241,7 +242,7 @@ thead th .f-inp-range span{font-size:10px;color:var(--text3);align-self:center;f
     <th><input class="f-inp" id="tf-det" placeholder="nome..." oninput="filtraTabella()"></th>
     <th></th><th></th>
     <th><input class="f-inp" id="tf-modalita" placeholder="..." oninput="filtraTabella()"></th>
-    <th></th><th></th>
+    <th></th><th></th><th></th>
   </tr>
 </thead>
       <tbody id="tbody"></tbody>
@@ -555,6 +556,13 @@ function renderTabella(data) {
       +'<td>'+esc(d.modalita_radiazione||'')+'</td>'
       +'<td style="text-align:center">'+(d.targhe_consegnate?'&#10003;':'')+'</td>'
       +'<td style="text-align:center">'+(d.carta_circolazione?'&#10003;':'')+'</td>'
+      +'<td style="text-align:center">'
+      +'<button onclick="toggleTrattamento('+d.id+',this,event)" '
+      +'style="border:none;cursor:pointer;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700;'
+      +(d.primo_trattamento
+        ? 'background:#fef3c7;color:#d97706;border:1px solid #fcd34d" title="Cliccato - 1° trattamento segnato">1° TRATT.'
+        : 'background:var(--surface);color:var(--text3);border:1px solid var(--border)" title="Clicca per segnare 1° trattamento">&#9711;')
+      +'</button></td>'
       +'</tr>';
   });
   tbody.innerHTML=html;
@@ -726,6 +734,36 @@ function apriDemolisci() {
   };
   sessionStorage.setItem('demolisci_payload', JSON.stringify(payload));
   window.location.href='/demolisci';
+}
+
+function toggleTrattamento(id, btn, event) {
+  event.stopPropagation();
+  // Trova la demolizione e aggiorna il flag
+  var d = null;
+  for(var i=0;i<_tutti.length;i++){ if(_tutti[i].id===id){ d=_tutti[i]; break; } }
+  if(!d) return;
+  var nuovoVal = d.primo_trattamento ? 0 : 1;
+  // Salva nel server
+  apiFetch('/api/demolizioni/'+id, {method:'PUT', body:JSON.stringify({primo_trattamento: nuovoVal})})
+    .then(function(res){
+      if(res.ok){
+        d.primo_trattamento = nuovoVal;
+        // Aggiorna solo il bottone visivamente senza re-render tutta la tabella
+        if(nuovoVal) {
+          btn.textContent='1° TRATT.';
+          btn.style.background='#fef3c7';
+          btn.style.color='#d97706';
+          btn.style.borderColor='#fcd34d';
+          btn.title='Cliccato - 1° trattamento segnato';
+        } else {
+          btn.innerHTML='&#9711;';
+          btn.style.background='var(--surface)';
+          btn.style.color='var(--text3)';
+          btn.style.borderColor='var(--border)';
+          btn.title='Clicca per segnare 1° trattamento';
+        }
+      }
+    });
 }
 
 function ricaricaDemolizioni() {
