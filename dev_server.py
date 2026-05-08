@@ -91,6 +91,11 @@ class _DemDB:
             creato_il TEXT DEFAULT (datetime('now'))
         );
         """)
+        # Migrazione colonne opzionali
+        cols = [r[1] for r in conn.execute("PRAGMA table_info(demolizioni)").fetchall()]
+        if 'primo_trattamento' not in cols:
+            conn.execute("ALTER TABLE demolizioni ADD COLUMN primo_trattamento INTEGER DEFAULT 0")
+            conn.commit()
         conn.commit()
         conn.close()
     
@@ -1529,7 +1534,7 @@ def _dem_query(q="", params=()):
                d.reg_demolitori, d.pag_reg, d.veicolo_id, d.proprietario_id, d.detentore_id,
                d.ufficio_provinciale, d.targhe_consegnate, d.carta_circolazione,
                d.concessionaria, d.peso_effettivo_kg, d.peso_netto_kg,
-               d.modalita_radiazione, d.num_albatros, d.note, d.primo_trattamento,
+               d.modalita_radiazione, d.num_albatros, d.note, COALESCE(d.primo_trattamento,0) AS primo_trattamento,
                COALESCE(v.marca||' '||v.modello||' ('||v.targa||')','') AS veicolo_str,
                COALESCE(p.nominativo,'') AS proprietario_str,
                COALESCE(det.nominativo,'') AS detentore_str
