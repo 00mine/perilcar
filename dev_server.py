@@ -131,46 +131,18 @@ class _DemDB:
 dem = _DemDB(_dem_path)
 log.info(f"DB demolizioni: {_dem_path}")
 
-# Migrazione automatica colonne mancanti all'avvio
+# Pulizia tabelle residue nel magazzino DB (solo per sicurezza)
 try:
     import sqlite3 as _sq3
     _cp = _sq3.connect(cfg.get("db_path"), timeout=10)
     _cp.execute("PRAGMA journal_mode=WAL")
-    # Pulizia tabelle residue
     for _tbak in ['veicoli_bak','veicoli_old','veicoli_tmp']:
-        _exists = _cp.execute(f"SELECT 1 FROM sqlite_master WHERE type='table' AND name='{_tbak}'").fetchone()
-        if _exists:
-            _cp.execute(f"DROP TABLE [{_tbak}]")
-            log.info(f"Rimossa {_tbak}")
-    # Aggiungi colonne mancanti anagrafiche
-    _ana_cols = [r[1] for r in _cp.execute("PRAGMA table_info(anagrafiche)").fetchall()]
-    for _col, _typ in [("cognome","TEXT"),("nome","TEXT"),("sesso","TEXT"),
-                       ("data_nascita","TEXT"),("luogo_nascita","TEXT"),("prov_nascita","TEXT"),
-                       ("comune","TEXT"),("provincia","TEXT"),("via","TEXT"),
-                       ("civico","TEXT"),("cap","TEXT"),("tipo_doc","TEXT"),
-                       ("num_doc","TEXT"),("data_doc","TEXT"),("rilasciato_da","TEXT"),
-                       ("cellulare","TEXT"),("fax","TEXT")]:
-        if _col not in _ana_cols:
-            _cp.execute(f"ALTER TABLE anagrafiche ADD COLUMN {_col} {_typ}")
-            log.info(f"Aggiunta colonna anagrafiche.{_col}")
-    # Aggiungi colonne mancanti veicoli
-    _vei_cols = [r[1] for r in _cp.execute("PRAGMA table_info(veicoli)").fetchall()]
-    for _col, _typ in [("classe","TEXT"),("marca","TEXT"),("modello","TEXT"),
-                       ("anno_immatricolazione","TEXT"),("num_motore","TEXT"),
-                       ("colore","TEXT"),("note","TEXT")]:
-        if _col not in _vei_cols:
-            _cp.execute(f"ALTER TABLE veicoli ADD COLUMN {_col} {_typ}")
-            log.info(f"Aggiunta colonna veicoli.{_col}")
-    # Aggiungi colonne mancanti demolizioni
-    _dem_cols = [r[1] for r in _cp.execute("PRAGMA table_info(demolizioni)").fetchall()]
-    for _col, _typ in [("ora_presa_in_carico","TEXT"),("num_albatros","TEXT"),("certificato_id","TEXT")]:
-        if _col not in _dem_cols:
-            _cp.execute(f"ALTER TABLE demolizioni ADD COLUMN {_col} {_typ}")
+        if _cp.execute(f"SELECT 1 FROM sqlite_master WHERE type='table' AND name='{_tbak}'").fetchone():
+            _cp.execute(f"DROP TABLE IF EXISTS [{_tbak}]")
     _cp.commit()
     _cp.close()
-    log.info("Migrazione colonne completata")
 except Exception as _ce:
-    log.warning(f"Migrazione avvio: {_ce}")
+    log.warning(f"Pulizia avvio: {_ce}")
 
 # Pulizia tabelle residue da migrazioni precedenti (VECCHIO - mantenuto per compatibilità)
 try:
