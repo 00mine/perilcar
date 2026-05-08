@@ -276,6 +276,10 @@ function renderTabella() {
         +(qtaCalc>0 ? fmt(qtaCalc) : '&mdash;')+'</td>'
       +'<td><input type="number" value="'+(r.qtaSmaltire||'')+'" placeholder="0.00" step="0.01" min="0"'
         +' oninput="aggiornaCampo('+r.id+',\'qtaSmaltire\',this.value); aggiornaTotale()"></td>'
+      +'<td><input type="text" value="'+esc(r.destinazione||'')+'" placeholder="es. Smaltitore XYZ"'
+        +' onchange="aggiornaCampo('+r.id+',\'destinazione\',this.value)"></td>'
+      +'<td><input type="text" value="'+esc(r.pericolosita||'')+'" placeholder="es. HP14"'
+        +' onchange="aggiornaCampo('+r.id+',\'pericolosita\',this.value)"></td>'
       +'<td class="ta-center"><div style="display:flex;gap:4px;justify-content:center">'
         +(r.locked
           ? '<button class="btn-row-act btn-edit" onclick="sblocca('+r.id+')" title="Modifica">&#9998;</button>'
