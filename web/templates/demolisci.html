@@ -86,11 +86,17 @@ td.ta-center{text-align:center}
 .terr{background:#fff;color:var(--red);border:1px solid #fca5a5}
 
 @media print {
-  .topbar,.footer-row,.btn,.btn-row-act{display:none!important}
-  body{background:#fff}
-  .page{padding:8px}
-  .banner,.card{box-shadow:none;border:1px solid #ccc}
+  .topbar,.footer-row,.btn,.btn-row-act,.auto-strip,
+  .card-hdr button, #btn-aggiungi{display:none!important}
+  body{background:#fff;font-size:11px}
+  .page{padding:0;max-width:100%}
+  .banner,.card{box-shadow:none;border:none;border-radius:0;margin:0;padding:0}
+  .banner-grid{display:none}
+  .card-hdr{display:none}
+  #print-area{display:block!important}
+  .table-main{display:none!important}
 }
+#print-area{display:none}
 </style>
 </head>
 <body>
@@ -101,7 +107,7 @@ td.ta-center{text-align:center}
   <span style="font-size:12px;color:var(--text3)">&#8250;</span>
   <span style="font-size:13px;font-weight:700;color:var(--purple)">Scheda Demolizione</span>
   <div class="topbar-right">
-    <button class="btn btn-ghost" onclick="window.print()">&#128438; Stampa</button>
+    <button class="btn btn-ghost" onclick="stampa()">&#128438; Stampa</button>
     <button class="btn btn-ghost" onclick="window.location.href='/demolizioni'">&#8592; Torna</button>
   </div>
 </header>
@@ -111,10 +117,14 @@ td.ta-center{text-align:center}
   <!-- BANNER -->
   <div class="banner">
     <div class="banner-title">&#9881; Scheda di Demolizione</div>
-    <div class="banner-grid">
+    <div class="banner-grid" style="grid-template-columns:180px 180px 1fr 1fr 1fr">
       <div class="b-field">
-        <label>Data demolizione</label>
+        <label>Data trattamento</label>
         <input type="date" id="b-data">
+      </div>
+      <div class="b-field">
+        <label>Periodo</label>
+        <div id="b-periodo" style="font-size:11px;color:var(--text2);line-height:1.6;margin-top:4px"></div>
       </div>
       <div class="b-field">
         <label>Peso Effettivo Totale</label>
@@ -155,6 +165,7 @@ td.ta-center{text-align:center}
         <th style="width:130px;text-align:right">Q.tà Calcolata (Kg)</th>
         <th style="width:130px;text-align:right">Q.tà da Smaltire (Kg)</th>
         <th style="width:140px">Classi di Pericolosità</th>
+        <th style="width:100px;text-align:center">N. Albatros</th>
         <th style="width:90px;text-align:center">Azioni</th>
       </tr></thead>
       <tbody id="mat-tbody"></tbody>
@@ -189,6 +200,19 @@ function init() {
 
   // Data odierna
   document.getElementById('b-data').value = _payload.data;
+
+  // Periodo dal/al (prima e ultima demolizione selezionata)
+  var dems = _payload.demolizioni || [];
+  if(dems.length > 0) {
+    dems.sort(function(a,b){ return (a.data_presa_in_carico||'') > (b.data_presa_in_carico||'') ? 1 : -1; });
+    var prima = dems[0];
+    var ultima = dems[dems.length-1];
+    var fmtData = function(d){ return d ? d.slice(0,10).split('-').reverse().join('/') : '—'; };
+    var periodoHtml =
+      'Dal <b>'+fmtData(prima.data_presa_in_carico)+'</b> n.p. <b>'+(prima.pag_reg||'—')+'</b><br>'
+      +'Al <b>'+fmtData(ultima.data_presa_in_carico)+'</b> n.p. <b>'+(ultima.pag_reg||'—')+'</b>';
+    document.getElementById('b-periodo').innerHTML = periodoHtml;
+  }
 
   // Banner pesi
   document.getElementById('b-eff').innerHTML   = fmt(_payload.pesoEffTot)   + ' <span class="b-unit">Kg</span>';
@@ -235,14 +259,14 @@ function init() {
       {codice:'160118', descrizione:'Metalli non ferrosi'}
     ];
     defaults.forEach(function(d){
-      _righe.push({id:_nextId++, codice:d.codice, descrizione:d.descrizione, percentuale:'', qtaSmaltire:'', destinazione:'', pericolosita:'', locked:true});
+      _righe.push({id:_nextId++, codice:d.codice, descrizione:d.descrizione, percentuale:'', qtaSmaltire:'', destinazione:'', pericolosita:'', albatros:'', locked:true});
     });
   }
   renderTabella();
 }
 
 function aggiungiRiga(silent) {
-  _righe.push({id:_nextId++, codice:'', descrizione:'', percentuale:'', qtaSmaltire:'', destinazione:'', pericolosita:'', locked:false});
+  _righe.push({id:_nextId++, codice:'', descrizione:'', percentuale:'', qtaSmaltire:'', destinazione:'', pericolosita:'', albatros:'', locked:false});
   if(!silent) renderTabella();
 }
 
@@ -278,6 +302,8 @@ function renderTabella() {
       
       +'<td><input type="text" value="'+esc(r.pericolosita||'')+'" placeholder="es. HP14"'
         +' onchange="aggiornaCampo('+r.id+',\'pericolosita\',this.value)"></td>'
+      +'<td class="ta-center"><input type="text" value="'+esc(r.albatros||'')+'" placeholder="es. 547"'
+        +' style="text-align:center;font-family:var(--mono)" onchange="aggiornaCampo('+r.id+',\'albatros\',this.value)"></td>'
       +'<td class="ta-center"><div style="display:flex;gap:4px;justify-content:center">'
         +(r.locked
           ? '<button class="btn-row-act btn-edit" onclick="sblocca('+r.id+')" title="Modifica">&#9998;</button>'
@@ -331,6 +357,7 @@ function blocca(id) {
         _righe[i].qtaSmaltire  = inputs[3] ? inputs[3].value : _righe[i].qtaSmaltire;
         _righe[i].destinazione = inputs[4] ? inputs[4].value : _righe[i].destinazione;
         _righe[i].pericolosita = inputs[5] ? inputs[5].value : _righe[i].pericolosita;
+        _righe[i].albatros     = inputs[6] ? inputs[6].value : _righe[i].albatros;
         _righe[i].locked = true;
         break;
       }
@@ -358,6 +385,66 @@ function salvaScheda() {
 }
 
 init();
+
+function stampa() {
+  // Costruisci area di stampa
+  var dems = _payload ? _payload.demolizioni : [];
+  dems.sort(function(a,b){ return (a.data_presa_in_carico||'') > (b.data_presa_in_carico||'') ? 1 : -1; });
+  var fmtData = function(d){ return d ? d.slice(0,10).split('-').reverse().join('/') : ''; };
+  var prima = dems.length>0 ? dems[0] : {};
+  var ultima = dems.length>0 ? dems[dems.length-1] : {};
+  var dataTratt = document.getElementById('b-data').value;
+  var dataTrattFmt = dataTratt ? dataTratt.split('-').reverse().join('/') : fmtData(new Date().toISOString());
+
+  var titolo = 'TRATTAMENTO DEL ' + dataTrattFmt
+    + ' DAL ' + fmtData(prima.data_presa_in_carico)
+    + ' DEL NUM PROGRESSIVO ' + (prima.pag_reg||'—')
+    + ' AL ' + fmtData(ultima.data_presa_in_carico)
+    + ' DEL NUMERO PROGRESSIVO ' + (ultima.pag_reg||'—');
+
+  var righeValide = _righe.filter(function(r){ return r.descrizione; });
+  var righeHtml = righeValide.map(function(r){
+    return '<tr>'
+      +'<td>'+esc(r.descrizione)+'</td>'
+      +'<td style="text-align:center;font-weight:700">'+esc(r.codice)+'</td>'
+      +'<td style="text-align:right">'+(r.qtaSmaltire?parseFloat(r.qtaSmaltire).toFixed(2):'')+'</td>'
+      +'<td style="text-align:center">'+esc(r.pericolosita||'')+'</td>'
+      +'<td style="text-align:center">'+esc(r.albatros||'')+'</td>'
+      +'</tr>';
+  }).join('');
+
+  var totSmalt = _righe.reduce(function(s,r){ return s+(parseFloat(r.qtaSmaltire)||0); },0);
+
+  var html = '<!DOCTYPE html><html><head><meta charset="UTF-8">'
+    +'<style>'
+    +'body{font-family:Arial,sans-serif;font-size:11px;margin:20px}'
+    +'.titolo{font-size:13px;font-weight:700;color:#c8a000;text-transform:uppercase;text-align:center;margin-bottom:16px;line-height:1.4}'
+    +'table{width:100%;border-collapse:collapse;margin-bottom:14px}'
+    +'th{background:#f5f5f5;border:1px solid #ccc;padding:5px 7px;font-size:10px;text-align:left}'
+    +'td{border:1px solid #ccc;padding:4px 7px;font-size:11px}'
+    +'.tot{font-weight:700;font-size:12px;margin:8px 0}'
+    +'</style></head><body>'
+    +'<div class="titolo">'+titolo+'</div>'
+    +'<table>'
+    +'<thead><tr>'
+    +'<th>Descrizione rifiuto</th>'
+    +'<th style="width:70px;text-align:center">Codice Rifiuto</th>'
+    +'<th style="width:90px;text-align:right">Q.tà da Smaltire</th>'
+    +'<th style="width:120px;text-align:center">Classi di Pericolosità</th>'
+    +'<th style="width:80px;text-align:center">N. Albatros</th>'
+    +'</tr></thead>'
+    +'<tbody>'+righeHtml+'</tbody>'
+    +'</table>'
+    +'<div class="tot">TOTALE AUTO = '+(_payload ? _payload.demolizioni.length : 0)+'</div>'
+    +'<div class="tot" style="color:#c8a000">PESO TOTALE = '+fmt(_payload ? _payload.pesoEffTot : 0)+' KG</div>'
+    +'<div class="tot" style="color:#16a34a">PESO TOTALE CARICATO = KG '+fmt(_payload ? _payload.pesoNettoTot : 0)+'</div>'
+    +'</body></html>';
+
+  var w = window.open('','_blank','width=900,height=700');
+  w.document.write(html);
+  w.document.close();
+  setTimeout(function(){ w.print(); }, 500);
+}
 </script>
 </body>
 </html>
