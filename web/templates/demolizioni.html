@@ -724,12 +724,37 @@ function apriDemolisci() {
   });
   ricambiTot = pesoEffTot - pesoNettoTot;
   // Salva in localStorage per la pagina demolisci
+  var demsComplete = [];
+  var demsPrimoTratt = [];
+  ids.forEach(function(id){
+    var d = _selezionate[id];
+    if(d.primo_trattamento) demsPrimoTratt.push(d);
+    else demsComplete.push(d);
+  });
+
+  var pesoEffComplete=0, pesoNettoComplete=0;
+  demsComplete.forEach(function(d){
+    pesoEffComplete   += parseFloat(d.peso_effettivo_kg)||0;
+    pesoNettoComplete += parseFloat(d.peso_netto_kg)||0;
+  });
+  var pesoEffPrimo=0, pesoNettoPrimo=0;
+  demsPrimoTratt.forEach(function(d){
+    pesoEffPrimo   += parseFloat(d.peso_effettivo_kg)||0;
+    pesoNettoPrimo += parseFloat(d.peso_netto_kg)||0;
+  });
+
   var payload={
     ids: ids.map(function(id){ return parseInt(id); }),
     demolizioni: ids.map(function(id){ return _selezionate[id]; }),
+    demolizioniComplete: demsComplete,
+    demolizioniPrimoTratt: demsPrimoTratt,
     pesoEffTot: pesoEffTot.toFixed(2),
     pesoNettoTot: pesoNettoTot.toFixed(2),
     ricambiTot: ricambiTot.toFixed(2),
+    pesoEffComplete: pesoEffComplete.toFixed(2),
+    pesoNettoComplete: pesoNettoComplete.toFixed(2),
+    pesoEffPrimo: pesoEffPrimo.toFixed(2),
+    pesoNettoPrimo: pesoNettoPrimo.toFixed(2),
     data: new Date().toISOString().slice(0,10)
   };
   sessionStorage.setItem('demolisci_payload', JSON.stringify(payload));

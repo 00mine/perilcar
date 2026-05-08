@@ -141,6 +141,9 @@ td.ta-center{text-align:center}
     </div>
   </div>
 
+  <!-- INFO 1° TRATTAMENTO -->
+  <div id="info-primo" style="display:none;background:#fef3c7;border:1px solid #fcd34d;border-radius:10px;padding:10px 16px;margin-bottom:12px;font-size:12px;color:#92400e"></div>
+
   <!-- AUTO -->
   <div class="auto-strip" id="auto-strip" style="display:none">
     <div>&#128663; Veicoli demoliti: <span id="n-auto">0</span></div>
@@ -200,6 +203,21 @@ function init() {
 
   // Data odierna
   document.getElementById('b-data').value = _payload.data;
+
+  // Separazione complete / 1° trattamento
+  var _VOCI_PRIMO = ['130208','150202','160107','160112','160114','160113','160601'];
+  window._VOCI_PRIMO = _VOCI_PRIMO;
+
+  // Info banner 1° trattamento
+  var nPrimo = (_payload.demolizioniPrimoTratt||[]).length;
+  var nComplete = (_payload.demolizioniComplete||[]).length;
+  if(nPrimo > 0) {
+    var infoBanner = document.getElementById('info-primo');
+    if(infoBanner) {
+      infoBanner.style.display='';
+      infoBanner.innerHTML = '&#9888; <b>'+nPrimo+' demolizione/i con 1° Trattamento</b>: verranno calcolate solo le 7 voci speciali (batterie, oli, assorbenti, filtri, pastiglie, liquidi antigelo, liquido freni). &nbsp;|&nbsp; <b>'+nComplete+' trattamenti completi</b>.';
+    }
+  }
 
   // Periodo dal/al (prima e ultima demolizione selezionata)
   var dems = _payload.demolizioni || [];
@@ -270,6 +288,18 @@ function aggiungiRiga(silent) {
   if(!silent) renderTabella();
 }
 
+function isVoceAmmessa(codice) {
+  // Se ci sono SOLO demolizioni con 1° trattamento, filtra le voci
+  var p = _payload || {};
+  var nComplete = (p.demolizioniComplete||[]).length;
+  var nPrimo    = (p.demolizioniPrimoTratt||[]).length;
+  if(nPrimo > 0 && nComplete === 0) {
+    // Solo 1° trattamenti: mostra solo le 7 voci
+    return (window._VOCI_PRIMO||[]).indexOf(codice) !== -1;
+  }
+  return true; // Misto o solo completi: mostra tutto
+}
+
 function renderTabella() {
   var tbody = document.getElementById('mat-tbody');
   tbody.innerHTML = '';
@@ -277,6 +307,11 @@ function renderTabella() {
     var tr = document.createElement('tr');
     tr.className = r.locked ? 'locked' : '';
     tr.id = 'tr-'+r.id;
+    // Nascondi righe non ammesse per 1° trattamento
+    if(!isVoceAmmessa(r.codice)) {
+      tr.style.display='none';
+      tr.style.opacity='0.3';
+    }
 
     var pesoNetto = parseFloat((_payload && _payload.pesoNettoTot)||0);
     var perc = parseFloat(r.percentuale)||0;
@@ -439,6 +474,60 @@ function stampa() {
     +'<div class="tot" style="color:#c8a000">PESO TOTALE = '+fmt(_payload ? _payload.pesoEffTot : 0)+' KG</div>'
     +'<div class="tot" style="color:#16a34a">PESO TOTALE CARICATO = KG '+fmt(_payload ? _payload.pesoNettoTot : 0)+'</div>'
     +'</body></html>';
+
+  // Riepilogo trattamenti completi e 1° trattamenti
+  var demsC  = _payload.demolizioniComplete     || [];
+  var demsP  = _payload.demolizioniPrimoTratt   || [];
+  var fmtN   = function(n){ return parseFloat(n||0).toFixed(2); };
+
+  var riepilogoHtml = '';
+
+  // Sezione trattamenti completi
+  if(demsC.length > 0) {
+    riepilogoHtml += '<div style="margin-top:16px;border-top:2px solid #333;padding-top:10px">'
+      +'<div style="font-weight:700;font-size:12px;margin-bottom:6px">TRATTAMENTI COMPLETI: '+demsC.length+' AUTO</div>';
+    demsC.forEach(function(d){
+      riepilogoHtml += '<div style="font-size:11px;margin-bottom:2px">'
+        +'Pag.Reg. <b>'+(d.pag_reg||'—')+'</b> — '+(d.veicolo_str||'—')
+        +' — Peso eff.: <b>'+fmtN(d.peso_effettivo_kg)+' Kg</b>'
+        +' — Peso netto: <b>'+fmtN(d.peso_netto_kg)+' Kg</b>'
+        +'</div>';
+    });
+    var totEffC   = demsC.reduce(function(s,d){ return s+(parseFloat(d.peso_effettivo_kg)||0); },0);
+    var totNettoC = demsC.reduce(function(s,d){ return s+(parseFloat(d.peso_netto_kg)||0); },0);
+    riepilogoHtml += '<div style="font-weight:700;margin-top:6px;color:#c8a000">'
+      +'TOTALE COMPLETI — Peso effettivo: '+fmtN(totEffC)+' Kg | Peso netto: '+fmtN(totNettoC)+' Kg'
+      +'</div></div>';
+  }
+
+  // Sezione 1° trattamenti
+  if(demsP.length > 0) {
+    riepilogoHtml += '<div style="margin-top:14px;border-top:2px solid #f59e0b;padding-top:10px">'
+      +'<div style="font-weight:700;font-size:12px;color:#92400e;margin-bottom:6px">1° TRATTAMENTI: '+demsP.length+' AUTO</div>';
+    demsP.forEach(function(d){
+      riepilogoHtml += '<div style="font-size:11px;margin-bottom:2px;color:#78350f">'
+        +'Pag.Reg. <b>'+(d.pag_reg||'—')+'</b> — '+(d.veicolo_str||'—')
+        +' — Peso eff.: <b>'+fmtN(d.peso_effettivo_kg)+' Kg</b>'
+        +' (solo voci: oli, batterie, filtri, pastiglie, liquidi)'
+        +'</div>';
+    });
+    var totEffP   = demsP.reduce(function(s,d){ return s+(parseFloat(d.peso_effettivo_kg)||0); },0);
+    var totNettoP = demsP.reduce(function(s,d){ return s+(parseFloat(d.peso_netto_kg)||0); },0);
+    riepilogoHtml += '<div style="font-weight:700;margin-top:6px;color:#92400e">'
+      +'TOTALE 1° TRATT. — Peso effettivo: '+fmtN(totEffP)+' Kg | Peso netto: '+fmtN(totNettoP)+' Kg'
+      +'</div></div>';
+  }
+
+  // Calcolo finale
+  var totEffAll   = parseFloat(_payload.pesoEffTot||0);
+  var totNettoAll = parseFloat(_payload.pesoNettoTot||0);
+  riepilogoHtml += '<div style="margin-top:16px;border-top:3px solid #333;padding-top:12px">'
+    +'<div style="font-size:13px;font-weight:700;color:#c8a000">PESO TOTALE = '+fmtN(totEffAll)+' KG</div>'
+    +'<div style="font-size:13px;font-weight:700;color:#16a34a;margin-top:4px">PESO TOTALE CARICATO = '+fmtN(totNettoAll)+' KG</div>'
+    +'<div style="font-size:12px;font-weight:700;margin-top:4px">TOTALE AUTO = '+(_payload.demolizioni||[]).length+'</div>'
+    +'</div>';
+
+  html = html.replace('</body></html>', riepilogoHtml + '</body></html>');
 
   var w = window.open('','_blank','width=900,height=700');
   w.document.write(html);
