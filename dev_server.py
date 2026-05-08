@@ -177,13 +177,14 @@ def require_login(f):
     from functools import wraps
     @wraps(f)
     def wrapper(*args, **kwargs):
+        # Login disabilitato temporaneamente
         if not session.get("user"):
-            return redirect(url_for("login_page"))
+            session["user"] = {"id": 1, "username": "admin", "ruolo": "admin"}
         return f(*args, **kwargs)
     return wrapper
 
 def cu():
-    return session.get("user", {})
+    return session.get("user", {"id": 1, "username": "admin", "ruolo": "admin"})
 
 # ══════════════════════════════════════════════════════════════════════════════
 # PAGINE
@@ -191,7 +192,8 @@ def cu():
 
 @app.route("/")
 def index():
-    return redirect(url_for("dashboard") if session.get("user") else url_for("login_page"))
+    session["user"] = {"id": 1, "username": "admin", "ruolo": "admin"}
+    return redirect("/dashboard")
 
 @app.route("/login")
 def login_page():
