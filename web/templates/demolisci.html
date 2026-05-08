@@ -182,7 +182,7 @@ function toast(msg, ok) {
 
 function init() {
   // Leggi payload da sessionStorage
-  var raw = sessionStorage.getItem('demolisci_payload');
+  var raw = sessionStorage.getItem('demolisci_payload') || localStorage.getItem('demolisci_payload');
   if(!raw) { document.body.innerHTML='<div style="padding:40px;text-align:center;color:#9ca3af">Nessuna demolizione selezionata. <a href="/demolizioni">Torna</a></div>'; return; }
   _payload = JSON.parse(raw);
 
@@ -210,7 +210,7 @@ function init() {
   document.getElementById('auto-strip').style.display = '';
 
   // Carica righe salvate o crea 16 vuote
-  var saved = sessionStorage.getItem('demolisci_righe');
+  var saved = sessionStorage.getItem('demolisci_righe') || localStorage.getItem('demolisci_righe');
   if(saved) {
     _righe = JSON.parse(saved);
     _nextId = _righe.reduce(function(m,r){ return Math.max(m,r.id); },0)+1;
@@ -220,7 +220,7 @@ function init() {
       {codice:'150202', descrizione:'Assorbenti, materiali filtranti, stracci, ecc.'},
       {codice:'160103', descrizione:'Pneumatici fuori uso'},
       {codice:'160106', descrizione:'Carcasse bonificate'},
-      {codice:'160107', descrizione:'Filtri dell'olio'},
+      {codice:"160107", descrizione:"Filtri dell'olio"},
       {codice:'160112', descrizione:'Pastiglie per freni e frizione'},
       {codice:'160114', descrizione:'Liquidi antigelo contenenti sostanze pericolose'},
       {codice:'160117', descrizione:'Metalli ferrosi'},
@@ -347,6 +347,7 @@ function eliminaRiga(id) {
 
 function salvaScheda() {
   sessionStorage.setItem('demolisci_righe', JSON.stringify(_righe));
+  localStorage.setItem('demolisci_righe', JSON.stringify(_righe));
   toast('Scheda salvata');
 }
 
