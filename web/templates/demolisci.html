@@ -215,7 +215,27 @@ function init() {
     _righe = JSON.parse(saved);
     _nextId = _righe.reduce(function(m,r){ return Math.max(m,r.id); },0)+1;
   } else {
-    for(var i=0;i<16;i++) aggiungiRiga(true);
+    var defaults = [
+      {codice:'130208', descrizione:'Oli per motori, ingranaggi e lubrificazioni'},
+      {codice:'150202', descrizione:'Assorbenti, materiali filtranti, stracci, ecc.'},
+      {codice:'160103', descrizione:'Pneumatici fuori uso'},
+      {codice:'160106', descrizione:'Carcasse bonificate'},
+      {codice:'160107', descrizione:'Filtri dell'olio'},
+      {codice:'160112', descrizione:'Pastiglie per freni e frizione'},
+      {codice:'160114', descrizione:'Liquidi antigelo contenenti sostanze pericolose'},
+      {codice:'160117', descrizione:'Metalli ferrosi'},
+      {codice:'160119', descrizione:'Plastica'},
+      {codice:'160120', descrizione:'Vetro'},
+      {codice:'160122', descrizione:'Componenti non specificati altrimenti (imbott)'},
+      {codice:'160601', descrizione:'Batterie al piombo'},
+      {codice:'160122', descrizione:'Componenti non specificati altrimenti (fili)'},
+      {codice:'160122', descrizione:'Componenti non specificati altrimenti (motori bonificati)'},
+      {codice:'160113', descrizione:'Liquido per freni'},
+      {codice:'160118', descrizione:'Metalli non ferrosi'}
+    ];
+    defaults.forEach(function(d){
+      _righe.push({id:_nextId++, codice:d.codice, descrizione:d.descrizione, percentuale:'', qtaSmaltire:'', locked:false});
+    });
   }
   renderTabella();
 }
