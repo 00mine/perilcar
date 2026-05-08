@@ -221,11 +221,13 @@ def api_login():
     import hashlib
     d = request.json or {}
     pwd_hash = hashlib.sha256(d.get("password","").encode()).hexdigest()
-    user = db.fetchone("SELECT * FROM utenti WHERE username=? AND eliminato=0",
+    user = db.fetchone("SELECT * FROM utenti WHERE username=?",
                        (d.get("username","").strip(),))
     if not user:
         return jsonify({"ok": False, "msg": "Utente non trovato"}), 401
-    if not user["attivo"]:
+    if user.get("eliminato") == 1:
+        return jsonify({"ok": False, "msg": "Account eliminato"}), 403
+    if not user.get("attivo", 1):
         return jsonify({"ok": False, "msg": "Account disabilitato"}), 403
     if user["password_hash"] != pwd_hash:
         return jsonify({"ok": False, "msg": "Password errata"}), 401
