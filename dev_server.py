@@ -474,6 +474,7 @@ def api_movimento():
         with db._write_lock:
             conn = db.get_connection()
             try:
+                conn.execute("PRAGMA foreign_keys=OFF")  # disabilita temporaneamente FK
                 # Controlla colonne disponibili in movimenti_magazzino
                 mov_cols = [r[1] for r in conn.execute("PRAGMA table_info(movimenti_magazzino)").fetchall()]
                 # Costruisci insert dinamico
