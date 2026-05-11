@@ -395,6 +395,15 @@ function salvaFotoSession(){
   });
 }
 
+function b64ToBlob(b64, mime){
+  var parts = b64.split(',');
+  var byteStr = atob(parts[1]);
+  var ab = new ArrayBuffer(byteStr.length);
+  var ia = new Uint8Array(ab);
+  for(var i=0;i<byteStr.length;i++) ia[i]=byteStr.charCodeAt(i);
+  return new Blob([ab],{type:mime||'image/jpeg'});
+}
+
 function ripristinaFotoSession(){
   if(!_riga) return;
   var key = 'inv_foto_'+_sessId+'_'+_riga.id;
@@ -402,9 +411,11 @@ function ripristinaFotoSession(){
     var saved = sessionStorage.getItem(key);
     if(!saved) return;
     var items = JSON.parse(saved);
-    if(!items.length) return;
+    if(!items || !items.length) return;
     items.forEach(function(item){
-      fetch(item.b64).then(function(r){return r.blob();}).then(function(blob){
+      try{
+        var mime = item.b64.split(';')[0].split(':')[1] || 'image/jpeg';
+        var blob = b64ToBlob(item.b64, mime);
         _fotoNuove.push({blob:blob, nome:item.nome});
         var url = URL.createObjectURL(blob);
         var grid = document.getElementById('foto-grid');
@@ -413,15 +424,18 @@ function ripristinaFotoSession(){
         var img = document.createElement('img'); img.className='foto-thumb'; img.src=url;
         img.onclick=function(){window.open(url,'_blank');};
         var del = document.createElement('div'); del.className='foto-del'; del.textContent='×';
-        del.onclick=function(){_fotoNuove=_fotoNuove.filter(function(f){return f.blob!==blob;});wrap.remove();updFotoCount();salvaFotoSession();};
+        del.onclick=function(){
+          _fotoNuove=_fotoNuove.filter(function(f){return f.blob!==blob;});
+          wrap.remove(); updFotoCount(); salvaFotoSession();
+        };
         wrap.appendChild(img); wrap.appendChild(del);
-        var addBtn = grid.querySelector('.foto-add'); if(addBtn) grid.insertBefore(wrap,addBtn);
-        else grid.appendChild(wrap);
+        var addBtn=grid.querySelector('.foto-add');
+        if(addBtn) grid.insertBefore(wrap,addBtn); else grid.appendChild(wrap);
         updFotoCount();
-      });
+      }catch(e2){console.warn('Ripristino foto fallito:',e2);}
     });
-    toast(items.length+' foto ripristinate','ok');
-  }catch(e){}
+    if(items.length) toast(items.length+' foto ripristinate ✅','ok');
+  }catch(e){console.warn('Ripristino sessione fallito:',e);}
 }
 function updFotoCount(){
   var el=document.getElementById('foto-count');
