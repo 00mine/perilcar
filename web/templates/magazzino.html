@@ -2387,24 +2387,16 @@ async function eseguiAzione(spec, msgLabel) {
     const res = await apiFetch(spec.url, {method: spec.method, body: spec.body ? JSON.stringify(spec.body) : undefined});
     if(res.ok !== false) {
       toast(msgLabel, true);
-      // Ricarica dati
+      // Ricarica lista completa dal server
       const allC = await apiFetch('/api/magazzino/componenti');
       _tutti = allC;
       applicaFiltri();
-      // Se c'è un componente selezionato aggiorna pannello
+      // Riseleziona la riga e aggiorna TUTTO il pannello laterale
+      // selectRow() si occupa già di aggiornare giacenza, contatori, date, files
       if(_selId) {
-        const r = _tutti.find(x=>x.componente_id===_selId);
-        if(r) {
-          document.getElementById('pan-cmp').value        = r.cmp||'';
-          document.getElementById('pan-nome').value       = r.articolo||'';
-          document.getElementById('pan-note').value       = r.nota||'';
-          document.getElementById('pan-ubicazione').value = r.ubicazione||'';
-        }
-        const info = await apiFetch('/api/magazzino/info-movimenti/'+_selId);
-        document.getElementById('cnt-carichi').textContent  = info.carichi||0;
-        document.getElementById('cnt-scarichi').textContent = info.scarichi||0;
-        document.getElementById('dt-carico').textContent    = (info.ultima_data_carico||'—').slice(0,16);
-        document.getElementById('dt-scarico').textContent   = (info.ultima_data_scarico||'—').slice(0,16);
+        // Trova la tr visibile per passarla a selectRow
+        const tr = document.querySelector('#tbl-tbody tr[data-id="'+_selId+'"]');
+        await selectRow(_selId, tr || null);
       }
     } else {
       toast('Errore: ' + (res.msg||''), false);
