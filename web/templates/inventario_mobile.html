@@ -204,6 +204,8 @@ async function prossimoP(){
   _qty=_riga.qty_attesa||0;
   renderP();
   document.getElementById('azioni').style.display='flex';
+  // Ripristina foto se c'erano state scattate prima del refresh
+  setTimeout(ripristinaFotoSession, 300);
 }
 
 function renderP(){
@@ -302,7 +304,10 @@ function renderP(){
     +'<div class="card"><div class="card-sec">'
     +'<div class="foto-hdr"><span>📷 Aggiungi foto</span><span id="foto-count" style="font-size:11px;color:var(--text3)">0 foto pronte</span></div>'
     +'<div class="foto-grid" id="foto-grid">'
-    +'<div class="foto-add" onclick="apriFotoMenu()"><div class="ico">📷</div><div class="lbl">Aggiungi</div></div>'
+    +'<div style="display:flex;gap:8px">'
+    +'<div class="foto-add" onclick="document.getElementById(\'inp-camera\').click()" style="flex:1"><div class="ico">📷</div><div class="lbl">Fotocamera</div></div>'
+    +'<div class="foto-add" onclick="document.getElementById(\'inp-file\').click()" style="flex:1"><div class="ico">🖼</div><div class="lbl">Galleria</div></div>'
+    +'</div>'
     +'</div>'
     +'<div class="foto-hint">Le foto si caricano quando premi Conferma</div>'
     +'</div></div>'
@@ -348,10 +353,13 @@ function scattaFoto(){
   can.toBlob(function(blob){aggFoto(blob,'scatto.jpg');},'image/jpeg',0.88);
 }
 function fotoCameraCapture(input){
+  // Rimuovi qualsiasi overlay rimasto aperto
+  document.querySelectorAll('div[style*="z-index:400"]').forEach(function(el){el.remove();});
   Array.from(input.files).forEach(function(f){aggFoto(f,f.name);});
   input.value='';
 }
 function fotoGalleria(input){
+  document.querySelectorAll('div[style*="z-index:400"]').forEach(function(el){el.remove();});
   Array.from(input.files).forEach(function(f){aggFoto(f,f.name);});
   input.value='';
 }
@@ -367,7 +375,53 @@ function aggFoto(blob,nome){
   del.onclick=function(){_fotoNuove=_fotoNuove.filter(function(f){return f.blob!==blob;});wrap.remove();updFotoCount();};
   wrap.appendChild(img);wrap.appendChild(del);
   var addBtn=grid.querySelector('.foto-add');grid.insertBefore(wrap,addBtn);
-  updFotoCount();toast('Foto aggiunta','ok');
+  updFotoCount();
+  toast('Foto aggiunta ✅','ok');
+  // Salva in sessionStorage per sopravvivere al refresh
+  salvaFotoSession();
+}
+
+function salvaFotoSession(){
+  // Converti i blob in base64 e salva
+  var promises = _fotoNuove.map(function(f,i){
+    return new Promise(function(resolve){
+      var reader = new FileReader();
+      reader.onload = function(e){ resolve({b64:e.target.result, nome:f.nome, idx:i}); };
+      reader.readAsDataURL(f.blob);
+    });
+  });
+  Promise.all(promises).then(function(results){
+    try{ sessionStorage.setItem('inv_foto_'+_sessId+'_'+(_riga?_riga.id:''), JSON.stringify(results)); }catch(e){}
+  });
+}
+
+function ripristinaFotoSession(){
+  if(!_riga) return;
+  var key = 'inv_foto_'+_sessId+'_'+_riga.id;
+  try{
+    var saved = sessionStorage.getItem(key);
+    if(!saved) return;
+    var items = JSON.parse(saved);
+    if(!items.length) return;
+    items.forEach(function(item){
+      fetch(item.b64).then(function(r){return r.blob();}).then(function(blob){
+        _fotoNuove.push({blob:blob, nome:item.nome});
+        var url = URL.createObjectURL(blob);
+        var grid = document.getElementById('foto-grid');
+        if(!grid) return;
+        var wrap = document.createElement('div'); wrap.className='foto-thumb-wrap';
+        var img = document.createElement('img'); img.className='foto-thumb'; img.src=url;
+        img.onclick=function(){window.open(url,'_blank');};
+        var del = document.createElement('div'); del.className='foto-del'; del.textContent='×';
+        del.onclick=function(){_fotoNuove=_fotoNuove.filter(function(f){return f.blob!==blob;});wrap.remove();updFotoCount();salvaFotoSession();};
+        wrap.appendChild(img); wrap.appendChild(del);
+        var addBtn = grid.querySelector('.foto-add'); if(addBtn) grid.insertBefore(wrap,addBtn);
+        else grid.appendChild(wrap);
+        updFotoCount();
+      });
+    });
+    toast(items.length+' foto ripristinate','ok');
+  }catch(e){}
 }
 function updFotoCount(){
   var el=document.getElementById('foto-count');
@@ -407,7 +461,11 @@ async function azioneConferma(){
   });
 
   btn.classList.remove('busy');lbl.textContent='Conferma';
-  if(res.ok){await aggStats();setTimeout(prossimoP,300);}
+  if(res.ok){
+    // Pulisci le foto salvate per questo pezzo
+    try{sessionStorage.removeItem('inv_foto_'+_sessId+'_'+_riga.id);}catch(e){}
+    await aggStats();setTimeout(prossimoP,300);
+  }
   else toast(res.msg||'Errore','err');
 }
 
