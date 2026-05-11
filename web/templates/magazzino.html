@@ -305,6 +305,14 @@
 #reload-badge{position:fixed;bottom:12px;left:12px;z-index:9999;
                   background:var(--green);color:#fff;padding:4px 10px;border-radius:20px;
                   font-size:10px;font-weight:600;opacity:0;transition:opacity .3s;pointer-events:none}
+.btn-undo-redo{display:inline-flex;align-items:center;justify-content:center;
+  width:30px;height:30px;border-radius:var(--radius);font-size:15px;cursor:pointer;
+  border:1px solid var(--border);background:#fff;color:var(--text2);transition:.15s;
+  flex-shrink:0;}
+.btn-undo-redo:hover:not(:disabled){background:var(--surface2);color:var(--text);}
+.btn-undo-redo:disabled{opacity:.3;cursor:default;}
+.btn-undo-redo.active-flash{background:var(--orange);color:#fff;border-color:var(--orange);}
+#undo-counter{font-size:10px;color:var(--text3);font-weight:600;min-width:30px;text-align:center;}
   </style>
 </head>
 <body>
@@ -334,6 +342,9 @@
     </div>
 
     <div class="actions">
+      <button class="btn-undo-redo" id="btn-undo" onclick="undoAzione()" disabled title="Annulla (Ctrl+Z)">↩</button>
+      <button class="btn-undo-redo" id="btn-redo" onclick="redoAzione()" disabled title="Ripristina (Ctrl+Y)">↪</button>
+      <span id="undo-counter"></span>
       <button class="btn btn-blue"    onclick="showResoconto()">📊 Resoconto</button>
       <button class="btn btn-primary" onclick="openFormNuovo()">＋ Nuovo</button>
       <button class="btn btn-ghost"   onclick="goStorico()">📋 Storico</button>
@@ -1291,6 +1302,16 @@ async function conferma() {
   })});
   fb(res.msg, res.ok);
   if(res.ok) {
+    // Registra azione undo: movimento inverso
+    pushUndo({
+      label: (_modo==='carico'?'Carico':'Scarico') + ' ' + q + ' pz su ' + (document.getElementById('pan-nome').value||_selId),
+      undo: { url: '/api/magazzino/movimento', method: 'POST',
+              body: { componente_id: _selId, tipo: _modo==='carico'?'scarico':'carico',
+                      quantita: q, riferimento: 'UNDO', note: 'Annullamento automatico' } },
+      redo: { url: '/api/magazzino/movimento', method: 'POST',
+              body: { componente_id: _selId, tipo: _modo,
+                      quantita: q, riferimento: 'REDO', note: 'Ripristino automatico' } },
+    });
     document.getElementById('inp-qc').value='';
     document.getElementById('inp-qs').value='';
     document.getElementById('inp-rif').value='';
@@ -1321,6 +1342,12 @@ async function salvaUbicazione() {
   fb(res.ok ? '✅ Ubicazione salvata' : res.msg, res.ok);
   if(res.ok) {
     const row = _tutti.find(x=>x.componente_id===_selId);
+    const prevUbicazione = row ? (row.ubicazione||'') : '';
+    pushUndo({
+      label: 'Ubicazione ' + (row?.articolo||_selId),
+      undo: { url: '/api/magazzino/componenti/'+_selId, method: 'PUT', body: {ubicazione: prevUbicazione} },
+      redo: { url: '/api/magazzino/componenti/'+_selId, method: 'PUT', body: {ubicazione} },
+    });
     if(row) row.ubicazione = ubicazione;
     renderVirtual();
   }
@@ -1387,8 +1414,32 @@ async function salvaForm() {
   const res = _modifica
     ? await apiFetch(`/api/magazzino/componenti/${_selId}`,{method:'PUT',body:JSON.stringify(dati)})
     : await apiFetch('/api/magazzino/componenti',{method:'POST',body:JSON.stringify(dati)});
-  if(res.ok){ closeModal('modal-form'); await caricaDati(); toast(res.msg); }
-  else toast(res.msg,false);
+  if(res.ok){
+    closeModal('modal-form');
+    await caricaDati();
+    toast(res.msg);
+    if(_modifica) {
+      // Undo: ripristina valori precedenti
+      const prevRow = _tutti.find(x=>x.componente_id===_selId);
+      const prevDati = prevRow ? {
+        nome: prevRow.articolo, marca: prevRow.marca, modello: prevRow.modello,
+        categoria: prevRow.categoria, scorta_minima: prevRow.scorta,
+        ubicazione: prevRow.ubicazione, note: prevRow.nota,
+      } : {};
+      pushUndo({
+        label: 'Modifica ' + (dati.nome||_selId),
+        undo: { url: '/api/magazzino/componenti/'+_selId, method: 'PUT', body: prevDati },
+        redo: { url: '/api/magazzino/componenti/'+_selId, method: 'PUT', body: dati },
+      });
+    } else if(res.id) {
+      // Undo creazione: elimina il componente appena creato
+      pushUndo({
+        label: 'Crea ' + (dati.nome||dati.codice),
+        undo: { url: '/api/magazzino/componenti/'+res.id, method: 'DELETE' },
+        redo: { url: '/api/magazzino/componenti', method: 'POST', body: dati },
+      });
+    }
+  } else toast(res.msg,false);
 }
 
 // ── ELIMINA ───────────────────────────────────────────────────────────
@@ -1396,9 +1447,26 @@ async function eliminaSelected() {
   if(!_selId){ fb('Seleziona un componente',false); return; }
   const r = _tutti.find(x=>x.componente_id===_selId);
   if(!confirm(`Eliminare "${r?.articolo||_selId}"?`)) return;
+  const datiComp = _tutti.find(x=>x.componente_id===_selId);
   const res = await apiFetch(`/api/magazzino/componenti/${_selId}`,{method:'DELETE'});
   fb(res.msg,res.ok);
-  if(res.ok){ _selId=null; await caricaDati(); }
+  if(res.ok){
+    // Undo eliminazione: ricrea il componente
+    if(datiComp) {
+      const ripristinoDati = {
+        codice: datiComp.cmp, nome: datiComp.articolo, marca: datiComp.marca,
+        modello: datiComp.modello, categoria: datiComp.categoria,
+        scorta_minima: datiComp.scorta, ubicazione: datiComp.ubicazione,
+        note: datiComp.nota,
+      };
+      pushUndo({
+        label: 'Elimina ' + (datiComp.articolo||_selId),
+        undo: { url: '/api/magazzino/componenti', method: 'POST', body: ripristinoDati },
+        redo: { url: '/api/magazzino/componenti/'+_selId, method: 'DELETE' },
+      });
+    }
+    _selId=null; await caricaDati();
+  }
 }
 
 // ── IMPORT EXCEL ──────────────────────────────────────────────────────
@@ -2266,6 +2334,91 @@ function ripristinaFocus() {
   // Forza un re-render per sbloccare tutto
   requestAnimationFrame(function(){ renderVirtual(); });
 }
+
+// ── UNDO / REDO ──────────────────────────────────────────────────────
+const _undoStack = [];  // stack azioni annullabili
+const _redoStack = [];  // stack azioni ripristinabili
+const UNDO_MAX = 30;    // massimo 30 livelli
+
+// Registra un'azione nella storia
+function pushUndo(azione) {
+  _undoStack.push(azione);
+  if(_undoStack.length > UNDO_MAX) _undoStack.shift();
+  _redoStack.length = 0; // svuota redo quando si fa una nuova azione
+  aggiornaBottoniUndoRedo();
+}
+
+function aggiornaBottoniUndoRedo() {
+  const btnU = document.getElementById('btn-undo');
+  const btnR = document.getElementById('btn-redo');
+  const ctr  = document.getElementById('undo-counter');
+  if(btnU) btnU.disabled = _undoStack.length === 0;
+  if(btnR) btnR.disabled = _redoStack.length === 0;
+  if(ctr)  ctr.textContent = _undoStack.length > 0 ? _undoStack.length+'↩' : '';
+}
+
+function flashBtn(id) {
+  const el = document.getElementById(id);
+  if(!el) return;
+  el.classList.add('active-flash');
+  setTimeout(()=>el.classList.remove('active-flash'), 400);
+}
+
+async function undoAzione() {
+  if(!_undoStack.length) return;
+  const az = _undoStack.pop();
+  _redoStack.push(az);
+  flashBtn('btn-undo');
+  await eseguiAzione(az.undo, '↩ Annullato: ' + az.label);
+  aggiornaBottoniUndoRedo();
+}
+
+async function redoAzione() {
+  if(!_redoStack.length) return;
+  const az = _redoStack.pop();
+  _undoStack.push(az);
+  flashBtn('btn-redo');
+  await eseguiAzione(az.redo, '↪ Ripristinato: ' + az.label);
+  aggiornaBottoniUndoRedo();
+}
+
+async function eseguiAzione(spec, msgLabel) {
+  try {
+    const res = await apiFetch(spec.url, {method: spec.method, body: spec.body ? JSON.stringify(spec.body) : undefined});
+    if(res.ok !== false) {
+      toast(msgLabel, true);
+      // Ricarica dati
+      const allC = await apiFetch('/api/magazzino/componenti');
+      _tutti = allC;
+      applicaFiltri();
+      // Se c'è un componente selezionato aggiorna pannello
+      if(_selId) {
+        const r = _tutti.find(x=>x.componente_id===_selId);
+        if(r) {
+          document.getElementById('pan-cmp').value        = r.cmp||'';
+          document.getElementById('pan-nome').value       = r.articolo||'';
+          document.getElementById('pan-note').value       = r.nota||'';
+          document.getElementById('pan-ubicazione').value = r.ubicazione||'';
+        }
+        const info = await apiFetch('/api/magazzino/info-movimenti/'+_selId);
+        document.getElementById('cnt-carichi').textContent  = info.carichi||0;
+        document.getElementById('cnt-scarichi').textContent = info.scarichi||0;
+        document.getElementById('dt-carico').textContent    = (info.ultima_data_carico||'—').slice(0,16);
+        document.getElementById('dt-scarico').textContent   = (info.ultima_data_scarico||'—').slice(0,16);
+      }
+    } else {
+      toast('Errore: ' + (res.msg||''), false);
+    }
+  } catch(e) {
+    toast('Errore undo/redo: ' + e.message, false);
+  }
+}
+
+// Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z
+document.addEventListener('keydown', function(e) {
+  if((e.ctrlKey||e.metaKey) && !e.shiftKey && e.key==='z') { e.preventDefault(); undoAzione(); }
+  if((e.ctrlKey||e.metaKey) && (e.key==='y' || (e.shiftKey && e.key==='z'))) { e.preventDefault(); redoAzione(); }
+});
 
 // ── INIT ─────────────────────────────────────────────────────────────
 // Override modal-colonne button
