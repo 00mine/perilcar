@@ -289,6 +289,14 @@ function renderP(){
     +'<div class="qty-hint">Quantità attesa nel sistema: <b>'+(r.qty_attesa??'—')+'</b></div>'
     +'</div></div>'
 
+    // Ubicazione modificabile
+    +'<div class="card"><div class="card-sec">'
+    +'<div style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">📍 Ubicazione</div>'
+    +'<input type="text" id="ubicazione-inp" placeholder="es. Scaffale A3, Corsia 2..." value="'+esc(r.ubicazione||'')+'"'
+    +' style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:10px;font-size:14px;font-family:var(--font);outline:none">'
+    +'<div style="font-size:11px;color:var(--text3);margin-top:5px">Attuale: <b>'+(r.ubicazione?esc(r.ubicazione):'non impostata')+'</b></div>'
+    +'</div></div>'
+
     // Nuove foto
     +'<div class="card"><div class="card-sec">'
     +'<div class="foto-hdr"><span>📷 Aggiungi foto</span><span id="foto-count" style="font-size:11px;color:var(--text3)">0 foto pronte</span></div>'
@@ -375,6 +383,7 @@ async function azioneConferma(){
   var lbl=document.getElementById('btn-conf-lbl');
   btn.classList.add('busy');lbl.textContent='Salvataggio...';
   var note=(document.getElementById('note-inp')||{}).value||'';
+  var ubicazione=(document.getElementById('ubicazione-inp')||{}).value||'';
 
   // Carica foto
   for(var i=0;i<_fotoNuove.length;i++){
@@ -385,6 +394,16 @@ async function azioneConferma(){
   }
 
   // Aggiorna riga
+  // Salva ubicazione sul componente se modificata
+  if(ubicazione && ubicazione !== (_riga.ubicazione||'')) {
+    try{
+      await api('/api/magazzino/componenti/'+_riga.componente_id,{
+        method:'PUT',
+        body:JSON.stringify({ubicazione:ubicazione})
+      });
+    }catch(e){console.warn('Ubicazione non salvata',e);}
+  }
+
   var res=await api('/api/inventario/righe/'+_riga.id,{
     method:'PUT',
     body:JSON.stringify({stato:'confermato',qty_trovata:_qty,note:note})
