@@ -439,6 +439,17 @@ _sock.on('inventario_aggiornamento', async function(data){
 _sock.on('inventario_nuova_sessione', ()=>{ caricaSessioni(); });
 _sock.on('inventario_chiusa', ()=>{ caricaSessioni(); });
 
+// Aggiornamento foto in tempo reale
+_sock.on('inventario_foto', function(data){
+  if(data.sessione_id !== _sessId) return;
+  // Aggiorna la riga in _righe
+  const idx = _righe.findIndex(r=>r.id===data.riga_id);
+  if(idx>=0){
+    _righe[idx].foto_url = data.foto_url;
+    renderRighe(_righe);
+  }
+});
+
 // ── Init ──────────────────────────────────────────────────────────────
 caricaCategorie();
 caricaSessioni();

@@ -2271,6 +2271,16 @@ def api_inv_foto(rid):
                 conn.commit()
             finally:
                 conn.close()
+        # Notifica il PC in tempo reale
+        try:
+            socketio.emit("inventario_foto", {
+                "sessione_id": riga["sessione_id"],
+                "riga_id": rid,
+                "componente_id": cid,
+                "url": url,
+                "foto_url": new_foto_url
+            }, room=f"inventario_{riga['sessione_id']}")
+        except: pass
         return jsonify({"ok": True, "url": url})
     except Exception as e:
         return jsonify({"ok": False, "msg": str(e)}), 500
