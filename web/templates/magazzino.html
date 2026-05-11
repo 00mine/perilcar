@@ -419,17 +419,19 @@
   <div class="right">
 
     <div class="panel-section">
-      <span class="panel-lbl">Movimenti</span>
+      <span class="panel-lbl">Giacenza &amp; Movimenti</span>
       <div class="counter-grid">
+        <div class="counter-box carico" style="grid-column:1/-1">
+          <span class="lbl">Giacenza attuale</span>
+          <span class="num" id="cnt-giacenza" style="font-size:26px">—</span>
+        </div>
         <div class="counter-box carico">
-          <span class="lbl">N° Carichi</span>
-          <span class="num" id="cnt-carichi">—</span>
-          <span class="date" id="dt-carico">—</span>
+          <span class="lbl">Ultimo carico</span>
+          <span class="date" id="dt-carico" style="font-size:10px;color:var(--text2)">—</span>
         </div>
         <div class="counter-box scarico">
-          <span class="lbl">N° Scarichi</span>
-          <span class="num" id="cnt-scarichi">—</span>
-          <span class="date" id="dt-scarico">—</span>
+          <span class="lbl">Ultimo scarico</span>
+          <span class="date" id="dt-scarico" style="font-size:10px;color:var(--text2)">—</span>
         </div>
       </div>
     </div>
@@ -1229,10 +1231,10 @@ async function selectRow(id, el) {
   renderFiles(r.files_path);
 
   const info = await apiFetch(`/api/magazzino/info-movimenti/${id}`);
-  document.getElementById('cnt-carichi').textContent  = info.carichi;
-  document.getElementById('cnt-scarichi').textContent = info.scarichi;
-  document.getElementById('dt-carico').textContent  = info.ultima_data_carico  ? '↑ '+info.ultima_data_carico.slice(0,16)  : '—';
-  document.getElementById('dt-scarico').textContent = info.ultima_data_scarico ? '↓ '+info.ultima_data_scarico.slice(0,16) : '—';
+  const giacEl = document.getElementById('cnt-giacenza');
+  if(giacEl) giacEl.textContent = r ? (r.esistenza ?? '—') : '—';
+  document.getElementById('dt-carico').textContent  = info.ultima_data_carico  ? info.ultima_data_carico.slice(0,16)  : '—';
+  document.getElementById('dt-scarico').textContent = info.ultima_data_scarico ? info.ultima_data_scarico.slice(0,16) : '—';
 }
 
 // ── FILES ────────────────────────────────────────────────────────────
@@ -1330,8 +1332,9 @@ async function conferma() {
       if(idx>=0) { _tutti[idx] = updated; applicaFiltri(); }
     }
     const info = await apiFetch(`/api/magazzino/info-movimenti/${_selId}`);
-    document.getElementById('cnt-carichi').textContent  = info.carichi;
-    document.getElementById('cnt-scarichi').textContent = info.scarichi;
+    const gEl = document.getElementById('cnt-giacenza');
+    const updR = _tutti.find(x=>x.componente_id===_selId);
+    if(gEl && updR) gEl.textContent = updR.esistenza ?? '—';
     document.getElementById('dt-carico').textContent  = info.ultima_data_carico?.slice(0,16)||'—';
     document.getElementById('dt-scarico').textContent = info.ultima_data_scarico?.slice(0,16)||'—';
   }
