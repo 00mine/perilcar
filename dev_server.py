@@ -2086,7 +2086,15 @@ def api_inv_prossimo(sid):
     riga = db.fetchone("""
         SELECT r.*, c.codice as cmp, c.nome as articolo,
                c.marca, c.categoria, c.immagine_path, c.files_path,
-               c.colore, c.modello, c.anno_da, c.anno_a
+               c.colore, c.modello, c.anno_da, c.anno_a,
+               c.cod_modello, c.cilindrata, c.carburante, c.versione,
+               c.tipologia, c.sottocategoria, c.intervallo,
+               c.cod_udm, c.cod_iva, c.listino1, c.listino2, c.listino3,
+               c.cod_barre, c.ubicazione, c.stato_magazzino,
+               c.prezzo_acquisto, c.prezzo_vendita, c.scorta_minima,
+               c.fornitore, c.cod_fornitore, c.note,
+               c.extra1, c.extra2, c.extra3, c.extra4,
+               c.unita_misura, c.descrizione
         FROM inventario_righe r
         JOIN componenti c ON c.id = r.componente_id
         WHERE r.sessione_id=? AND r.stato='sospeso'
@@ -2096,7 +2104,16 @@ def api_inv_prossimo(sid):
         # Controlla se ci sono rimandati
         rimandato = db.fetchone("""
             SELECT r.*, c.codice as cmp, c.nome as articolo,
-                   c.marca, c.categoria, c.immagine_path, c.files_path
+                   c.marca, c.categoria, c.immagine_path, c.files_path,
+                   c.colore, c.modello, c.anno_da, c.anno_a,
+                   c.cod_modello, c.cilindrata, c.carburante, c.versione,
+                   c.tipologia, c.sottocategoria, c.intervallo,
+                   c.cod_udm, c.cod_iva, c.listino1, c.listino2, c.listino3,
+                   c.cod_barre, c.ubicazione, c.stato_magazzino,
+                   c.prezzo_acquisto, c.prezzo_vendita, c.scorta_minima,
+                   c.fornitore, c.cod_fornitore, c.note,
+                   c.extra1, c.extra2, c.extra3, c.extra4,
+                   c.unita_misura, c.descrizione
             FROM inventario_righe r
             JOIN componenti c ON c.id = r.componente_id
             WHERE r.sessione_id=? AND r.stato='rimandato'
