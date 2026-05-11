@@ -303,13 +303,12 @@ function renderP(){
     // Nuove foto
     +'<div class="card"><div class="card-sec">'
     +'<div class="foto-hdr"><span>📷 Aggiungi foto</span><span id="foto-count" style="font-size:11px;color:var(--text3)">0 foto pronte</span></div>'
-    +'<div class="foto-grid" id="foto-grid">'
-    +'<div style="display:flex;gap:8px">'
-    +'<div class="foto-add" onclick="document.getElementById(\'inp-camera\').click()" style="flex:1"><div class="ico">📷</div><div class="lbl">Fotocamera</div></div>'
-    +'<div class="foto-add" onclick="document.getElementById(\'inp-file\').click()" style="flex:1"><div class="ico">🖼</div><div class="lbl">Galleria</div></div>'
+    +'<div style="display:flex;gap:8px;margin-bottom:10px">'
+    +'<button onclick="document.getElementById(\'inp-camera\').click()" style="flex:1;padding:12px;border:2px solid #bbf7d0;border-radius:10px;background:#f0fdf4;color:#16a34a;font-size:14px;font-weight:700;cursor:pointer">📷 Fotocamera</button>'
+    +'<button onclick="document.getElementById(\'inp-file\').click()" style="flex:1;padding:12px;border:2px solid var(--border);border-radius:10px;background:var(--bg);font-size:14px;font-weight:600;cursor:pointer">🖼 Galleria</button>'
     +'</div>'
-    +'</div>'
-    +'<div class="foto-hint">Le foto si caricano quando premi Conferma</div>'
+    +'<div class="foto-grid" id="foto-grid"></div>'
+    +'<div class="foto-hint" id="foto-hint">Tocca un pulsante per aggiungere foto</div>'
     +'</div></div>'
 
     // Note
@@ -378,14 +377,16 @@ function riceviFile(file){
 
 function aggiungiAnteprima(id, url){
   var grid = document.getElementById('foto-grid');
-  if(!grid) return;
+  if(!grid){ console.warn('foto-grid non trovata'); return; }
+  var hint = document.getElementById('foto-hint');
+  if(hint) hint.style.display = 'none';
   var wrap = document.createElement('div');
   wrap.className = 'foto-thumb-wrap';
   wrap.id = 'wrap-'+id;
   var img = document.createElement('img');
   img.className = 'foto-thumb';
   img.src = url;
-  img.style.opacity = '0.5'; // grigia finché non è caricata
+  img.style.opacity = '0.5';
   img.id = 'img-'+id;
   img.onclick = function(){ window.open(url,'_blank'); };
   var spinner = document.createElement('div');
@@ -394,8 +395,7 @@ function aggiungiAnteprima(id, url){
   spinner.textContent = '⏳';
   wrap.appendChild(img);
   wrap.appendChild(spinner);
-  var addBtn = grid.querySelector('.foto-add');
-  if(addBtn) grid.insertBefore(wrap, addBtn); else grid.appendChild(wrap);
+  grid.appendChild(wrap);
 }
 
 async function uploadFoto(file, nome, id){
