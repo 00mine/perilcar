@@ -196,6 +196,7 @@ async function prossimoP(){
   document.getElementById('azioni').style.display='none';
   document.getElementById('scroll-area').innerHTML='<div class="schermata"><div class="spinner"></div></div>';
   _fotoNuove=[];
+  _fotoCaricate={};
   const data=await api('/api/inventario/sessioni/'+_sessId+'/prossimo');
   if(!data.ok){mostraScherm('⚠️','Errore',data.msg||'');return;}
   _fase=data.fase;
@@ -355,14 +356,45 @@ function scattaFoto(){
 function fotoCameraCapture(input){
   // Rimuovi qualsiasi overlay rimasto aperto
   document.querySelectorAll('div[style*="z-index:400"]').forEach(function(el){el.remove();});
-  Array.from(input.files).forEach(function(f){aggFoto(f,f.name);});
+  Array.from(input.files).forEach(function(f){
+    aggFoto(f, f.name);
+    // Upload immediato — non aspetta il Conferma
+    uploadFotoImmediato(f, f.name);
+  });
   input.value='';
 }
+
 function fotoGalleria(input){
   document.querySelectorAll('div[style*="z-index:400"]').forEach(function(el){el.remove();});
-  Array.from(input.files).forEach(function(f){aggFoto(f,f.name);});
+  Array.from(input.files).forEach(function(f){
+    aggFoto(f, f.name);
+    uploadFotoImmediato(f, f.name);
+  });
   input.value='';
 }
+
+// _fotoCaricate = foto già sul server (non da ricaricare al Conferma)
+var _fotoCaricate = {};
+
+async function uploadFotoImmediato(file, nome){
+  if(!_riga) return;
+  toast('⏳ Caricamento foto...', 'warn');
+  try{
+    var fd = new FormData();
+    fd.append('file', file, nome);
+    var r = await fetch('/api/inventario/righe/'+_riga.id+'/foto', {method:'POST', body:fd});
+    var res = await r.json();
+    if(res.ok){
+      _fotoCaricate[nome] = true;
+      toast('✅ Foto caricata!', 'ok');
+    } else {
+      toast('⚠️ '+res.msg, 'err');
+    }
+  }catch(e){
+    toast('⚠️ Errore upload: '+e.message, 'err');
+  }
+}
+
 function aggFoto(blob,nome){
   _fotoNuove.push({blob:blob,nome:nome});
   var url=URL.createObjectURL(blob);
@@ -391,7 +423,7 @@ function salvaFotoSession(){
     });
   });
   Promise.all(promises).then(function(results){
-    try{ sessionStorage.setItem('inv_foto_'+_sessId+'_'+(_riga?_riga.id:''), JSON.stringify(results)); }catch(e){}
+    try{ localStorage.setItem('inv_foto_'+_sessId+'_'+(_riga?_riga.id:''), JSON.stringify(results)); }catch(e){}
   });
 }
 
@@ -450,13 +482,16 @@ async function azioneConferma(){
   var note=(document.getElementById('note-inp')||{}).value||'';
   var ubicazione=(document.getElementById('ubicazione-inp')||{}).value||'';
 
-  // Carica foto
+  // Carica solo le foto NON ancora caricate in automatico
   for(var i=0;i<_fotoNuove.length;i++){
+    var fn = _fotoNuove[i].nome;
+    if(_fotoCaricate[fn]) continue; // già caricata in automatico
     try{
-      var fd=new FormData();fd.append('file',_fotoNuove[i].blob,_fotoNuove[i].nome);
+      var fd=new FormData();fd.append('file',_fotoNuove[i].blob,fn);
       await fetch('/api/inventario/righe/'+_riga.id+'/foto',{method:'POST',body:fd});
     }catch(e){console.warn('Foto non caricata',e);}
   }
+  _fotoCaricate = {}; // reset
 
   // Aggiorna riga
   // Salva ubicazione sul componente se modificata
@@ -477,7 +512,7 @@ async function azioneConferma(){
   btn.classList.remove('busy');lbl.textContent='Conferma';
   if(res.ok){
     // Pulisci le foto salvate per questo pezzo
-    try{sessionStorage.removeItem('inv_foto_'+_sessId+'_'+_riga.id);}catch(e){}
+    try{localStorage.removeItem('inv_foto_'+_sessId+'_'+_riga.id);}catch(e){}
     await aggStats();setTimeout(prossimoP,300);
   }
   else toast(res.msg||'Errore','err');
