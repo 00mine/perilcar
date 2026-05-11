@@ -2502,7 +2502,6 @@ async function openInventarioSessione(){
 async function invCerca(val){
   clearTimeout(_invTimer);
   const dd = document.getElementById('inv-dropdown');
-  // Mostra dropdown anche con 1 carattere
   if(val.length < 1){ dd.style.display='none'; return; }
   _invTimer = setTimeout(async()=>{
     const rows = await apiFetch('/api/inventario/descrizioni?q='+encodeURIComponent(val));
@@ -2511,21 +2510,23 @@ async function invCerca(val){
       dd.style.display='block';
       return;
     }
-    dd.innerHTML = rows.map(r=>{
-      const desc = String(r.descrizione||'');
-      const safe = desc.replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;');
-      const hi   = desc.replace(new RegExp('('+val.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','gi'),'<b style="color:var(--orange)">$1</b>');
-      return \`<div onclick="invSeleziona('\${safe}',\${r.n})"
-        style="padding:9px 12px;cursor:pointer;border-bottom:1px solid #f3f4f6;display:flex;justify-content:space-between;align-items:center"
-        onmouseenter="this.style.background='#fff8f5'" onmouseleave="this.style.background=''">
-        <span style="font-weight:600;font-size:13px">\${hi}</span>
-        <span style="font-size:11px;color:var(--text3);margin-left:8px;white-space:nowrap">\${r.n} varianti · \${r.tot_pezzi||0} pz</span>
-      </div>\`;
-    }).join('');
+    var html = '';
+    rows.forEach(function(r){
+      var desc = String(r.descrizione||'');
+      var safe = desc.replace(/'/g, "&#39;").replace(/"/g, '&quot;');
+      var re2  = new RegExp('('+val.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','gi');
+      var hi   = desc.replace(re2, '<b style="color:var(--orange)">$1</b>');
+      html += '<div onclick="invSeleziona(\''+safe+'\','+r.n+')"'
+            + ' style="padding:9px 12px;cursor:pointer;border-bottom:1px solid #f3f4f6;display:flex;justify-content:space-between;align-items:center"'
+            + ' onmouseenter="this.style.background=\'#fff8f5\'" onmouseleave="this.style.background=\'\'">'
+            + '<span style="font-weight:600;font-size:13px">'+hi+'</span>'
+            + '<span style="font-size:11px;color:var(--text3);margin-left:8px;white-space:nowrap">'+r.n+' varianti &middot; '+(r.tot_pezzi||0)+' pz</span>'
+            + '</div>';
+    });
+    dd.innerHTML = html;
     dd.style.display='block';
   }, 200);
 }
-
 // Mostra tutte le descrizioni al focus se campo vuoto
 async function invFocus(){
   const val = document.getElementById('inv-search').value;
