@@ -2002,9 +2002,22 @@ def api_inv_crea_sessione():
         return jsonify({"ok": False, "msg": "Seleziona una descrizione"}), 400
 
     try:
+        # Recupera componenti PRIMA di acquisire il write lock (evita deadlock)
+        if descrizione:
+            comps = db.fetchall(
+                "SELECT componente_id, esistenza FROM v_giacenza WHERE articolo=? ORDER BY articolo",
+                (descrizione,))
+        else:
+            comps = db.fetchall(
+                "SELECT componente_id, esistenza FROM v_giacenza WHERE categoria=? ORDER BY articolo",
+                (categoria,))
+
+        if not comps:
+            return jsonify({"ok": False, "msg": f"Nessun componente trovato per '{filtro}'"}), 400
+
         with db._write_lock:
             conn = db.get_connection()
-            conn.execute("PRAGMA synchronous=OFF")  # velocizza insert bulk
+            conn.execute("PRAGMA synchronous=OFF")
             try:
                 # Crea sessione
                 cur = conn.execute(
@@ -2012,20 +2025,10 @@ def api_inv_crea_sessione():
                     (nome, filtro, "attiva", u.get("id")))
                 sid = cur.lastrowid
 
-                # Recupera componenti per descrizione o categoria
-                if descrizione:
-                    comps = db.fetchall(
-                        "SELECT componente_id, esistenza FROM v_giacenza WHERE articolo=? ORDER BY articolo",
-                        (descrizione,))
-                else:
-                    comps = db.fetchall(
-                        "SELECT componente_id, esistenza FROM v_giacenza WHERE categoria=? ORDER BY articolo",
-                        (categoria,))
-
-                # Insert bulk per performance
+                # Insert bulk
                 conn.executemany(
                     "INSERT INTO inventario_righe(sessione_id,componente_id,qty_attesa,stato,ordine) VALUES(?,?,?,?,?)",
-                    [(sid, c["componente_id"], c["esistenza"] or 0, "sospeso", i)
+                    [(sid, c["componente_id"], int(c["esistenza"] or 0), "sospeso", i)
                      for i, c in enumerate(comps)])
 
                 conn.execute(
@@ -2117,9 +2120,16 @@ def api_inv_aggiorna_riga(rid):
     qty   = d.get("qty_trovata")
     note  = d.get("note", "")
 
+    # Leggi riga PRIMA del write lock
     riga = db.fetchone("SELECT * FROM inventario_righe WHERE id=?", (rid,))
     if not riga:
         return jsonify({"ok": False, "msg": "Riga non trovata"}), 404
+
+    # Pre-calcola valori
+    sid  = riga["sessione_id"]
+    cid  = riga["componente_id"]
+    qatt = riga["qty_attesa"] or 0
+    qtrv = qty if qty is not None else qatt
 
     try:
         with db._write_lock:
@@ -2129,12 +2139,7 @@ def api_inv_aggiorna_riga(rid):
                 conn.execute("""UPDATE inventario_righe
                     SET stato=?, qty_trovata=?, note=?, aggiornato_il=datetime('now')
                     WHERE id=?""",
-                    (stato, qty if qty is not None else riga["qty_attesa"], note, rid))
-
-                sid  = riga["sessione_id"]
-                cid  = riga["componente_id"]
-                qatt = riga["qty_attesa"] or 0
-                qtrv = qty if qty is not None else qatt
+                    (stato, qtrv, note, rid))
 
                 # Se confermato o mancante: registra movimento se qty diversa
                 if stato in ("confermato", "mancante"):
