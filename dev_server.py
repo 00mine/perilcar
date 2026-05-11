@@ -231,14 +231,14 @@ def api_login():
                        (d.get("username","").strip(),))
     if not user:
         return jsonify({"ok": False, "msg": "Utente non trovato"}), 401
-    if user.get("eliminato") == 1:
+    if user.get("eliminato", 0) == 1:
         return jsonify({"ok": False, "msg": "Account eliminato"}), 403
-    if not user.get("attivo", 1):
+    if user.get("attivo", 1) == 0:
         return jsonify({"ok": False, "msg": "Account disabilitato"}), 403
     if user["password_hash"] != pwd_hash:
         return jsonify({"ok": False, "msg": "Password errata"}), 401
     session["user"] = {"id": user["id"], "username": user["username"],
-                       "ruolo": user["ruolo"], "nome": user["nome_completo"] or user["username"]}
+                       "ruolo": user["ruolo"], "nome": (user.get("nome_completo") or user["username"])}
     db_write([("INSERT INTO log_operazioni(utente_id,username,modulo,azione) VALUES(?,?,?,?)",
                (user["id"], user["username"], "AUTH", "LOGIN"))])
     return jsonify({"ok": True, "user": session["user"]})
@@ -1782,7 +1782,14 @@ def page_utenti():
 @app.route("/api/utenti", methods=["GET"])
 @require_admin
 def api_utenti_lista():
-    rows = db.fetchall("SELECT id,username,nome_completo,ruolo,attivo,eliminato,creato_il FROM utenti WHERE eliminato=0 ORDER BY username")
+    try:
+        _ucols = [r[1] for r in db.fetchall("PRAGMA table_info(utenti)")]
+        _sel = "id,username,ruolo,attivo,creato_il"
+        if "nome_completo" in _ucols: _sel = "id,username,nome_completo,ruolo,attivo,creato_il"
+        _where = "WHERE eliminato=0" if "eliminato" in _ucols else ""
+        rows = db.fetchall(f"SELECT {_sel} FROM utenti {_where} ORDER BY username")
+    except Exception:
+        rows = db.fetchall("SELECT id,username,ruolo,attivo FROM utenti ORDER BY username")
     return jsonify(rows)
 
 @app.route("/api/utenti", methods=["POST"])
@@ -1805,9 +1812,13 @@ def api_utenti_crea():
         with db._write_lock:
             conn = db.get_connection()
             try:
-                cur = conn.execute(
-                    "INSERT INTO utenti(username,password_hash,ruolo,nome_completo,attivo) VALUES(?,?,?,?,1)",
-                    (username, pwd_hash, ruolo, nome))
+                _ucols2 = [r[1] for r in conn.execute("PRAGMA table_info(utenti)").fetchall()]
+                if "nome_completo" in _ucols2 and "eliminato" in _ucols2:
+                    cur = conn.execute("INSERT INTO utenti(username,password_hash,ruolo,nome_completo,attivo,eliminato) VALUES(?,?,?,?,1,0)", (username,pwd_hash,ruolo,nome))
+                elif "nome_completo" in _ucols2:
+                    cur = conn.execute("INSERT INTO utenti(username,password_hash,ruolo,nome_completo,attivo) VALUES(?,?,?,?,1)", (username,pwd_hash,ruolo,nome))
+                else:
+                    cur = conn.execute("INSERT INTO utenti(username,password_hash,ruolo,attivo) VALUES(?,?,?,1)", (username,pwd_hash,ruolo))
                 uid = cur.lastrowid
                 conn.execute("INSERT INTO log_operazioni(utente_id,username,modulo,azione,tabella,record_id) VALUES(?,?,?,?,?,?)",
                     (cu().get("id"), cu().get("username"), "UTENTI", "CREA", "utenti", uid))
