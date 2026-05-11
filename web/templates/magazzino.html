@@ -324,7 +324,6 @@
     <a href="/magazzino" class="nav-link active">📦 Magazzino</a>
     <a href="/storico"   class="nav-link">📋 Storico</a>
     <a href="/demolizioni" class="nav-link">🚗 Demolizioni</a>
-    <a href="/inventario" class="nav-link">📋 Inventario</a>
     {% if user.ruolo == 'admin' %}<a href="/utenti" class="nav-link">👥 Utenti</a>{% endif %}
   </nav>
   <div class="topbar-right">
@@ -365,7 +364,7 @@
               style="background:#7c3aed;color:#fff;border-color:#7c3aed">
         🤖 Assistente
       </button>
-      <button class="btn btn-ghost" onclick="openInventario()"
+      <button class="btn btn-ghost" onclick="openInventarioSessione()"
               style="background:#6d28d9;color:#fff;border-color:#6d28d9">
         📋 Inventario
       </button>
@@ -1604,7 +1603,7 @@ function stampaInventario(){
         <label style="font-size:11px;font-weight:700;color:var(--text2);display:block;margin-bottom:4px">Cerca descrizione pezzo</label>
         <input type="text" id="inv-search" placeholder="es. Alternatore, Fanale, Paraurti..."
           style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:var(--font);outline:none"
-          oninput="invCerca(this.value)" autocomplete="off">
+          oninput="invCerca(this.value)" onfocus="invFocus()" autocomplete="off">
         <div id="inv-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:9999;
           background:#fff;border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.12);
           max-height:200px;overflow-y:auto;margin-top:3px;font-size:13px"></div>
@@ -2488,7 +2487,7 @@ caricaDati();
 var _invSelDesc = null;
 var _invTimer   = null;
 
-async function openInventario(){
+async function openInventarioSessione(){
   _invSelDesc = null;
   document.getElementById('inv-search').value = '';
   document.getElementById('inv-dropdown').style.display = 'none';
@@ -2503,19 +2502,39 @@ async function openInventario(){
 async function invCerca(val){
   clearTimeout(_invTimer);
   const dd = document.getElementById('inv-dropdown');
-  if(val.length < 2){ dd.style.display='none'; return; }
+  // Mostra dropdown anche con 1 carattere
+  if(val.length < 1){ dd.style.display='none'; return; }
   _invTimer = setTimeout(async()=>{
     const rows = await apiFetch('/api/inventario/descrizioni?q='+encodeURIComponent(val));
-    if(!rows.length){ dd.style.display='none'; return; }
-    dd.innerHTML = rows.map(r=>`
-      <div onclick="invSeleziona('${r.descrizione.replace(/'/g,"\'")}',${r.n})"
+    if(!rows.length){
+      dd.innerHTML='<div style="padding:10px 12px;color:var(--text3);font-size:12px">Nessuna descrizione trovata</div>';
+      dd.style.display='block';
+      return;
+    }
+    dd.innerHTML = rows.map(r=>{
+      const desc = String(r.descrizione||'');
+      const safe = desc.replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;');
+      const hi   = desc.replace(new RegExp('('+val.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','gi'),'<b style="color:var(--orange)">$1</b>');
+      return \`<div onclick="invSeleziona('\${safe}',\${r.n})"
         style="padding:9px 12px;cursor:pointer;border-bottom:1px solid #f3f4f6;display:flex;justify-content:space-between;align-items:center"
         onmouseenter="this.style.background='#fff8f5'" onmouseleave="this.style.background=''">
-        <span style="font-weight:600">${r.descrizione}</span>
-        <span style="font-size:11px;color:var(--text3)">${r.n} pz</span>
-      </div>`).join('');
+        <span style="font-weight:600;font-size:13px">\${hi}</span>
+        <span style="font-size:11px;color:var(--text3);margin-left:8px;white-space:nowrap">\${r.n} varianti · \${r.tot_pezzi||0} pz</span>
+      </div>\`;
+    }).join('');
     dd.style.display='block';
-  }, 250);
+  }, 200);
+}
+
+// Mostra tutte le descrizioni al focus se campo vuoto
+async function invFocus(){
+  const val = document.getElementById('inv-search').value;
+  if(val.length === 0){
+    // Mostra le prime 20 descrizioni più comuni
+    const dd = document.getElementById('inv-dropdown');
+    dd.innerHTML='<div style="padding:6px 12px;font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase">Inizia a digitare per cercare</div>';
+    dd.style.display='block';
+  }
 }
 
 function invSeleziona(desc, n){

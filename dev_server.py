@@ -1966,13 +1966,13 @@ def api_inv_categorie():
 def api_inv_descrizioni():
     """Cerca descrizioni/articoli nel magazzino per autocomplete."""
     q = request.args.get("q","").strip()
-    if len(q) < 2:
+    if len(q) < 1:
         return jsonify([])
     rows = db.fetchall("""
         SELECT articolo as descrizione, COUNT(*) as n, SUM(esistenza) as tot_pezzi
         FROM v_giacenza
         WHERE articolo LIKE ? AND articolo IS NOT NULL AND articolo != ''
-        GROUP BY articolo ORDER BY articolo LIMIT 30
+        GROUP BY articolo ORDER BY n DESC, articolo LIMIT 40
     """, (f"%{q}%",))
     return jsonify(rows)
 
