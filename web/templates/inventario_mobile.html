@@ -196,7 +196,6 @@ async function prossimoP(){
   document.getElementById('azioni').style.display='none';
   document.getElementById('scroll-area').innerHTML='<div class="schermata"><div class="spinner"></div></div>';
   _fotoNuove=[];
-  _fotoCaricate={};
   const data=await api('/api/inventario/sessioni/'+_sessId+'/prossimo');
   if(!data.ok){mostraScherm('⚠️','Errore',data.msg||'');return;}
   _fase=data.fase;
@@ -354,124 +353,98 @@ function scattaFoto(){
   can.toBlob(function(blob){aggFoto(blob,'scatto.jpg');},'image/jpeg',0.88);
 }
 function fotoCameraCapture(input){
-  // Rimuovi qualsiasi overlay rimasto aperto
   document.querySelectorAll('div[style*="z-index:400"]').forEach(function(el){el.remove();});
-  Array.from(input.files).forEach(function(f){
-    aggFoto(f, f.name);
-    // Upload immediato — non aspetta il Conferma
-    uploadFotoImmediato(f, f.name);
-  });
+  Array.from(input.files).forEach(function(f){ riceviFile(f); });
   input.value='';
 }
 
 function fotoGalleria(input){
   document.querySelectorAll('div[style*="z-index:400"]').forEach(function(el){el.remove();});
-  Array.from(input.files).forEach(function(f){
-    aggFoto(f, f.name);
-    uploadFotoImmediato(f, f.name);
-  });
+  Array.from(input.files).forEach(function(f){ riceviFile(f); });
   input.value='';
 }
 
-// _fotoCaricate = foto già sul server (non da ricaricare al Conferma)
-var _fotoCaricate = {};
+// Chiamata quando arriva un file (da fotocamera o galleria)
+function riceviFile(file){
+  // Mostra anteprima subito
+  var url = URL.createObjectURL(file);
+  var id  = 'foto-'+Date.now()+'-'+Math.random().toString(36).slice(2);
+  _fotoNuove.push({file:file, nome:file.name, id:id, url:url, caricata:false});
+  aggiungiAnteprima(id, url);
+  updFotoCount();
+  // Upload immediato sul server
+  uploadFoto(file, file.name, id);
+}
 
-async function uploadFotoImmediato(file, nome){
-  if(!_riga) return;
-  toast('⏳ Caricamento foto...', 'warn');
+function aggiungiAnteprima(id, url){
+  var grid = document.getElementById('foto-grid');
+  if(!grid) return;
+  var wrap = document.createElement('div');
+  wrap.className = 'foto-thumb-wrap';
+  wrap.id = 'wrap-'+id;
+  var img = document.createElement('img');
+  img.className = 'foto-thumb';
+  img.src = url;
+  img.style.opacity = '0.5'; // grigia finché non è caricata
+  img.id = 'img-'+id;
+  img.onclick = function(){ window.open(url,'_blank'); };
+  var spinner = document.createElement('div');
+  spinner.id = 'spin-'+id;
+  spinner.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.3);border-radius:10px;font-size:18px';
+  spinner.textContent = '⏳';
+  wrap.appendChild(img);
+  wrap.appendChild(spinner);
+  var addBtn = grid.querySelector('.foto-add');
+  if(addBtn) grid.insertBefore(wrap, addBtn); else grid.appendChild(wrap);
+}
+
+async function uploadFoto(file, nome, id){
+  if(!_riga){ toast('Nessun pezzo selezionato','err'); return; }
   try{
     var fd = new FormData();
     fd.append('file', file, nome);
-    var r = await fetch('/api/inventario/righe/'+_riga.id+'/foto', {method:'POST', body:fd});
+    var r   = await fetch('/api/inventario/righe/'+_riga.id+'/foto', {method:'POST', body:fd});
     var res = await r.json();
+    // Aggiorna UI
+    var imgEl  = document.getElementById('img-'+id);
+    var spinEl = document.getElementById('spin-'+id);
+    var wrapEl = document.getElementById('wrap-'+id);
     if(res.ok){
-      _fotoCaricate[nome] = true;
-      toast('✅ Foto caricata!', 'ok');
+      // Foto caricata: verde, rimuovi spinner
+      if(imgEl){ imgEl.style.opacity='1'; imgEl.src=res.url; }
+      if(spinEl) spinEl.remove();
+      // Segna come caricata e aggiungi tasto elimina
+      _fotoNuove.forEach(function(f){ if(f.id===id){ f.caricata=true; f.url=res.url; } });
+      if(wrapEl){
+        var del = document.createElement('div');
+        del.className = 'foto-del';
+        del.textContent = '×';
+        del.onclick = function(){
+          _fotoNuove = _fotoNuove.filter(function(f){return f.id!==id;});
+          wrapEl.remove();
+          updFotoCount();
+        };
+        wrapEl.appendChild(del);
+      }
+      toast('✅ Foto salvata!','ok');
     } else {
-      toast('⚠️ '+res.msg, 'err');
+      // Errore: mostra X rosso
+      if(spinEl) spinEl.textContent = '❌';
+      toast('Errore upload: '+(res.msg||''),'err');
     }
   }catch(e){
-    toast('⚠️ Errore upload: '+e.message, 'err');
+    var spinEl = document.getElementById('spin-'+id);
+    if(spinEl) spinEl.textContent = '❌';
+    toast('Errore: '+e.message,'err');
   }
 }
 
-function aggFoto(blob,nome){
-  _fotoNuove.push({blob:blob,nome:nome});
-  var url=URL.createObjectURL(blob);
-  var grid=document.getElementById('foto-grid');
-  if(!grid)return;
-  var wrap=document.createElement('div');wrap.className='foto-thumb-wrap';
-  var img=document.createElement('img');img.className='foto-thumb';img.src=url;
-  img.onclick=function(){window.open(url,'_blank');};
-  var del=document.createElement('div');del.className='foto-del';del.textContent='×';
-  del.onclick=function(){_fotoNuove=_fotoNuove.filter(function(f){return f.blob!==blob;});wrap.remove();updFotoCount();};
-  wrap.appendChild(img);wrap.appendChild(del);
-  var addBtn=grid.querySelector('.foto-add');grid.insertBefore(wrap,addBtn);
-  updFotoCount();
-  toast('Foto aggiunta ✅','ok');
-  // Salva in sessionStorage per sopravvivere al refresh
-  salvaFotoSession();
-}
-
-function salvaFotoSession(){
-  // Converti i blob in base64 e salva
-  var promises = _fotoNuove.map(function(f,i){
-    return new Promise(function(resolve){
-      var reader = new FileReader();
-      reader.onload = function(e){ resolve({b64:e.target.result, nome:f.nome, idx:i}); };
-      reader.readAsDataURL(f.blob);
-    });
-  });
-  Promise.all(promises).then(function(results){
-    try{ localStorage.setItem('inv_foto_'+_sessId+'_'+(_riga?_riga.id:''), JSON.stringify(results)); }catch(e){}
-  });
-}
-
-function b64ToBlob(b64, mime){
-  var parts = b64.split(',');
-  var byteStr = atob(parts[1]);
-  var ab = new ArrayBuffer(byteStr.length);
-  var ia = new Uint8Array(ab);
-  for(var i=0;i<byteStr.length;i++) ia[i]=byteStr.charCodeAt(i);
-  return new Blob([ab],{type:mime||'image/jpeg'});
-}
-
-function ripristinaFotoSession(){
-  if(!_riga) return;
-  var key = 'inv_foto_'+_sessId+'_'+_riga.id;
-  try{
-    var saved = sessionStorage.getItem(key);
-    if(!saved) return;
-    var items = JSON.parse(saved);
-    if(!items || !items.length) return;
-    items.forEach(function(item){
-      try{
-        var mime = item.b64.split(';')[0].split(':')[1] || 'image/jpeg';
-        var blob = b64ToBlob(item.b64, mime);
-        _fotoNuove.push({blob:blob, nome:item.nome});
-        var url = URL.createObjectURL(blob);
-        var grid = document.getElementById('foto-grid');
-        if(!grid) return;
-        var wrap = document.createElement('div'); wrap.className='foto-thumb-wrap';
-        var img = document.createElement('img'); img.className='foto-thumb'; img.src=url;
-        img.onclick=function(){window.open(url,'_blank');};
-        var del = document.createElement('div'); del.className='foto-del'; del.textContent='×';
-        del.onclick=function(){
-          _fotoNuove=_fotoNuove.filter(function(f){return f.blob!==blob;});
-          wrap.remove(); updFotoCount(); salvaFotoSession();
-        };
-        wrap.appendChild(img); wrap.appendChild(del);
-        var addBtn=grid.querySelector('.foto-add');
-        if(addBtn) grid.insertBefore(wrap,addBtn); else grid.appendChild(wrap);
-        updFotoCount();
-      }catch(e2){console.warn('Ripristino foto fallito:',e2);}
-    });
-    if(items.length) toast(items.length+' foto ripristinate ✅','ok');
-  }catch(e){console.warn('Ripristino sessione fallito:',e);}
-}
 function updFotoCount(){
-  var el=document.getElementById('foto-count');
-  if(el)el.textContent=_fotoNuove.length+' foto pront'+(_fotoNuove.length===1?'a':'e');
+  var el = document.getElementById('foto-count');
+  if(!el) return;
+  var n = _fotoNuove.length;
+  var c = _fotoNuove.filter(function(f){return f.caricata;}).length;
+  el.textContent = c+'/'+n+' foto salvate';
 }
 
 async function azioneConferma(){
@@ -482,16 +455,8 @@ async function azioneConferma(){
   var note=(document.getElementById('note-inp')||{}).value||'';
   var ubicazione=(document.getElementById('ubicazione-inp')||{}).value||'';
 
-  // Carica solo le foto NON ancora caricate in automatico
-  for(var i=0;i<_fotoNuove.length;i++){
-    var fn = _fotoNuove[i].nome;
-    if(_fotoCaricate[fn]) continue; // già caricata in automatico
-    try{
-      var fd=new FormData();fd.append('file',_fotoNuove[i].blob,fn);
-      await fetch('/api/inventario/righe/'+_riga.id+'/foto',{method:'POST',body:fd});
-    }catch(e){console.warn('Foto non caricata',e);}
-  }
-  _fotoCaricate = {}; // reset
+  // Le foto sono già state caricate in automatico al momento dello scatto
+  // Non serve fare nulla qui
 
   // Aggiorna riga
   // Salva ubicazione sul componente se modificata
