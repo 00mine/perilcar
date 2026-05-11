@@ -156,7 +156,7 @@ td.ta-center{text-align:center}
       <h3>&#128203; Elenco Materiali da Smaltire</h3>
       <div style="display:flex;gap:6px">
         <button class="btn btn-ghost" onclick="aggiungiRiga()">+ Aggiungi riga</button>
-        <button class="btn btn-purple" onclick="salvaScheda()">&#128190; Salva scheda</button>
+        <button class="btn btn-purple" onclick="salvaScheda()" id="btn-salva">&#128190; Salva nel DB</button>
       </div>
     </div>
     <table>
@@ -184,6 +184,7 @@ td.ta-center{text-align:center}
 var _payload = null;
 var _righe = [];
 var _nextId = 1;
+var _schedaId = null;
 
 function fmt(n) { return parseFloat(n||0).toFixed(2).replace('.',','); }
 
@@ -195,7 +196,7 @@ function toast(msg, ok) {
   setTimeout(function(){ d.remove(); }, 3000);
 }
 
-function init() {
+async function init() {
   // Leggi payload da sessionStorage
   var raw = sessionStorage.getItem('demolisci_payload') || localStorage.getItem('demolisci_payload');
   if(!raw) { document.body.innerHTML='<div style="padding:40px;text-align:center;color:#9ca3af">Nessuna demolizione selezionata. <a href="/demolizioni">Torna</a></div>'; return; }
@@ -252,12 +253,30 @@ function init() {
   document.getElementById('n-auto').textContent = nAuto || _payload.demolizioni.length;
   document.getElementById('auto-strip').style.display = '';
 
+  // Calcola chiave dem_ids
+  var _demIds = (_payload.demolizioni||[]).map(function(d){return d.id;}).sort(function(a,b){return a-b;}).join(',');
+  window._demIds = _demIds;
+
+  // Prova a caricare scheda salvata dal DB; fallback su sessionStorage; altrimenti defaults
+  var dbLoaded = false;
+  try {
+    var dbRes = await fetch('/api/schede-demolizione/' + encodeURIComponent(_demIds));
+    var dbData = await dbRes.json();
+    if(dbData.ok && dbData.found && dbData.data && dbData.data.righe_json) {
+      _righe = JSON.parse(dbData.data.righe_json);
+      _nextId = _righe.reduce(function(m,r){ return Math.max(m,r.id); },0)+1;
+      _schedaId = dbData.data.id;
+      dbLoaded = true;
+      toast('\u{1F4BE} Scheda caricata dal database');
+    }
+  } catch(e) { /* ignora, usa fallback */ }
+
   // Carica righe salvate o crea 16 vuote
-  var saved = sessionStorage.getItem('demolisci_righe') || localStorage.getItem('demolisci_righe');
+  var saved = !dbLoaded && (sessionStorage.getItem('demolisci_righe') || localStorage.getItem('demolisci_righe'));
   if(saved) {
     _righe = JSON.parse(saved);
     _nextId = _righe.reduce(function(m,r){ return Math.max(m,r.id); },0)+1;
-  } else {
+  } else if(!dbLoaded) {
     var defaults = [
       {codice:'130208', descrizione:'Oli per motori, ingranaggi e lubrificazioni'},
       {codice:'150202', descrizione:'Assorbenti, materiali filtranti, stracci, ecc.'},
@@ -413,10 +432,37 @@ function eliminaRiga(id) {
   renderTabella();
 }
 
-function salvaScheda() {
+async function salvaScheda() {
+  if(!_payload) { toast('Nessun payload', false); return; }
+  // Salva sempre in locale come backup
   sessionStorage.setItem('demolisci_righe', JSON.stringify(_righe));
-  localStorage.setItem('demolisci_righe', JSON.stringify(_righe));
-  toast('Scheda salvata');
+  // Calcola dem_ids (ordinato) come chiave univoca
+  var demIds = (_payload.demolizioni||[]).map(function(d){return d.id;}).sort(function(a,b){return a-b;}).join(',');
+  var dataTratt = document.getElementById('b-data').value;
+  try {
+    var res = await fetch('/api/schede-demolizione', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        dem_ids: demIds,
+        data_trattamento: dataTratt,
+        peso_eff_tot:      parseFloat(_payload.pesoEffTot||0),
+        peso_ricambi_tot:  parseFloat(_payload.ricambiTot||0),
+        peso_netto_tot:    parseFloat(_payload.pesoNettoTot||0),
+        righe_json: JSON.stringify(_righe)
+      })
+    });
+    var r = await res.json();
+    if(r.ok) {
+      toast(r.action==='update' ? '\u2705 Scheda aggiornata nel DB' : '\u2705 Scheda salvata nel DB');
+      _schedaId = r.id;
+    } else {
+      // Fallback: solo locale
+      toast('\u26a0\ufe0f Salvato solo in locale: ' + (r.msg||''), false);
+    }
+  } catch(e) {
+    toast('\u26a0\ufe0f Salvato solo in locale (server non raggiungibile)', false);
+  }
 }
 
 init();

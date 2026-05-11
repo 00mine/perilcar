@@ -90,6 +90,15 @@ class _DemDB:
             componente_id INTEGER, peso_kg REAL, note TEXT, pezzo_nome TEXT,
             creato_il TEXT DEFAULT (datetime('now'))
         );
+        CREATE TABLE IF NOT EXISTS schede_demolizione (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            dem_ids TEXT NOT NULL,
+            data_trattamento TEXT,
+            peso_eff_tot REAL, peso_ricambi_tot REAL, peso_netto_tot REAL,
+            righe_json TEXT,
+            creato_da INTEGER, creato_il TEXT DEFAULT (datetime('now')),
+            modificato_il TEXT
+        );
         """)
         # Migrazione colonne opzionali
         cols = [r[1] for r in conn.execute("PRAGMA table_info(demolizioni)").fetchall()]
@@ -1378,10 +1387,29 @@ Rispondi basandoti ESCLUSIVAMENTE sui dati sopra."""
             risposta = result["message"]["content"]
             return jsonify({"ok": True, "risposta": risposta})
     except Exception:
-        # Fallback: restituisce dati DB direttamente, sempre funziona
+        # Fallback: restituisce dati DB formattati in HTML leggibile
         pass
 
-    return jsonify({"ok": True, "risposta": dati_reali})
+    # Ollama non disponibile: formatta i dati DB in modo leggibile
+    if not dati_reali or dati_reali == "Nessun dato trovato per questa ricerca.":
+        risposta_html = "❌ Nessun risultato trovato nel magazzino per questa ricerca."
+    else:
+        # Converti il plain text in HTML con evidenziazione
+        lines = dati_reali.split("\n")
+        parts = []
+        for line in lines:
+            if not line.strip():
+                continue
+            if line.isupper() or line.endswith(":"):
+                parts.append(f"<b style='color:#e94c00'>{line}</b>")
+            elif line.startswith("- "):
+                parts.append(f"<span style='display:block;padding:1px 0 1px 8px;border-left:2px solid #dde1e8'>{line[2:]}</span>")
+            else:
+                parts.append(line)
+        risposta_html = "<br>".join(parts)
+        risposta_html = f"<small style='color:#9ca3af;font-style:italic'>⚙️ Risposta diretta dal DB (Ollama non attivo)</small><br><br>{risposta_html}"
+
+    return jsonify({"ok": True, "risposta": risposta_html})
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1643,6 +1671,57 @@ def api_ricambi_del(rid):
         dem.run("UPDATE demolizioni SET peso_netto_kg = MAX(0, COALESCE(peso_effettivo_kg,0)-?) WHERE id=?", (tot, did))
     return jsonify({"ok": True})
 
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SCHEDE DEMOLIZIONE — salvataggio scheda /demolisci nel DB
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.route("/api/schede-demolizione", methods=["POST"])
+@require_login
+def api_scheda_salva():
+    u = cu(); d = request.json or {}
+    dem_ids   = d.get("dem_ids", "")      # es. "3,7,12"
+    data_tratt = d.get("data_trattamento")
+    righe_json = d.get("righe_json", "[]")  # JSON serializzato
+    peso_eff   = d.get("peso_eff_tot", 0)
+    peso_ric   = d.get("peso_ricambi_tot", 0)
+    peso_netto = d.get("peso_netto_tot", 0)
+    if not dem_ids:
+        return jsonify({"ok": False, "msg": "dem_ids obbligatorio"}), 400
+    try:
+        # Upsert: se esiste già una scheda per questi dem_ids, aggiorna
+        existing = dem.one("SELECT id FROM schede_demolizione WHERE dem_ids=?", (dem_ids,))
+        if existing:
+            dem.run("""UPDATE schede_demolizione
+                SET data_trattamento=?, peso_eff_tot=?, peso_ricambi_tot=?, peso_netto_tot=?,
+                    righe_json=?, modificato_il=datetime('now')
+                WHERE id=?""",
+                (data_tratt, peso_eff, peso_ric, peso_netto, righe_json, existing["id"]))
+            return jsonify({"ok": True, "msg": "Scheda aggiornata nel DB", "id": existing["id"], "action": "update"})
+        else:
+            nid = dem.run("""INSERT INTO schede_demolizione
+                (dem_ids, data_trattamento, peso_eff_tot, peso_ricambi_tot, peso_netto_tot, righe_json, creato_da)
+                VALUES (?,?,?,?,?,?,?)""",
+                (dem_ids, data_tratt, peso_eff, peso_ric, peso_netto, righe_json, u.get("id")))
+            return jsonify({"ok": True, "msg": "Scheda salvata nel DB", "id": nid, "action": "create"})
+    except Exception as e:
+        return jsonify({"ok": False, "msg": str(e)}), 500
+
+@app.route("/api/schede-demolizione/<dem_ids>", methods=["GET"])
+@require_login
+def api_scheda_get(dem_ids):
+    row = dem.one("SELECT * FROM schede_demolizione WHERE dem_ids=? ORDER BY id DESC LIMIT 1", (dem_ids,))
+    if not row:
+        return jsonify({"ok": False, "found": False})
+    return jsonify({"ok": True, "found": True, "data": row})
+
+@app.route("/api/demolizioni/<int:did>", methods=["GET"])
+@require_login
+def api_demolizione_get(did):
+    row = _dem_query(f"d.id={did}")
+    if not row:
+        return jsonify({"ok": False, "msg": "Non trovata"}), 404
+    return jsonify({"ok": True, "data": row[0]})
 
 # HOT RELOAD
 # ══════════════════════════════════════════════════════════════════════════════

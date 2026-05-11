@@ -2090,7 +2090,12 @@ function aggiungiMessaggio(testo, tipo, id) {
   var div = document.createElement('div');
   div.className = 'chat-msg ' + tipo;
   if(id) div.id = id;
-  div.innerHTML = testo.split('\n').join('<br>');
+  // Messaggi utente: escaped per sicurezza; messaggi AI: supportano HTML
+  if(tipo === 'user') {
+    div.textContent = testo;
+  } else {
+    div.innerHTML = testo.split('\n').join('<br>');
+  }
   var container = document.getElementById('chat-messages');
   container.appendChild(div);
   container.scrollTop = container.scrollHeight;
