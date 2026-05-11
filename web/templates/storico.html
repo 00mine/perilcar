@@ -157,6 +157,7 @@
     <a href="/dashboard" class="nav-link">🏠 Home</a>
     <a href="/magazzino" class="nav-link">📦 Magazzino</a>
     <a href="/storico"   class="nav-link active">📋 Storico</a>
+    <a href="/demolizioni" class="nav-link">🚗 Demolizioni</a>
   </nav>
   <div class="topbar-right">
     <span class="user-chip">👤 {{ user.username }}</span>
@@ -291,6 +292,7 @@ let _tipo  = '';
 let _colFilters = {};
 let _sortCol = null;
 let _sortDir = 1;
+const _urlComp = new URLSearchParams(window.location.search).get('comp');
 
 // Scroll virtuale
 const ROW_H   = 26;
@@ -433,8 +435,7 @@ async function caricaDati() {
   if(_mese) p.set('mese', _mese);
 
   // Legge componente da URL se presente
-  const urlComp = new URLSearchParams(window.location.search).get('comp');
-  if(urlComp) p.set('componente_id', urlComp);
+  if(_urlComp) p.set('componente_id', _urlComp);
 
   const raw = await apiFetch('/api/magazzino/movimenti?'+p.toString());
 
@@ -590,9 +591,8 @@ const resizeObs = new ResizeObserver(() => renderVirtual());
 resizeObs.observe(document.getElementById('tbl-body'));
 
 // Se arrivato da magazzino con ?comp=X
-const urlComp = new URLSearchParams(window.location.search).get('comp');
-if(urlComp) {
-  document.getElementById('s-period').textContent = `Movimenti componente #${urlComp}`;
+if(_urlComp) {
+  document.getElementById('s-period').textContent = `Movimenti componente #${_urlComp}`;
   document.getElementById('btn-tutti').classList.remove('active');
 }
 

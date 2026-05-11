@@ -137,7 +137,7 @@ class _DemDB:
 dem = _DemDB(_dem_path)
 log.info(f"DB demolizioni: {_dem_path}")
 
-# Pulizia tabelle residue nel magazzino DB (solo per sicurezza)
+# Pulizia tabelle residue nel magazzino DB
 try:
     import sqlite3 as _sq3
     _cp = _sq3.connect(cfg.get("db_path"), timeout=10)
@@ -145,25 +145,11 @@ try:
     for _tbak in ['veicoli_bak','veicoli_old','veicoli_tmp']:
         if _cp.execute(f"SELECT 1 FROM sqlite_master WHERE type='table' AND name='{_tbak}'").fetchone():
             _cp.execute(f"DROP TABLE IF EXISTS [{_tbak}]")
-    _cp.commit()
-    _cp.close()
-except Exception as _ce:
-    log.warning(f"Pulizia avvio: {_ce}")
-
-# Pulizia tabelle residue da migrazioni precedenti (VECCHIO - mantenuto per compatibilità)
-try:
-    import sqlite3 as _sq3
-    _cp = _sq3.connect(cfg.get("db_path"), timeout=10)
-    # Elimina tabelle residue
-    for _tbak in ['veicoli_bak','veicoli_old','veicoli_tmp']:
-        _exists = _cp.execute(f"SELECT 1 FROM sqlite_master WHERE type='table' AND name='{_tbak}'").fetchone()
-        if _exists:
-            _cp.execute(f"DROP TABLE {_tbak}")
             log.info(f"Rimossa tabella residua: {_tbak}")
     _cp.commit()
     _cp.close()
 except Exception as _ce:
-    log.warning(f"Pulizia residui: {_ce}")
+    log.warning(f"Pulizia avvio: {_ce}")
 
 # ── Scrittura sicura: tutte le operazioni passano da qui ─────────────────────
 def db_write(statements: list):
@@ -572,12 +558,39 @@ def api_movimenti_albero():
 @app.route("/api/magazzino/stats")
 @require_login
 def api_stats():
-    t = db.fetchone("SELECT COUNT(*) AS n FROM v_giacenza")
-    s = db.fetchone("SELECT COUNT(*) AS n FROM v_giacenza WHERE esistenza <= scorta AND scorta > 0")
-    u = db.fetchone("SELECT creato_il FROM movimenti_magazzino ORDER BY id DESC LIMIT 1")
+    t  = db.fetchone("SELECT COUNT(*) AS n FROM v_giacenza")
+    s  = db.fetchone("SELECT COUNT(*) AS n FROM v_giacenza WHERE esistenza <= scorta AND scorta > 0")
+    u  = db.fetchone("SELECT creato_il FROM movimenti_magazzino ORDER BY id DESC LIMIT 1")
+    pz = db.fetchone("SELECT COALESCE(SUM(esistenza),0) AS n FROM v_giacenza")
+    val= db.fetchone("""SELECT COALESCE(SUM(v.esistenza * COALESCE(c.listino1,0)),0) AS n
+                         FROM v_giacenza v JOIN componenti c ON c.id=v.componente_id
+                         WHERE v.esistenza>0 AND c.listino1>0""")
     return jsonify({"totale_componenti": t["n"] if t else 0,
                     "sotto_scorta": s["n"] if s else 0,
-                    "ultimo_movimento": u["creato_il"] if u else "—"})
+                    "ultimo_movimento": u["creato_il"] if u else "—",
+                    "pezzi_totali": pz["n"] if pz else 0,
+                    "valore_stima": round(float(val["n"]) if val else 0, 2)})
+
+@app.route("/api/backup", methods=["POST"])
+@require_login
+def api_backup():
+    import shutil, datetime
+    try:
+        src  = cfg.get("db_path")
+        bdir = ROOT / "backup"
+        bdir.mkdir(exist_ok=True)
+        ts   = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        dst  = bdir / f"perilcar_{ts}.db"
+        shutil.copy2(src, dst)
+        backups = sorted(bdir.glob("perilcar_*.db"))
+        for old in backups[:-30]:
+            old.unlink()
+        u = cu()
+        db_write([("INSERT INTO log_operazioni(utente_id,username,modulo,azione) VALUES(?,?,?,?)",
+                   (u.get("id"), u.get("username"), "SISTEMA", "BACKUP"))])
+        return jsonify({"ok": True, "msg": f"Backup salvato: {dst.name}", "file": dst.name})
+    except Exception as e:
+        return jsonify({"ok": False, "msg": str(e)}), 500
 
 @app.route("/api/magazzino/inventario")
 @require_login

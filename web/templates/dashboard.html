@@ -152,6 +152,14 @@
       <span class="stat-lbl">Sotto scorta</span>
     </div>
     <div class="stat-card">
+      <span class="stat-num orange" id="s-pezzi" style="font-size:22px">—</span>
+      <span class="stat-lbl">Pezzi in magazzino</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-num small" id="s-valore">—</span>
+      <span class="stat-lbl">Valore stimato (€)</span>
+    </div>
+    <div class="stat-card">
       <span class="stat-num small" id="s-mov">—</span>
       <span class="stat-lbl">Ultimo movimento</span>
     </div>
@@ -194,7 +202,7 @@
   </div>
 </div>
 
-<footer class="footer">Ing. Carmine Perillo · PerilCar ERP v2.0.0</footer>
+<footer class="footer">Ing. Carmine Perillo · PerilCar ERP v2.7.0</footer>
 <div id="reload-badge">🔄 Hot reload</div>
 
 <script>
@@ -213,8 +221,12 @@ async function logout() {
 (async () => {
   try {
     const s = await (await fetch('/api/magazzino/stats')).json();
-    document.getElementById('s-comp').textContent   = s.totale_componenti;
+    document.getElementById('s-comp').textContent   = s.totale_componenti.toLocaleString('it-IT');
     document.getElementById('s-scorta').textContent = s.sotto_scorta;
+    document.getElementById('s-pezzi').textContent  = (s.pezzi_totali||0).toLocaleString('it-IT');
+    document.getElementById('s-valore').textContent = s.valore_stima > 0
+      ? '€ ' + s.valore_stima.toLocaleString('it-IT', {minimumFractionDigits:2, maximumFractionDigits:2})
+      : 'n/d';
     document.getElementById('s-mov').textContent    = (s.ultimo_movimento||'—').slice(0,16);
   } catch(e) {}
 })();

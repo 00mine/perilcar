@@ -1,31 +1,38 @@
 
 === SESSIONE 2026-05-09 ===
 
-STATO ATTUALE: v2.6.5
+STATO ATTUALE: v2.7.0
 
 DB SEPARATI (definitivo):
 - db/perilcar.db  → solo magazzino (22.773 componenti)
 - db/demolizioni.db → veicoli, anagrafiche, demolizioni, ricambi_sottratti
 
-COMPLETATO IN QUESTA SESSIONE:
-- Login disabilitato temporaneamente (da reimplementare)
-- Magazzino: fix carico/scarico (FOREIGN_KEYS=OFF, insert dinamico)
-- Demolizioni: riscrittura completa demolizioni.html (zero backtick, zero arrow fn)
-- Demolizioni: DB separato demolizioni.db con classe _DemDB
-- Demolizioni: filtri real-time in tabella (data da/a, pag.reg da/a, ID, veicolo ecc)
-- Demolizioni: checkbox selezione + bottone DEMOLISCI viola
-- Demolizioni: colonna "1° Trattamento" con toggle giallo salvato nel DB
-- Pagina /demolisci: banner pesi, periodo dal/al, tabella 16 righe materiali
-- Righe precompilate con codici CER standard (130208, 150202, ecc.)
-- Colonne: Codice, Descrizione, %, Q.tà Calcolata, Q.tà da Smaltire, Classi Pericolosità, Albatros
-- Logica 1° trattamento: solo 7 voci (oli, batterie, filtri, pastiglie, liquidi)
-- Stampa: formato documento reale "TRATTAMENTO DEL... DAL... N.PROGRESSIVO..."
-- Riepilogo stampa: sezione completi + sezione 1° trattamenti con calcoli separati
+COMPLETATO IN QUESTA SESSIONE (v2.6.5 → v2.7.0):
+[REVIEW GENERALE + FIX BUG + MIGLIORAMENTI UX]
+
+BUG FIX:
+- dev_server.py: rimosso blocco pulizia DB duplicato (eseguiva due volte lo stesso codice)
+- dev_server.py: aggiunto endpoint /api/backup mancante (usato da magazzino ma non implementato)
+- api_stats: aggiunto pezzi_totali e valore_stima alla risposta
+- magazzino.html: showResoconto() da alert() bloccante a modal dedicata con card UX
+- magazzino.html: exportExcel() aggiunge toast "Download in corso..." invece di navigare silenziosamente
+- magazzino.html: conferma() post-movimento ora cerca il componente per ID esatto invece di per codice
+  (evitava bug se più componenti avevano codici simili)
+- storico.html: aggiunto link Demolizioni nella navbar (mancava)
+- storico.html: parametro ?comp=X ora viene preservato correttamente quando si cambia
+  anno/mese nella sidebar (era perso perché urlComp veniva riletto dall'URL ad ogni caricaDati)
+- dashboard.html: fix versione da v2.0.0 a v2.7.0
+
+MIGLIORAMENTI UX:
+- dashboard.html: aggiunte card "Pezzi in magazzino" e "Valore stimato (€)" nelle stats
+- magazzino.html: modal Resoconto con 6 KPI (articoli, disponibili, sotto scorta, pezzi fisici, valore, ultimo movimento)
+- Navbar coerente su tutte le pagine (tutte hanno Home/Magazzino/Storico/Demolizioni)
 
 DA FARE:
 - Reimplementare login (colonna eliminato mancante nel DB del PC)
 - Test completo flusso demolizioni end-to-end
-- Eventuale salvataggio scheda demolisci nel DB
+- Salvataggio scheda /demolisci nel DB
+- Modulo Operai (presenze, turni)
 
 REPO: https://github.com/00mine/perilcar
 SERVER: localhost:5000
