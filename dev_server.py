@@ -2004,6 +2004,7 @@ def api_inv_crea_sessione():
     try:
         with db._write_lock:
             conn = db.get_connection()
+            conn.execute("PRAGMA synchronous=OFF")  # velocizza insert bulk
             try:
                 # Crea sessione
                 cur = conn.execute(
@@ -2021,10 +2022,11 @@ def api_inv_crea_sessione():
                         "SELECT componente_id, esistenza FROM v_giacenza WHERE categoria=? ORDER BY articolo",
                         (categoria,))
 
-                for i, c in enumerate(comps):
-                    conn.execute(
-                        "INSERT INTO inventario_righe(sessione_id,componente_id,qty_attesa,stato,ordine) VALUES(?,?,?,?,?)",
-                        (sid, c["componente_id"], c["esistenza"] or 0, "sospeso", i))
+                # Insert bulk per performance
+                conn.executemany(
+                    "INSERT INTO inventario_righe(sessione_id,componente_id,qty_attesa,stato,ordine) VALUES(?,?,?,?,?)",
+                    [(sid, c["componente_id"], c["esistenza"] or 0, "sospeso", i)
+                     for i, c in enumerate(comps)])
 
                 conn.execute(
                     "UPDATE sessioni_inventario SET totale_pezzi=? WHERE id=?",
