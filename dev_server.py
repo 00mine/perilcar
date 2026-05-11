@@ -281,9 +281,21 @@ def api_login():
         return jsonify({"ok": False, "msg": "Password errata"}), 401
     session["user"] = {"id": user["id"], "username": user["username"],
                        "ruolo": user["ruolo"], "nome": (user.get("nome_completo") or user["username"])}
-    db_write([("INSERT INTO log_operazioni(utente_id,username,modulo,azione) VALUES(?,?,?,?)",
-               (user["id"], user["username"], "AUTH", "LOGIN"))])
-    return jsonify({"ok": True, "user": session["user"]})
+    try:
+        db_write([("INSERT INTO log_operazioni(utente_id,username,modulo,azione) VALUES(?,?,?,?)",
+                   (user["id"], user["username"], "AUTH", "LOGIN"))])
+    except: pass
+    # Redirect: mobile -> inventario-mobile, ?next= -> pagina richiesta, default -> dashboard
+    ua     = request.headers.get("User-Agent","").lower()
+    is_mob = any(x in ua for x in ["mobile","android","iphone","ipad","mobi"])
+    nxt    = (request.json or {}).get("next","")
+    if nxt:
+        redir = nxt
+    elif is_mob:
+        redir = "/inventario-mobile"
+    else:
+        redir = "/dashboard"
+    return jsonify({"ok": True, "user": session["user"], "redirect": redir})
 
 @app.route("/api/logout", methods=["POST"])
 def api_logout():
