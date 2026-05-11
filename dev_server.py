@@ -16,7 +16,7 @@ logging.basicConfig(level=logging.INFO,
 log = logging.getLogger("perilcar.dev")
 
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for, send_file
-from flask_socketio import SocketIO
+from flask_socketio import SocketIO, join_room, leave_room
 
 app = Flask(__name__, template_folder="web/templates", static_folder="web/static")
 app.secret_key = "8e805f4e5eac7a1f47eb5e377af5a2e64ba46d5463746e980201e5a31bae4d24"
@@ -1961,6 +1961,21 @@ def api_inv_categorie():
     """)
     return jsonify(rows)
 
+@app.route("/api/inventario/descrizioni")
+@require_login
+def api_inv_descrizioni():
+    """Cerca descrizioni/articoli nel magazzino per autocomplete."""
+    q = request.args.get("q","").strip()
+    if len(q) < 2:
+        return jsonify([])
+    rows = db.fetchall("""
+        SELECT articolo as descrizione, COUNT(*) as n, SUM(esistenza) as tot_pezzi
+        FROM v_giacenza
+        WHERE articolo LIKE ? AND articolo IS NOT NULL AND articolo != ''
+        GROUP BY articolo ORDER BY articolo LIMIT 30
+    """, (f"%{q}%",))
+    return jsonify(rows)
+
 # ── SESSIONI ──────────────────────────────────────────────────────────
 @app.route("/api/inventario/sessioni")
 @require_login
@@ -1979,10 +1994,12 @@ def api_inv_crea_sessione():
     import json
     d  = request.json or {}
     u  = cu()
-    categoria = d.get("categoria", "").strip()
-    nome      = d.get("nome", categoria or "Inventario").strip()
-    if not categoria:
-        return jsonify({"ok": False, "msg": "Categoria obbligatoria"}), 400
+    categoria  = d.get("categoria", "").strip()
+    descrizione= d.get("descrizione", "").strip()
+    nome       = d.get("nome", descrizione or categoria or "Inventario").strip()
+    filtro     = descrizione or categoria
+    if not filtro:
+        return jsonify({"ok": False, "msg": "Seleziona una descrizione"}), 400
 
     try:
         with db._write_lock:
@@ -1991,13 +2008,18 @@ def api_inv_crea_sessione():
                 # Crea sessione
                 cur = conn.execute(
                     "INSERT INTO sessioni_inventario(nome,categoria,stato,creato_da) VALUES(?,?,?,?)",
-                    (nome, categoria, "attiva", u.get("id")))
+                    (nome, filtro, "attiva", u.get("id")))
                 sid = cur.lastrowid
 
-                # Recupera componenti della categoria
-                comps = db.fetchall(
-                    "SELECT componente_id, esistenza FROM v_giacenza WHERE categoria=? ORDER BY articolo",
-                    (categoria,))
+                # Recupera componenti per descrizione o categoria
+                if descrizione:
+                    comps = db.fetchall(
+                        "SELECT componente_id, esistenza FROM v_giacenza WHERE articolo=? ORDER BY articolo",
+                        (descrizione,))
+                else:
+                    comps = db.fetchall(
+                        "SELECT componente_id, esistenza FROM v_giacenza WHERE categoria=? ORDER BY articolo",
+                        (categoria,))
 
                 for i, c in enumerate(comps):
                     conn.execute(
@@ -2220,7 +2242,6 @@ def api_inv_chiudi(sid):
         return jsonify({"ok": False, "msg": str(e)}), 500
 
 # SocketIO room per inventario
-from flask_socketio import join_room, leave_room
 
 @socketio.on("join_inventario")
 def on_join_inventario(data):

@@ -365,6 +365,10 @@
               style="background:#7c3aed;color:#fff;border-color:#7c3aed">
         🤖 Assistente
       </button>
+      <button class="btn btn-ghost" onclick="openInventario()"
+              style="background:#6d28d9;color:#fff;border-color:#6d28d9">
+        📋 Inventario
+      </button>
     </div>
 
     <!-- Import progress -->
@@ -1587,7 +1591,50 @@ function stampaInventario(){
     @media print{@page{margin:.8cm;size:landscape}}</style></head><body>
     <h2>📦 Inventario Magazzino — PerilCar</h2>
     <p style="color:#888;font-size:10px;margin-bottom:10px">Generato il ${new Date().toLocaleString('it-IT')}</p>
-    ${content}<script>window.onload=()=>window.print()<\/script></body></html>`);
+    ${content}<script>window.onload=()=>window.print()<\/script>
+<!-- MODAL INVENTARIO -->
+<div class="overlay hidden" id="modal-inv">
+  <div class="modal" style="max-width:500px">
+    <div class="modal-hdr">
+      <h3>📋 Avvia Inventario</h3>
+      <button class="modal-close" onclick="closeModal('modal-inv')">×</button>
+    </div>
+    <div class="modal-body" style="gap:14px">
+      <div style="position:relative">
+        <label style="font-size:11px;font-weight:700;color:var(--text2);display:block;margin-bottom:4px">Cerca descrizione pezzo</label>
+        <input type="text" id="inv-search" placeholder="es. Alternatore, Fanale, Paraurti..."
+          style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:var(--font);outline:none"
+          oninput="invCerca(this.value)" autocomplete="off">
+        <div id="inv-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:9999;
+          background:#fff;border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.12);
+          max-height:200px;overflow-y:auto;margin-top:3px;font-size:13px"></div>
+      </div>
+      <div id="inv-sel-box" style="display:none;background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:8px;padding:10px 14px">
+        <div style="font-size:10px;font-weight:700;color:var(--green);margin-bottom:3px;text-transform:uppercase">Selezionato</div>
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <div><span id="inv-sel-nome" style="font-size:14px;font-weight:700"></span>
+          <span id="inv-sel-n" style="font-size:12px;color:var(--text2);margin-left:8px"></span></div>
+          <button onclick="invDeseleziona()" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--text3)">×</button>
+        </div>
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:700;color:var(--text2);display:block;margin-bottom:4px">Nome sessione (opzionale)</label>
+        <input type="text" id="inv-nome" placeholder="es. Inventario alternatori maggio 2026"
+          style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:var(--font);outline:none">
+      </div>
+      <div style="border-top:1px solid var(--border);padding-top:12px">
+        <div style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:8px">Sessioni attive</div>
+        <div id="inv-sessioni-list" style="font-size:12px;color:var(--text3)">Caricamento...</div>
+      </div>
+      <div class="err" id="inv-err"></div>
+    </div>
+    <div class="modal-ftr">
+      <button class="btn btn-ghost" onclick="closeModal('modal-inv')">Chiudi</button>
+      <button class="btn" style="background:#6d28d9;color:#fff" onclick="invAvvia()" id="inv-btn-avvia" disabled>▶ Avvia sessione</button>
+    </div>
+  </div>
+</div>
+</body></html>`);
   w.document.close();
 }
 
@@ -2436,6 +2483,121 @@ const resizeObs = new ResizeObserver(()=>{ _bodyH=document.getElementById('tbl-b
 resizeObs.observe(document.getElementById('tbl-body'));
 
 caricaDati();
+
+// ── INVENTARIO ─────────────────────────────────────────────────────────
+var _invSelDesc = null;
+var _invTimer   = null;
+
+async function openInventario(){
+  _invSelDesc = null;
+  document.getElementById('inv-search').value = '';
+  document.getElementById('inv-dropdown').style.display = 'none';
+  document.getElementById('inv-sel-box').style.display = 'none';
+  document.getElementById('inv-nome').value = '';
+  document.getElementById('inv-err').textContent = '';
+  document.getElementById('inv-btn-avvia').disabled = true;
+  openModal('modal-inv');
+  invCaricaSessioni();
+}
+
+async function invCerca(val){
+  clearTimeout(_invTimer);
+  const dd = document.getElementById('inv-dropdown');
+  if(val.length < 2){ dd.style.display='none'; return; }
+  _invTimer = setTimeout(async()=>{
+    const rows = await apiFetch('/api/inventario/descrizioni?q='+encodeURIComponent(val));
+    if(!rows.length){ dd.style.display='none'; return; }
+    dd.innerHTML = rows.map(r=>`
+      <div onclick="invSeleziona('${r.descrizione.replace(/'/g,"\'")}',${r.n})"
+        style="padding:9px 12px;cursor:pointer;border-bottom:1px solid #f3f4f6;display:flex;justify-content:space-between;align-items:center"
+        onmouseenter="this.style.background='#fff8f5'" onmouseleave="this.style.background=''">
+        <span style="font-weight:600">${r.descrizione}</span>
+        <span style="font-size:11px;color:var(--text3)">${r.n} pz</span>
+      </div>`).join('');
+    dd.style.display='block';
+  }, 250);
+}
+
+function invSeleziona(desc, n){
+  _invSelDesc = desc;
+  document.getElementById('inv-search').value = desc;
+  document.getElementById('inv-dropdown').style.display='none';
+  document.getElementById('inv-sel-nome').textContent = desc;
+  document.getElementById('inv-sel-n').textContent = n + ' pezzi';
+  document.getElementById('inv-sel-box').style.display='block';
+  document.getElementById('inv-btn-avvia').disabled = false;
+  if(!document.getElementById('inv-nome').value)
+    document.getElementById('inv-nome').value = 'Inventario ' + desc;
+}
+
+function invDeseleziona(){
+  _invSelDesc = null;
+  document.getElementById('inv-search').value = '';
+  document.getElementById('inv-sel-box').style.display='none';
+  document.getElementById('inv-btn-avvia').disabled = true;
+}
+
+async function invAvvia(){
+  if(!_invSelDesc){ document.getElementById('inv-err').textContent='Seleziona una descrizione'; return; }
+  const nome = document.getElementById('inv-nome').value.trim();
+  const btn  = document.getElementById('inv-btn-avvia');
+  btn.disabled=true; btn.textContent='Avvio...';
+  const res = await apiFetch('/api/inventario/sessioni',{method:'POST',body:JSON.stringify({
+    descrizione: _invSelDesc, nome: nome||_invSelDesc
+  })});
+  btn.textContent='▶ Avvia sessione';
+  if(res.ok){
+    closeModal('modal-inv');
+    toast('✅ Sessione avviata: '+res.totale+' pezzi');
+    const url = '/inventario-mobile?sessione='+res.id;
+    // Apri pagina inventario in nuova scheda
+    window.open('/inventario?highlight='+res.id, '_blank');
+  } else {
+    btn.disabled=false;
+    document.getElementById('inv-err').textContent = res.msg;
+  }
+}
+
+async function invCaricaSessioni(){
+  const box = document.getElementById('inv-sessioni-list');
+  const rows = await apiFetch('/api/inventario/sessioni');
+  const attive = rows.filter(s=>s.stato==='attiva');
+  if(!attive.length){ box.innerHTML='<span style="color:var(--text3)">Nessuna sessione attiva</span>'; return; }
+  box.innerHTML = attive.map(s=>{
+    const pct = Math.round(((s.confermati||0)+(s.mancanti||0))/(s.totale_pezzi||1)*100);
+    const url = `http://${window.location.hostname}:${window.location.port}/inventario-mobile?sessione=${s.id}`;
+    return `<div style="background:var(--bg);border-radius:8px;padding:8px 10px;margin-bottom:6px;border:1px solid var(--border)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+        <b style="font-size:12px">${s.nome}</b>
+        <span style="font-size:10px;color:var(--green);font-weight:700">${pct}%</span>
+      </div>
+      <div style="height:4px;background:#e5e7eb;border-radius:2px;margin-bottom:6px">
+        <div style="height:100%;width:${pct}%;background:var(--green);border-radius:2px"></div>
+      </div>
+      <div style="display:flex;gap:6px">
+        <span style="font-size:10px;color:var(--green)">✅ ${s.confermati||0}</span>
+        <span style="font-size:10px;color:var(--red)">❌ ${s.mancanti||0}</span>
+        <span style="font-size:10px;color:var(--text3)">⏳ ${s.sospesi||0}</span>
+        <button onclick="navigator.clipboard.writeText('${url}').then(()=>toast('URL copiato!'))"
+          style="margin-left:auto;font-size:10px;padding:2px 7px;border-radius:5px;border:1px solid var(--border);background:#fff;cursor:pointer">
+          📱 URL mobile
+        </button>
+        <a href="/inventario?highlight=${s.id}" target="_blank"
+          style="font-size:10px;padding:2px 7px;border-radius:5px;border:1px solid var(--border);background:#fff;cursor:pointer;text-decoration:none;color:inherit">
+          🖥 Apri
+        </a>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// Chiudi dropdown se si clicca fuori
+document.addEventListener('click', function(e){
+  const dd = document.getElementById('inv-dropdown');
+  if(dd && !dd.contains(e.target) && e.target.id!=='inv-search')
+    dd.style.display='none';
+});
+
 </script>
 </body>
 </html>
