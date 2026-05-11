@@ -497,8 +497,14 @@ def api_movimento():
                 conn.commit()
             finally:
                 conn.close()
+        # Recupera id movimento appena inserito
+        mov_id = None
+        try:
+            last = db.fetchone("SELECT id FROM movimenti_magazzino WHERE componente_id=? ORDER BY id DESC LIMIT 1", (cid,))
+            if last: mov_id = last["id"]
+        except: pass
         return jsonify({"ok": True, "msg": f"{tipo.capitalize()} di {qty} pz completato",
-                        "giacenza": gia_dopo})
+                        "giacenza": gia_dopo, "movimento_id": mov_id})
     except Exception as e:
         log.error(f"api_movimento: {e}")
         return jsonify({"ok": False, "msg": str(e)}), 500
@@ -563,6 +569,30 @@ def api_movimenti_albero():
 # ══════════════════════════════════════════════════════════════════════════════
 # STATS / INVENTARIO / LISTA ACQUISTI
 # ══════════════════════════════════════════════════════════════════════════════
+
+@app.route("/api/magazzino/movimenti/<int:mid>", methods=["DELETE"])
+@require_login
+def api_elimina_movimento(mid):
+    """Elimina fisicamente un movimento (usato da undo)."""
+    u = cu()
+    try:
+        mov = db.fetchone("SELECT * FROM movimenti_magazzino WHERE id=?", (mid,))
+        if not mov:
+            return jsonify({"ok": False, "msg": "Movimento non trovato"}), 404
+        with db._write_lock:
+            conn = db.get_connection()
+            try:
+                conn.execute("DELETE FROM movimenti_magazzino WHERE id=?", (mid,))
+                conn.execute("""INSERT INTO log_operazioni
+                    (utente_id,username,modulo,azione,tabella,record_id)
+                    VALUES(?,?,?,?,?,?)""",
+                    (u.get("id"),u.get("username"),"MAGAZZINO","UNDO_DELETE","movimenti_magazzino",mid))
+                conn.commit()
+            finally:
+                conn.close()
+        return jsonify({"ok": True, "msg": "Movimento annullato", "movimento": dict(mov)})
+    except Exception as e:
+        return jsonify({"ok": False, "msg": str(e)}), 500
 
 @app.route("/api/magazzino/stats")
 @require_login

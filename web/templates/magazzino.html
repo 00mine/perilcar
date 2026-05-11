@@ -1302,15 +1302,19 @@ async function conferma() {
   })});
   fb(res.msg, res.ok);
   if(res.ok) {
-    // Registra azione undo: movimento inverso
+    // Registra undo: cancella fisicamente il movimento appena creato
+    const movId = res.movimento_id || res.id;
+    const nomeComp = document.getElementById('pan-nome').value || _selId;
     pushUndo({
-      label: (_modo==='carico'?'Carico':'Scarico') + ' ' + q + ' pz su ' + (document.getElementById('pan-nome').value||_selId),
-      undo: { url: '/api/magazzino/movimento', method: 'POST',
-              body: { componente_id: _selId, tipo: _modo==='carico'?'scarico':'carico',
-                      quantita: q, riferimento: 'UNDO', note: 'Annullamento automatico' } },
+      label: (_modo==='carico'?'Carico':'Scarico') + ' ' + q + ' pz su ' + nomeComp,
+      undo: movId
+        ? { url: '/api/magazzino/movimenti/'+movId, method: 'DELETE' }
+        : { url: '/api/magazzino/movimento', method: 'POST',
+            body: { componente_id: _selId, tipo: _modo==='carico'?'scarico':'carico',
+                    quantita: q, riferimento: 'UNDO', note: 'Annullamento' } },
       redo: { url: '/api/magazzino/movimento', method: 'POST',
               body: { componente_id: _selId, tipo: _modo,
-                      quantita: q, riferimento: 'REDO', note: 'Ripristino automatico' } },
+                      quantita: q, riferimento: 'REDO', note: 'Ripristino' } },
     });
     document.getElementById('inp-qc').value='';
     document.getElementById('inp-qs').value='';
