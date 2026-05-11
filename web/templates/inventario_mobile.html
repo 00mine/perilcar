@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Inventario Mobile — PerilCar</title>
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f7f8fa;--surface:#fff;--border:#dde1e8;
+  --orange:#e94c00;--blue:#3a5bd9;
+  --green:#16a34a;--green2:#22c55e;--red:#dc2626;--yellow:#d97706;
+  --text:#111827;--text2:#4b5563;--text3:#9ca3af;
+  --radius:12px;--font:'DM Sans',system-ui,sans-serif;
+}
+html,body{height:100%;overflow:hidden}
+body{font-family:var(--font);background:var(--bg);color:var(--text);font-size:15px;display:flex;flex-direction:column}
+
+/* HEADER */
+.hdr{background:var(--orange);color:#fff;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;safe-area-inset-top:env(safe-area-inset-top)}
+.hdr-logo{font-weight:800;font-size:18px;letter-spacing:-.3px}
+.hdr-logo span{opacity:.8}
+.hdr-sess{font-size:11px;opacity:.85;text-align:right;max-width:160px;line-height:1.3}
+
+/* PROGRESS STRIP */
+.progress-strip{background:rgba(0,0,0,.15);height:5px;flex-shrink:0}
+.progress-strip-fill{height:100%;background:#fff;transition:width .5s;border-radius:0 3px 3px 0}
+
+/* STATS BAR */
+.stats-bar{background:rgba(233,76,0,.9);color:#fff;display:flex;justify-content:space-around;padding:6px 0;flex-shrink:0}
+.sb-item{text-align:center}
+.sb-num{font-size:18px;font-weight:800;line-height:1}
+.sb-lbl{font-size:9px;opacity:.8;text-transform:uppercase;letter-spacing:.5px}
+
+/* MAIN scroll area */
+.main{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:12px;-webkit-overflow-scrolling:touch}
+
+/* PEZZO CARD */
+.pezzo-card{background:#fff;border-radius:var(--radius);box-shadow:0 2px 12px rgba(0,0,0,.08);overflow:hidden}
+.pezzo-img-wrap{position:relative;width:100%;background:#f3f4f6;display:flex;align-items:center;justify-content:center;min-height:180px;max-height:240px;overflow:hidden}
+.pezzo-img{width:100%;height:100%;object-fit:cover;display:block}
+.pezzo-img-empty{font-size:56px;color:var(--text3)}
+.pezzo-info{padding:14px}
+.pezzo-cod{font-size:11px;font-weight:700;color:var(--orange);font-family:monospace;margin-bottom:2px}
+.pezzo-nome{font-size:17px;font-weight:700;line-height:1.2;margin-bottom:6px}
+.pezzo-meta{font-size:12px;color:var(--text2);display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
+.meta-chip{background:var(--bg);border-radius:20px;padding:3px 10px;font-size:11px}
+.pezzo-qty{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--bg);border-top:1px solid var(--border)}
+.qty-label{font-size:12px;color:var(--text2);font-weight:600}
+.qty-value{font-size:24px;font-weight:800;font-family:monospace;color:var(--text)}
+.qty-attesa{font-size:12px;color:var(--text3);margin-left:auto}
+
+/* MODIFICA QTY */
+.qty-edit-row{display:flex;align-items:center;gap:8px;padding:10px 14px;border-top:1px solid var(--border)}
+.qty-btn{width:38px;height:38px;border-radius:50%;border:none;font-size:20px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.qty-btn.minus{background:#fee2e2;color:var(--red)}
+.qty-btn.plus{background:#f0fdf4;color:var(--green)}
+.qty-input{width:70px;text-align:center;font-size:22px;font-weight:800;border:2px solid var(--border);border-radius:8px;padding:6px;font-family:monospace;color:var(--text)}
+.qty-input:focus{border-color:var(--orange);outline:none}
+
+/* FOTO SECTION */
+.foto-section{padding:10px 14px;border-top:1px solid var(--border)}
+.foto-label{font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
+.foto-row{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px}
+.foto-thumb{width:64px;height:64px;object-fit:cover;border-radius:8px;flex-shrink:0;border:2px solid var(--border)}
+.foto-add{width:64px;height:64px;border-radius:8px;border:2px dashed var(--border);display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:22px;color:var(--text3);cursor:pointer;flex-shrink:0;background:var(--bg)}
+.foto-add:hover{border-color:var(--orange);color:var(--orange)}
+input[type=file]{display:none}
+
+/* NOTE */
+.note-section{padding:10px 14px;border-top:1px solid var(--border)}
+textarea{width:100%;border:1px solid var(--border);border-radius:8px;padding:8px;font-family:var(--font);font-size:13px;color:var(--text);resize:none;outline:none}
+textarea:focus{border-color:var(--orange)}
+
+/* AZIONI BUTTONS */
+.azioni{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:14px;flex-shrink:0;background:#fff;border-top:2px solid var(--border);safe-area-inset-bottom:env(safe-area-inset-bottom)}
+.btn-azione{border:none;border-radius:var(--radius);padding:16px 10px;font-size:15px;font-weight:700;font-family:var(--font);cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;transition:.15s;-webkit-tap-highlight-color:transparent}
+.btn-azione:active{transform:scale(.95)}
+.btn-azione .ico{font-size:26px}
+.btn-azione .lbl{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px}
+.btn-verde{background:#f0fdf4;color:var(--green);border:2px solid #bbf7d0}
+.btn-verde:active{background:#dcfce7}
+.btn-rosso{background:#fef2f2;color:var(--red);border:2px solid #fca5a5}
+.btn-rosso:active{background:#fee2e2}
+.btn-rimanda{background:#fffbeb;color:var(--yellow);border:2px solid #fde68a}
+.btn-mod-qty{background:#eff3ff;color:var(--blue);border:2px solid #c7d2fe}
+.btn-azione.full-width{grid-column:1/-1}
+
+/* STATI */
+.stato-bar{padding:10px 14px;text-align:center;font-size:13px;font-weight:700;border-radius:8px;margin-bottom:4px}
+.stato-confermato{background:#f0fdf4;color:var(--green)}
+.stato-mancante{background:#fef2f2;color:var(--red)}
+.stato-rimandato{background:#fffbeb;color:var(--yellow)}
+
+/* SCHERMATA INIZIO / FINE */
+.schermata{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;gap:16px;text-align:center}
+.schermata .ico{font-size:64px}
+.schermata h2{font-size:22px;font-weight:800}
+.schermata p{font-size:14px;color:var(--text2);max-width:280px;line-height:1.5}
+.btn-big{padding:14px 28px;border-radius:var(--radius);border:none;font-size:16px;font-weight:700;font-family:var(--font);cursor:pointer;width:100%;max-width:280px}
+.btn-big-orange{background:var(--orange);color:#fff}
+.btn-big-green{background:var(--green);color:#fff}
+
+/* SPINNER */
+.spinner{width:40px;height:40px;border:4px solid var(--border);border-top-color:var(--orange);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* TOAST */
+.toast{position:fixed;top:80px;left:50%;transform:translateX(-50%);z-index:9999;padding:10px 20px;border-radius:30px;font-size:13px;font-weight:700;white-space:nowrap;box-shadow:0 4px 20px rgba(0,0,0,.2)}
+.tok{background:var(--green);color:#fff}
+.terr{background:var(--red);color:#fff}
+.twarn{background:var(--yellow);color:#fff}
+
+/* OVERLAY FOTO */
+.foto-overlay{position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.9);display:flex;flex-direction:column}
+.foto-overlay.hidden{display:none}
+.foto-overlay video{flex:1;object-fit:cover;width:100%}
+.foto-overlay-btns{padding:16px;display:flex;gap:12px;justify-content:center;background:#000}
+.foto-overlay canvas{display:none}
+
+/* Loading overlay */
+#loading{position:fixed;inset:0;z-index:500;background:var(--orange);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;color:#fff}
+#loading.hidden{display:none}
+#loading .logo{font-size:32px;font-weight:800}
+#loading .logo span{opacity:.7}
+</style>
+</head>
+<body>
+
+<!-- Loading -->
+<div id="loading">
+  <div class="logo">Peril<span>Car</span></div>
+  <div class="spinner"></div>
+  <div style="font-size:13px;opacity:.8">Connessione in corso...</div>
+</div>
+
+<!-- Header -->
+<div class="hdr" id="hdr">
+  <div class="hdr-logo">Peril<span>Car</span> 📋</div>
+  <div class="hdr-sess" id="hdr-sess">Inventario Mobile</div>
+</div>
+
+<!-- Progress strip -->
+<div class="progress-strip"><div class="progress-strip-fill" id="prog-strip" style="width:0%"></div></div>
+
+<!-- Stats bar -->
+<div class="stats-bar">
+  <div class="sb-item"><div class="sb-num" id="s-conf">0</div><div class="sb-lbl">✅ Conf.</div></div>
+  <div class="sb-item"><div class="sb-num" id="s-manc">0</div><div class="sb-lbl">❌ Manc.</div></div>
+  <div class="sb-item"><div class="sb-num" id="s-risc">0</div><div class="sb-lbl">⏳ Risc.</div></div>
+  <div class="sb-item"><div class="sb-num" id="s-tot">0</div><div class="sb-lbl">📦 Tot.</div></div>
+</div>
+
+<!-- Contenuto principale -->
+<div class="main" id="main-content">
+  <div class="schermata"><div class="spinner"></div></div>
+</div>
+
+<!-- Bottoni azione (fissi in basso) -->
+<div class="azioni" id="azioni" style="display:none">
+  <button class="btn-azione btn-verde" onclick="azioneConferma()">
+    <span class="ico">✅</span><span class="lbl">Confermato</span>
+  </button>
+  <button class="btn-azione btn-rosso" onclick="azioneMancante()">
+    <span class="ico">❌</span><span class="lbl">Mancante</span>
+  </button>
+  <button class="btn-azione btn-rimanda" onclick="azioneRimanda()">
+    <span class="ico">⏳</span><span class="lbl">Rimanda</span>
+  </button>
+  <button class="btn-azione btn-mod-qty" onclick="toggleQtyEdit()">
+    <span class="ico">🔢</span><span class="lbl">Modif. Qty</span>
+  </button>
+</div>
+
+<!-- Overlay fotocamera -->
+<div class="foto-overlay hidden" id="foto-overlay">
+  <video id="cam-video" autoplay playsinline></video>
+  <canvas id="cam-canvas"></canvas>
+  <div class="foto-overlay-btns">
+    <button class="btn-big btn-big-orange" style="max-width:140px" onclick="scattaFoto()">📸 Scatta</button>
+    <button class="btn-big" style="max-width:140px;background:#333;color:#fff" onclick="chiudiCamera()">✕ Annulla</button>
+  </div>
+</div>
+
+<input type="file" id="inp-galleria" accept="image/*" onchange="uploadFotoGalleria(this)">
+
+<script>
+const _sock = io();
+const _params = new URLSearchParams(window.location.search);
+const _sessId  = parseInt(_params.get('sessione')) || null;
+
+var _rigaCorrente = null;  // riga inventario corrente
+var _qtyCorrg    = null;   // quantità modificata dall'utente
+var _qtyEditOpen = false;
+var _camStream   = null;
+var _fase        = 'principale'; // principale | rimandati | completato
+var _stats       = {confermati:0,mancanti:0,rimandati:0,totale:0};
+
+function esc(s){ return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function toast(msg,tipo='ok'){
+  document.querySelectorAll('.toast').forEach(e=>e.remove());
+  const d=document.createElement('div'); d.className='toast t'+tipo;
+  d.textContent=msg; document.body.appendChild(d);
+  setTimeout(()=>d.remove(),2500);
+}
+async function apiFetch(url,opts={}){
+  opts.headers={'Content-Type':'application/json',...(opts.headers||{})};
+  const r=await fetch(url,opts); return r.json();
+}
+
+// ── INIT ──────────────────────────────────────────────────────────────
+async function init(){
+  if(!_sessId){
+    document.getElementById('loading').classList.add('hidden');
+    mostraErrore('Nessuna sessione specificata','Torna al PC e copia il link corretto dalla pagina inventario.');
+    return;
+  }
+  // Verifica sessione
+  const data = await apiFetch(`/api/inventario/sessioni/${_sessId}`);
+  if(!data.ok){
+    document.getElementById('loading').classList.add('hidden');
+    mostraErrore('Sessione non trovata','Verifica il link o chiedi al responsabile di creare una nuova sessione.');
+    return;
+  }
+  const s = data.sessione;
+  if(s.stato==='chiusa'){
+    document.getElementById('loading').classList.add('hidden');
+    mostraSessioneChiusa(s);
+    return;
+  }
+  document.getElementById('hdr-sess').textContent = s.nome + ' · ' + (s.categoria||'');
+  // Entra nella room SocketIO
+  _sock.emit('join_inventario',{sessione_id:_sessId});
+  // Aggiorna stats
+  await aggiornaStats();
+  // Carica primo pezzo
+  await prossimoPezzo();
+  document.getElementById('loading').classList.add('hidden');
+}
+
+// ── STATS ─────────────────────────────────────────────────────────────
+async function aggiornaStats(){
+  const s = await apiFetch(`/api/inventario/sessioni/${_sessId}/stats`);
+  _stats  = s;
+  const tot  = s.totale||1;
+  const done = (s.confermati||0)+(s.mancanti||0);
+  const pct  = Math.round(done/tot*100);
+  document.getElementById('s-conf').textContent = s.confermati||0;
+  document.getElementById('s-manc').textContent = s.mancanti||0;
+  document.getElementById('s-risc').textContent = s.rimandati||0;
+  document.getElementById('s-tot').textContent  = s.totale||0;
+  document.getElementById('prog-strip').style.width = pct+'%';
+}
+
+// ── PROSSIMO PEZZO ────────────────────────────────────────────────────
+async function prossimoPezzo(){
+  const azioni = document.getElementById('azioni');
+  azioni.style.display='none';
+  mostraLoading();
+
+  const data = await apiFetch(`/api/inventario/sessioni/${_sessId}/prossimo`);
+  if(!data.ok){ mostraErrore('Errore caricamento',data.msg||''); return; }
+
+  _fase = data.fase;
+  if(!data.riga || _fase==='completato'){
+    mostraCompletato();
+    return;
+  }
+  _rigaCorrente = data.riga;
+  _qtyCorrg     = _rigaCorrente.qty_attesa || 0;
+  _qtyEditOpen  = false;
+  renderPezzo(_rigaCorrente);
+  azioni.style.display='grid';
+}
+
+// ── RENDER PEZZO ──────────────────────────────────────────────────────
+function renderPezzo(r){
+  // Immagine
+  let imgHtml = '';
+  if(r.foto_url){
+    imgHtml = `<img class="pezzo-img" src="${esc(r.foto_url)}" onclick="apriImmagine('${esc(r.foto_url)}')">`;
+  } else if(r.immagine_path){
+    const pri = r.immagine_path.split('|')[0];
+    imgHtml = `<img class="pezzo-img" src="${esc(pri)}" onclick="apriImmagine('${esc(pri)}')">`;
+  } else {
+    imgHtml = '<div class="pezzo-img-empty">📦</div>';
+  }
+
+  const fotoThumb = r.foto_url
+    ? `<img class="foto-thumb" src="${esc(r.foto_url)}">` : '';
+
+  const content = document.getElementById('main-content');
+  content.innerHTML = `
+    ${_fase==='rimandati'?'<div class="stato-bar stato-rimandato">⚠️ Stai rivedendo i pezzi rimandati</div>':''}
+    <div class="pezzo-card">
+      <div class="pezzo-img-wrap">${imgHtml}</div>
+      <div class="pezzo-info">
+        <div class="pezzo-cod">${esc(r.cmp||'—')}</div>
+        <div class="pezzo-nome">${esc(r.articolo||r.cmp||'Senza nome')}</div>
+        <div class="pezzo-meta">
+          ${r.marca?`<span class="meta-chip">🏷 ${esc(r.marca)}</span>`:''}
+          ${r.categoria?`<span class="meta-chip">📂 ${esc(r.categoria)}</span>`:''}
+          ${r.colore?`<span class="meta-chip">🎨 ${esc(r.colore)}</span>`:''}
+          ${r.modello?`<span class="meta-chip">🚗 ${esc(r.modello)}</span>`:''}
+        </div>
+      </div>
+      <div class="pezzo-qty">
+        <span class="qty-label">Quantità attesa</span>
+        <span class="qty-value" id="qty-display">${_qtyCorrg}</span>
+        <span class="qty-attesa">nel DB: ${r.qty_attesa??'—'}</span>
+      </div>
+      <div class="qty-edit-row" id="qty-edit-row" style="display:none">
+        <button class="qty-btn minus" onclick="cambiaQty(-1)">−</button>
+        <input type="number" class="qty-input" id="qty-input" value="${_qtyCorrg}" min="0" oninput="syncQty(this.value)" inputmode="numeric">
+        <button class="qty-btn plus" onclick="cambiaQty(1)">+</button>
+        <span style="font-size:12px;color:var(--text3);margin-left:auto">Qty trovata</span>
+      </div>
+      <div class="foto-section">
+        <div class="foto-label">📸 Foto</div>
+        <div class="foto-row" id="foto-row">
+          ${fotoThumb}
+          <div class="foto-add" onclick="apriFotoMenu()">
+            <span>📷</span>
+            <span style="font-size:9px;margin-top:2px">Aggiungi</span>
+          </div>
+        </div>
+      </div>
+      <div class="note-section">
+        <textarea id="note-input" placeholder="Note sul pezzo..." rows="2"></textarea>
+      </div>
+    </div>
+  `;
+  // scroll in cima
+  content.scrollTop=0;
+}
+
+// ── QTY EDIT ──────────────────────────────────────────────────────────
+function toggleQtyEdit(){
+  _qtyEditOpen = !_qtyEditOpen;
+  const row = document.getElementById('qty-edit-row');
+  if(row) row.style.display = _qtyEditOpen ? 'flex' : 'none';
+}
+function cambiaQty(delta){
+  _qtyCorrg = Math.max(0, (_qtyCorrg||0)+delta);
+  const inp = document.getElementById('qty-input');
+  const disp= document.getElementById('qty-display');
+  if(inp)  inp.value = _qtyCorrg;
+  if(disp) disp.textContent = _qtyCorrg;
+}
+function syncQty(val){
+  _qtyCorrg = Math.max(0, parseInt(val)||0);
+  const disp=document.getElementById('qty-display');
+  if(disp) disp.textContent=_qtyCorrg;
+}
+
+// ── AZIONI ────────────────────────────────────────────────────────────
+async function azioneConferma(){
+  await inviaAzione('confermato');
+}
+async function azioneMancante(){
+  _qtyCorrg = 0;
+  await inviaAzione('mancante');
+}
+async function azioneRimanda(){
+  await inviaAzione('rimandato');
+}
+
+async function inviaAzione(stato){
+  if(!_rigaCorrente){ toast('Nessun pezzo caricato','err'); return; }
+  const note = (document.getElementById('note-input')||{}).value||'';
+  document.getElementById('azioni').style.display='none';
+  const res = await apiFetch(`/api/inventario/righe/${_rigaCorrente.id}`,{
+    method:'PUT',
+    body: JSON.stringify({stato, qty_trovata:_qtyCorrg, note})
+  });
+  if(res.ok){
+    const emoji = {confermato:'✅',mancante:'❌',rimandato:'⏳'}[stato]||'';
+    toast(`${emoji} ${stato.charAt(0).toUpperCase()+stato.slice(1)}`,'ok');
+    await aggiornaStats();
+    setTimeout(prossimoPezzo, 400);
+  } else {
+    toast(res.msg||'Errore','err');
+    document.getElementById('azioni').style.display='grid';
+  }
+}
+
+// ── FOTO ──────────────────────────────────────────────────────────────
+function apriFotoMenu(){
+  // Mostra menu scegli: fotocamera o galleria
+  const menu = document.createElement('div');
+  menu.style.cssText='position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.5);display:flex;align-items:flex-end';
+  menu.innerHTML=`
+    <div style="background:#fff;width:100%;border-radius:20px 20px 0 0;padding:20px;display:flex;flex-direction:column;gap:10px">
+      <div style="font-weight:700;font-size:15px;text-align:center;margin-bottom:4px">Aggiungi foto</div>
+      <button onclick="this.closest('div[style]').remove();apriCamera()" style="padding:14px;border:none;border-radius:10px;background:#f3f4f6;font-size:15px;font-weight:600;cursor:pointer">📷 Fotocamera</button>
+      <button onclick="this.closest('div[style]').remove();document.getElementById('inp-galleria').click()" style="padding:14px;border:none;border-radius:10px;background:#f3f4f6;font-size:15px;font-weight:600;cursor:pointer">🖼 Galleria</button>
+      <button onclick="this.closest('div[style]').remove()" style="padding:14px;border:none;border-radius:10px;background:#fee2e2;color:#dc2626;font-size:15px;font-weight:600;cursor:pointer">✕ Annulla</button>
+    </div>`;
+  document.body.appendChild(menu);
+}
+
+async function apriCamera(){
+  try{
+    _camStream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'},audio:false});
+    const vid=document.getElementById('cam-video');
+    vid.srcObject=_camStream;
+    document.getElementById('foto-overlay').classList.remove('hidden');
+  }catch(e){
+    toast('Fotocamera non disponibile: '+e.message,'err');
+  }
+}
+function chiudiCamera(){
+  if(_camStream){ _camStream.getTracks().forEach(t=>t.stop()); _camStream=null; }
+  document.getElementById('foto-overlay').classList.add('hidden');
+}
+async function scattaFoto(){
+  const vid=document.getElementById('cam-video');
+  const can=document.getElementById('cam-canvas');
+  can.width=vid.videoWidth; can.height=vid.videoHeight;
+  can.getContext('2d').drawImage(vid,0,0);
+  chiudiCamera();
+  can.toBlob(async blob=>{
+    await uploadFotoBlob(blob,'scatto.jpg');
+  },'image/jpeg',0.85);
+}
+function uploadFotoGalleria(input){
+  if(!input.files[0]) return;
+  uploadFotoBlob(input.files[0], input.files[0].name);
+  input.value='';
+}
+async function uploadFotoBlob(blob, fname){
+  if(!_rigaCorrente){ toast('Nessun pezzo caricato','err'); return; }
+  toast('⏳ Caricamento foto...','warn');
+  const fd=new FormData();
+  fd.append('file',blob,fname);
+  try{
+    const r=await fetch(`/api/inventario/righe/${_rigaCorrente.id}/foto`,{method:'POST',body:fd});
+    const res=await r.json();
+    if(res.ok){
+      toast('✅ Foto caricata!','ok');
+      // Aggiorna foto nell'interfaccia
+      _rigaCorrente.foto_url=res.url;
+      const fotoRow=document.getElementById('foto-row');
+      if(fotoRow){
+        const img=document.createElement('img');
+        img.className='foto-thumb'; img.src=res.url;
+        fotoRow.insertBefore(img, fotoRow.querySelector('.foto-add'));
+      }
+      // Aggiorna immagine principale
+      const wrap=document.querySelector('.pezzo-img-wrap');
+      if(wrap){
+        wrap.innerHTML=`<img class="pezzo-img" src="${esc(res.url)}" onclick="apriImmagine('${esc(res.url)}')">`;
+      }
+    } else {
+      toast(res.msg||'Errore upload','err');
+    }
+  }catch(e){
+    toast('Errore: '+e.message,'err');
+  }
+}
+
+function apriImmagine(url){
+  window.open(url,'_blank');
+}
+
+// ── SCHERMATE SPECIALI ────────────────────────────────────────────────
+function mostraLoading(){
+  document.getElementById('main-content').innerHTML=
+    '<div class="schermata"><div class="spinner"></div><p>Caricamento prossimo pezzo...</p></div>';
+}
+
+function mostraCompletato(){
+  const s=_stats;
+  document.getElementById('main-content').innerHTML=`
+    <div class="schermata">
+      <div class="ico">🎉</div>
+      <h2>Inventario completato!</h2>
+      <p>Hai inventariato tutti i pezzi di questa sessione.</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;width:100%;max-width:280px;margin:8px 0">
+        <div style="background:#f0fdf4;border-radius:10px;padding:12px;text-align:center">
+          <div style="font-size:28px;font-weight:800;color:var(--green)">${s.confermati||0}</div>
+          <div style="font-size:10px;color:var(--text3)">Confermati</div>
+        </div>
+        <div style="background:#fef2f2;border-radius:10px;padding:12px;text-align:center">
+          <div style="font-size:28px;font-weight:800;color:var(--red)">${s.mancanti||0}</div>
+          <div style="font-size:10px;color:var(--text3)">Mancanti</div>
+        </div>
+      </div>
+      <p style="font-size:12px;color:var(--text3)">Il database è stato aggiornato automaticamente. Torna al PC per vedere il report completo.</p>
+    </div>`;
+  document.getElementById('azioni').style.display='none';
+}
+
+function mostraSessioneChiusa(s){
+  document.getElementById('main-content').innerHTML=`
+    <div class="schermata">
+      <div class="ico">🔒</div>
+      <h2>Sessione chiusa</h2>
+      <p>La sessione "${esc(s.nome)}" è stata chiusa dal responsabile. Non è possibile aggiungere altre operazioni.</p>
+    </div>`;
+  document.getElementById('azioni').style.display='none';
+}
+
+function mostraErrore(titolo,msg){
+  document.getElementById('main-content').innerHTML=`
+    <div class="schermata">
+      <div class="ico">⚠️</div>
+      <h2>${esc(titolo)}</h2>
+      <p>${esc(msg)}</p>
+    </div>`;
+  document.getElementById('azioni').style.display='none';
+}
+
+// ── SOCKET REAL-TIME ──────────────────────────────────────────────────
+_sock.on('inventario_chiusa', function(data){
+  if(data.sessione_id===_sessId){
+    mostraSessioneChiusa({nome:'questa sessione'});
+    toast('🔒 Sessione chiusa dal PC','warn');
+  }
+});
+
+// ── START ─────────────────────────────────────────────────────────────
+init();
+</script>
+</body>
+</html>

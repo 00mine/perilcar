@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Inventario — PerilCar</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono&display=swap" rel="stylesheet">
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f7f8fa;--surface:#fff;--border:#dde1e8;
+  --orange:#e94c00;--orange2:#ff6b35;--blue:#3a5bd9;
+  --green:#16a34a;--green2:#22c55e;--red:#dc2626;--yellow:#f59e0b;
+  --text:#111827;--text2:#4b5563;--text3:#9ca3af;
+  --radius:8px;--font:'DM Sans',system-ui,sans-serif;--mono:'DM Mono',monospace;
+  --shadow:0 1px 4px rgba(0,0,0,.08),0 4px 16px rgba(0,0,0,.06);
+}
+body{font-family:var(--font);background:var(--bg);color:var(--text);font-size:13px;min-height:100vh;display:flex;flex-direction:column}
+.topbar{height:50px;background:#fff;border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 20px;gap:12px;box-shadow:0 1px 3px rgba(0,0,0,.06);flex-shrink:0}
+.topbar-logo{font-weight:700;font-size:17px}.topbar-logo span{color:var(--orange)}
+.nav-link{padding:5px 12px;border-radius:6px;font-size:12.5px;font-weight:500;text-decoration:none;color:var(--text2);transition:.15s}
+.nav-link:hover{background:#eef0f4}.nav-link.active{background:var(--orange);color:#fff}
+.topbar-right{margin-left:auto;display:flex;gap:10px;align-items:center}
+.user-chip{font-size:12px;color:var(--text2);background:var(--bg);border:1px solid var(--border);padding:4px 10px;border-radius:20px}
+.btn-logout{font-size:12px;padding:5px 12px;border-radius:6px;border:1px solid var(--border);background:#fff;color:var(--text2);cursor:pointer;font-family:var(--font)}
+.btn-logout:hover{background:#fee2e2;color:var(--red)}
+
+.main{flex:1;display:grid;grid-template-columns:320px 1fr;overflow:hidden}
+
+/* SINISTRA — pannello sessioni */
+.panel-left{background:#fff;border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+.panel-hdr{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.panel-hdr h2{font-size:15px;font-weight:700}
+.btn{display:inline-flex;align-items:center;gap:5px;padding:6px 12px;border-radius:var(--radius);font-size:12px;font-weight:600;cursor:pointer;border:none;font-family:var(--font);white-space:nowrap;transition:.15s}
+.btn-primary{background:var(--orange);color:#fff}.btn-primary:hover{background:var(--orange2)}
+.btn-ghost{background:var(--bg);color:var(--text2);border:1px solid var(--border)}.btn-ghost:hover{background:#eef0f4}
+.btn-green{background:var(--green);color:#fff}.btn-green:hover{background:var(--green2)}
+.btn-red{background:var(--red);color:#fff}
+.btn-blue{background:var(--blue);color:#fff}
+.btn-sm{padding:4px 8px;font-size:11px}
+
+.nuova-form{padding:14px 16px;border-bottom:1px solid var(--border);background:var(--bg);flex-shrink:0}
+.nuova-form label{font-size:10.5px;font-weight:600;color:var(--text2);display:block;margin-bottom:3px}
+select,input[type=text]{font-family:var(--font);font-size:12px;background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:7px 10px;color:var(--text);outline:none;width:100%;transition:border-color .15s}
+select:focus,input:focus{border-color:var(--blue)}
+.mt6{margin-top:6px}
+
+.sessioni-list{flex:1;overflow-y:auto;padding:8px}
+.sess-card{background:#fff;border:1.5px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:8px;cursor:pointer;transition:.15s}
+.sess-card:hover{border-color:var(--orange)}
+.sess-card.active{border-color:var(--orange);background:#fff8f5}
+.sess-card.chiusa{opacity:.6}
+.sess-name{font-size:13px;font-weight:700;margin-bottom:4px}
+.sess-cat{font-size:11px;color:var(--text3);margin-bottom:6px}
+.sess-progress{height:5px;background:var(--bg);border-radius:3px;overflow:hidden;margin-bottom:6px}
+.sess-fill{height:100%;background:var(--green);border-radius:3px;transition:width .4s}
+.sess-stats{display:flex;gap:8px;flex-wrap:wrap}
+.stat-pill{font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px}
+.sp-green{background:#f0fdf4;color:var(--green);border:1px solid #bbf7d0}
+.sp-red{background:#fef2f2;color:var(--red);border:1px solid #fca5a5}
+.sp-yellow{background:#fffbeb;color:var(--yellow);border:1px solid #fde68a}
+.sp-gray{background:var(--bg);color:var(--text3);border:1px solid var(--border)}
+.sess-data{font-size:10px;color:var(--text3);margin-top:6px}
+.sess-actions{display:flex;gap:5px;margin-top:8px}
+
+/* DESTRA — dettaglio sessione */
+.panel-right{display:flex;flex-direction:column;overflow:hidden;padding:16px;gap:12px}
+.empty-state{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--text3);gap:10px}
+.empty-icon{font-size:48px}
+
+.inv-hdr{display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.inv-hdr h2{font-size:18px;font-weight:700}
+.inv-actions{display:flex;gap:8px;align-items:center}
+
+/* QR / URL mobile */
+.qr-box{background:#fff;border:1px solid var(--border);border-radius:12px;padding:14px 16px;display:flex;align-items:center;gap:14px;flex-shrink:0}
+.qr-icon{font-size:32px}
+.qr-info{flex:1}
+.qr-label{font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:3px}
+.qr-url{font-family:var(--mono);font-size:12px;color:var(--blue);word-break:break-all}
+.btn-copy{padding:5px 10px;font-size:11px}
+
+/* Progress bar grande */
+.progress-big{background:#fff;border:1px solid var(--border);border-radius:12px;padding:14px 16px;flex-shrink:0}
+.progress-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.progress-title{font-size:12px;font-weight:700;color:var(--text2)}
+.progress-pct{font-size:18px;font-weight:700;color:var(--green)}
+.progress-bar{height:10px;background:var(--bg);border-radius:5px;overflow:hidden;margin-bottom:10px}
+.progress-bar-fill{height:100%;border-radius:5px;transition:width .5s;background:linear-gradient(90deg,var(--green),var(--green2))}
+.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.kpi{background:var(--bg);border-radius:8px;padding:8px 10px;text-align:center}
+.kpi-num{font-size:20px;font-weight:700;font-family:var(--mono)}
+.kpi-lbl{font-size:9px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.5px}
+.kpi.green .kpi-num{color:var(--green)}
+.kpi.red .kpi-num{color:var(--red)}
+.kpi.yellow .kpi-num{color:var(--yellow)}
+.kpi.gray .kpi-num{color:var(--text3)}
+
+/* Tabella righe live */
+.righe-wrap{flex:1;overflow:hidden;background:#fff;border:1px solid var(--border);border-radius:12px;display:flex;flex-direction:column}
+.righe-hdr{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--border);flex-shrink:0}
+.righe-hdr span{font-size:11px;font-weight:700;color:var(--text2)}
+.righe-scroll{flex:1;overflow-y:auto}
+table{width:100%;border-collapse:collapse}
+thead th{position:sticky;top:0;background:var(--bg);font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text3);padding:6px 10px;text-align:left;border-bottom:1px solid var(--border)}
+tbody tr{border-bottom:1px solid #f3f4f6}
+tbody tr:hover{background:#fafafa}
+tbody td{padding:6px 10px;font-size:12px}
+.stato-badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700}
+.sb-confermato{background:#f0fdf4;color:var(--green);border:1px solid #bbf7d0}
+.sb-mancante{background:#fef2f2;color:var(--red);border:1px solid #fca5a5}
+.sb-rimandato{background:#fffbeb;color:var(--yellow);border:1px solid #fde68a}
+.sb-sospeso{background:var(--bg);color:var(--text3);border:1px solid var(--border)}
+.foto-thumb{width:28px;height:28px;object-fit:cover;border-radius:4px;cursor:pointer}
+
+/* Overlay modale */
+.overlay{position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;padding:16px}
+.overlay.hidden{display:none}
+.modal{background:#fff;border-radius:14px;width:100%;max-width:480px;box-shadow:0 20px 60px rgba(0,0,0,.2)}
+.mhdr{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--border)}
+.mhdr h3{font-size:15px;font-weight:700}
+.mclose{background:none;border:none;font-size:22px;cursor:pointer;color:var(--text3)}
+.mbody{padding:16px;display:flex;flex-direction:column;gap:10px}
+.mftr{display:flex;justify-content:flex-end;gap:8px;padding:12px 18px;border-top:1px solid var(--border)}
+.field{display:flex;flex-direction:column;gap:3px}
+.field label{font-size:11px;font-weight:600;color:var(--text2)}
+.err{font-size:11px;color:var(--red);min-height:14px}
+
+/* Toast */
+.toast{position:fixed;bottom:16px;right:16px;z-index:9999;padding:9px 16px;border-radius:10px;font-size:12.5px;font-weight:600;box-shadow:0 4px 20px rgba(0,0,0,.12)}
+.tok{background:#fff;color:var(--green);border:1px solid #bbf7d0}
+.terr{background:#fff;color:var(--red);border:1px solid #fca5a5}
+
+/* Live pulse */
+.live-dot{width:8px;height:8px;border-radius:50%;background:var(--green);display:inline-block;animation:pulse-dot 1.5s infinite}
+@keyframes pulse-dot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(1.3)}}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <span class="topbar-logo">Peril<span>Car</span></span>
+  <nav style="display:flex;gap:4px;margin-left:12px">
+    <a href="/dashboard" class="nav-link">🏠 Home</a>
+    <a href="/magazzino" class="nav-link">📦 Magazzino</a>
+    <a href="/demolizioni" class="nav-link">🚗 Demolizioni</a>
+    <a href="/inventario" class="nav-link active">📋 Inventario</a>
+  </nav>
+  <div class="topbar-right">
+    <span class="user-chip">👤 {{ user.username }}</span>
+    <button class="btn-logout" onclick="logout()">Esci</button>
+  </div>
+</header>
+
+<div class="main">
+
+  <!-- ══ SINISTRA: sessioni ══ -->
+  <div class="panel-left">
+    <div class="panel-hdr">
+      <h2>📋 Sessioni Inventario</h2>
+    </div>
+
+    <!-- Form nuova sessione -->
+    <div class="nuova-form">
+      <div class="field">
+        <label>Categoria</label>
+        <select id="sel-cat">
+          <option value="">— seleziona categoria —</option>
+        </select>
+      </div>
+      <div class="field mt6">
+        <label>Nome sessione (opzionale)</label>
+        <input type="text" id="inp-nome" placeholder="es. Inventario alternatori maggio">
+      </div>
+      <div class="err" id="err-nuova"></div>
+      <button class="btn btn-primary" style="width:100%;margin-top:8px;justify-content:center" onclick="nuovaSessione()">
+        ＋ Avvia nuova sessione
+      </button>
+    </div>
+
+    <!-- Lista sessioni -->
+    <div class="sessioni-list" id="sessioni-list">
+      <div style="text-align:center;padding:20px;color:var(--text3)">Caricamento...</div>
+    </div>
+  </div>
+
+  <!-- ══ DESTRA: dettaglio ══ -->
+  <div class="panel-right" id="panel-right">
+    <div class="empty-state">
+      <div class="empty-icon">📋</div>
+      <div style="font-size:15px;font-weight:600">Seleziona o crea una sessione</div>
+      <div style="font-size:12px">Avvia un inventario per categoria e monitora l'avanzamento in tempo reale</div>
+    </div>
+  </div>
+
+</div>
+
+<div id="reload-badge" style="position:fixed;bottom:12px;left:12px;z-index:9999;background:var(--green);color:#fff;padding:4px 10px;border-radius:20px;font-size:10px;font-weight:600;opacity:0;transition:opacity .3s;pointer-events:none">🔄</div>
+
+<script>
+const _sock = io();
+_sock.on('reload', ()=>{ document.getElementById('reload-badge').style.opacity='1'; setTimeout(()=>window.location.reload(),500); });
+
+var _sessId = null;
+var _righe  = [];
+var _interval = null;
+
+function esc(s){ return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+async function apiFetch(url, opts={}){
+  opts.headers={'Content-Type':'application/json',...(opts.headers||{})};
+  const r=await fetch(url,opts); return r.json();
+}
+function toast(msg,ok=true){
+  document.querySelectorAll('.toast').forEach(e=>e.remove());
+  const d=document.createElement('div'); d.className='toast '+(ok?'tok':'terr');
+  d.textContent=msg; document.body.appendChild(d);
+  setTimeout(()=>d.remove(),3500);
+}
+async function logout(){ await apiFetch('/api/logout',{method:'POST'}); window.location.href='/login'; }
+
+// ── Categorie ─────────────────────────────────────────────────────────
+async function caricaCategorie(){
+  const cats = await apiFetch('/api/inventario/categorie');
+  const sel  = document.getElementById('sel-cat');
+  cats.forEach(c=>{
+    const opt=document.createElement('option');
+    opt.value=c.categoria; opt.textContent=`${c.categoria} (${c.n} pezzi)`;
+    sel.appendChild(opt);
+  });
+}
+
+// ── Sessioni ──────────────────────────────────────────────────────────
+async function caricaSessioni(){
+  const rows = await apiFetch('/api/inventario/sessioni');
+  const div  = document.getElementById('sessioni-list');
+  if(!rows.length){
+    div.innerHTML='<div style="text-align:center;padding:20px;color:var(--text3)">Nessuna sessione ancora</div>';
+    return;
+  }
+  div.innerHTML = rows.map(s=>{
+    const tot  = s.totale_pezzi||1;
+    const done = (s.confermati||0)+(s.mancanti||0);
+    const pct  = Math.round(done/tot*100);
+    const active = _sessId===s.id ? 'active' : '';
+    const chiusa = s.stato==='chiusa' ? 'chiusa' : '';
+    return `<div class="sess-card ${active} ${chiusa}" onclick="selSessione(${s.id})">
+      <div class="sess-name">${esc(s.nome)}</div>
+      <div class="sess-cat">📂 ${esc(s.categoria||'—')} · ${s.totale_pezzi||0} pezzi
+        ${s.stato==='chiusa'?'<span style="color:var(--text3)"> · Chiusa</span>':'<span class="live-dot" style="margin-left:4px"></span>'}
+      </div>
+      <div class="sess-progress"><div class="sess-fill" style="width:${pct}%"></div></div>
+      <div class="sess-stats">
+        <span class="stat-pill sp-green">✅ ${s.confermati||0}</span>
+        <span class="stat-pill sp-red">❌ ${s.mancanti||0}</span>
+        <span class="stat-pill sp-yellow">⏳ ${s.sospesi||0}</span>
+        <span class="stat-pill sp-gray">${pct}%</span>
+      </div>
+      <div class="sess-data">${(s.creato_il||'').slice(0,16)} · ${esc(s.creato_da_nome||'—')}</div>
+      ${s.stato!=='chiusa'?`<div class="sess-actions">
+        <button class="btn btn-blue btn-sm" onclick="event.stopPropagation();copiaUrl(${s.id})">📱 URL mobile</button>
+        <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();chiudiSessione(${s.id})">Chiudi</button>
+      </div>`:''}
+    </div>`;
+  }).join('');
+}
+
+async function nuovaSessione(){
+  const cat  = document.getElementById('sel-cat').value;
+  const nome = document.getElementById('inp-nome').value.trim();
+  const err  = document.getElementById('err-nuova');
+  err.textContent='';
+  if(!cat){ err.textContent='Seleziona una categoria'; return; }
+  const res = await apiFetch('/api/inventario/sessioni',{method:'POST',body:JSON.stringify({categoria:cat,nome:nome||cat})});
+  if(res.ok){
+    toast(`✅ ${res.msg}`);
+    document.getElementById('inp-nome').value='';
+    await caricaSessioni();
+    selSessione(res.id);
+  } else {
+    err.textContent=res.msg;
+  }
+}
+
+async function selSessione(id){
+  _sessId=id;
+  await caricaSessioni(); // aggiorna highlight
+  await caricaDettaglio(id);
+  // Entra nella room SocketIO
+  _sock.emit('join_inventario',{sessione_id:id});
+}
+
+// ── Dettaglio sessione ────────────────────────────────────────────────
+async function caricaDettaglio(id){
+  const data = await apiFetch(`/api/inventario/sessioni/${id}`);
+  if(!data.ok) return;
+  const s = data.sessione;
+  _righe  = data.righe||[];
+
+  const tot   = s.totale_pezzi||1;
+  const done  = (s.confermati||0)+(s.mancanti||0);
+  const pct   = Math.round(done/tot*100);
+  const mobileUrl = `http://${window.location.hostname}:${window.location.port}/inventario-mobile?sessione=${id}`;
+
+  const chiusa = s.stato==='chiusa';
+
+  document.getElementById('panel-right').innerHTML = `
+    <div class="inv-hdr">
+      <h2>📋 ${esc(s.nome)}</h2>
+      <div class="inv-actions">
+        ${!chiusa?`<button class="btn btn-red btn-sm" onclick="chiudiSessione(${id})">🔒 Chiudi sessione</button>`:'<span style="font-size:12px;color:var(--text3)">Sessione chiusa</span>'}
+        <button class="btn btn-ghost btn-sm" onclick="caricaDettaglio(${id})">🔄 Aggiorna</button>
+      </div>
+    </div>
+
+    <!-- URL mobile -->
+    <div class="qr-box">
+      <div class="qr-icon">📱</div>
+      <div class="qr-info">
+        <div class="qr-label">URL per il telefono — aprilo nel browser mobile</div>
+        <div class="qr-url" id="mobile-url">${mobileUrl}</div>
+      </div>
+      <button class="btn btn-ghost btn-copy" onclick="copiaUrl(${id})">📋 Copia</button>
+    </div>
+
+    <!-- Progress -->
+    <div class="progress-big">
+      <div class="progress-top">
+        <span class="progress-title">Avanzamento inventario · ${esc(s.categoria||'—')}</span>
+        <span class="progress-pct">${pct}%</span>
+      </div>
+      <div class="progress-bar"><div class="progress-bar-fill" id="prog-fill" style="width:${pct}%"></div></div>
+      <div class="kpi-row">
+        <div class="kpi green"><div class="kpi-num" id="k-conf">${s.confermati||0}</div><div class="kpi-lbl">Confermati</div></div>
+        <div class="kpi red"><div class="kpi-num" id="k-manc">${s.mancanti||0}</div><div class="kpi-lbl">Mancanti</div></div>
+        <div class="kpi yellow"><div class="kpi-num" id="k-sosp">${s.sospesi||0}</div><div class="kpi-lbl">Sospesi</div></div>
+        <div class="kpi gray"><div class="kpi-num" id="k-tot">${s.totale_pezzi||0}</div><div class="kpi-lbl">Totale</div></div>
+      </div>
+    </div>
+
+    <!-- Tabella righe -->
+    <div class="righe-wrap">
+      <div class="righe-hdr">
+        <span>Dettaglio pezzi</span>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-ghost btn-sm" onclick="filtraRighe('')">Tutti</button>
+          <button class="btn btn-ghost btn-sm" onclick="filtraRighe('sospeso')">⏳ Sospesi</button>
+          <button class="btn btn-ghost btn-sm" onclick="filtraRighe('confermato')">✅ Confermati</button>
+          <button class="btn btn-ghost btn-sm" onclick="filtraRighe('mancante')">❌ Mancanti</button>
+        </div>
+      </div>
+      <div class="righe-scroll">
+        <table>
+          <thead><tr>
+            <th>Foto</th><th>Cod.</th><th>Descrizione</th><th>Marca</th>
+            <th style="text-align:center">Attesa</th><th style="text-align:center">Trovata</th>
+            <th>Stato</th>
+          </tr></thead>
+          <tbody id="righe-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  `;
+
+  renderRighe(_righe);
+}
+
+var _filtroStato='';
+function filtraRighe(stato){
+  _filtroStato=stato;
+  renderRighe(_righe);
+}
+
+function renderRighe(righe){
+  const filt = _filtroStato ? righe.filter(r=>r.stato===_filtroStato) : righe;
+  const tbody= document.getElementById('righe-tbody');
+  if(!tbody) return;
+  tbody.innerHTML = filt.map(r=>{
+    const img = r.foto_url
+      ? `<img src="${esc(r.foto_url)}" class="foto-thumb" onclick="window.open('${esc(r.foto_url)}','_blank')">`
+      : (r.immagine_path ? `<img src="${esc(r.immagine_path.split('|')[0])}" class="foto-thumb">` : '—');
+    const badge = {
+      confermato:'<span class="stato-badge sb-confermato">✅ Confermato</span>',
+      mancante:  '<span class="stato-badge sb-mancante">❌ Mancante</span>',
+      rimandato: '<span class="stato-badge sb-rimandato">⏳ Rimandato</span>',
+      sospeso:   '<span class="stato-badge sb-sospeso">○ Sospeso</span>',
+    }[r.stato]||r.stato;
+    return `<tr>
+      <td>${img}</td>
+      <td style="font-family:var(--mono);font-size:10px;color:var(--orange)">${esc(r.cmp||'')}</td>
+      <td title="${esc(r.articolo||'')}">${esc((r.articolo||'').slice(0,30))}</td>
+      <td>${esc(r.marca||'—')}</td>
+      <td style="text-align:center;font-family:var(--mono)">${r.qty_attesa??'—'}</td>
+      <td style="text-align:center;font-family:var(--mono);font-weight:700;color:${r.qty_trovata!==null&&r.qty_trovata!==undefined?(r.qty_trovata==r.qty_attesa?'var(--green)':'var(--red)'):'inherit'}">${r.qty_trovata??'—'}</td>
+      <td>${badge}</td>
+    </tr>`;
+  }).join('');
+}
+
+function copiaUrl(id){
+  const url = `http://${window.location.hostname}:${window.location.port}/inventario-mobile?sessione=${id}`;
+  navigator.clipboard.writeText(url).then(()=>toast('📋 URL copiato! Incollalo nel browser del telefono'));
+}
+
+async function chiudiSessione(id){
+  if(!confirm('Chiudere questa sessione inventario? Non potranno essere aggiunte altre operazioni.')) return;
+  const res = await apiFetch(`/api/inventario/sessioni/${id}/chiudi`,{method:'POST'});
+  if(res.ok){ toast('🔒 Sessione chiusa'); await caricaSessioni(); if(_sessId===id) await caricaDettaglio(id); }
+  else toast(res.msg,false);
+}
+
+// ── SocketIO real-time ────────────────────────────────────────────────
+_sock.on('inventario_aggiornamento', async function(data){
+  if(data.sessione_id !== _sessId) return;
+  // Aggiorna riga in locale
+  const idx = _righe.findIndex(r=>r.id===data.riga_id);
+  if(idx>=0){
+    _righe[idx].stato       = data.stato;
+    _righe[idx].qty_trovata = data.qty_trovata;
+  }
+  renderRighe(_righe);
+  // Aggiorna KPI
+  const stats = await apiFetch(`/api/inventario/sessioni/${_sessId}/stats`);
+  const tot   = stats.totale||1;
+  const done  = (stats.confermati||0)+(stats.mancanti||0);
+  const pct   = Math.round(done/tot*100);
+  const el=(id)=>document.getElementById(id);
+  if(el('k-conf')) el('k-conf').textContent=stats.confermati||0;
+  if(el('k-manc')) el('k-manc').textContent=stats.mancanti||0;
+  if(el('k-sosp')) el('k-sosp').textContent=stats.rimandati||0;
+  if(el('prog-fill')) el('prog-fill').style.width=pct+'%';
+  await caricaSessioni();
+  toast(`📱 ${data.stato==='confermato'?'✅ Confermato':'❌ Mancante'}: aggiornato in tempo reale`);
+});
+
+_sock.on('inventario_nuova_sessione', ()=>{ caricaSessioni(); });
+_sock.on('inventario_chiusa', ()=>{ caricaSessioni(); });
+
+// ── Init ──────────────────────────────────────────────────────────────
+caricaCategorie();
+caricaSessioni();
+</script>
+</body>
+</html>

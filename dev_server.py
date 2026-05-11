@@ -160,6 +160,48 @@ try:
 except Exception as _ce:
     log.warning(f"Pulizia avvio: {_ce}")
 
+
+# ── Crea tabelle inventario se non esistono ───────────────────────────────────
+try:
+    import sqlite3 as _sq_inv
+    _inv_conn = _sq_inv.connect(cfg.get("db_path"), timeout=10)
+    _inv_conn.executescript("""
+    CREATE TABLE IF NOT EXISTS sessioni_inventario (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nome TEXT NOT NULL,
+        categoria TEXT,
+        filtro_json TEXT,
+        stato TEXT DEFAULT 'attiva',
+        totale_pezzi INTEGER DEFAULT 0,
+        confermati INTEGER DEFAULT 0,
+        mancanti INTEGER DEFAULT 0,
+        sospesi INTEGER DEFAULT 0,
+        creato_da INTEGER,
+        creato_il TEXT DEFAULT (datetime('now')),
+        chiuso_il TEXT
+    );
+    CREATE TABLE IF NOT EXISTS inventario_righe (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        sessione_id INTEGER NOT NULL,
+        componente_id INTEGER NOT NULL,
+        stato TEXT DEFAULT 'sospeso',
+        qty_attesa INTEGER DEFAULT 0,
+        qty_trovata INTEGER,
+        foto_url TEXT,
+        note TEXT,
+        ordine INTEGER DEFAULT 0,
+        aggiornato_il TEXT,
+        FOREIGN KEY(sessione_id) REFERENCES sessioni_inventario(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_inv_sessione ON inventario_righe(sessione_id);
+    CREATE INDEX IF NOT EXISTS idx_inv_stato ON inventario_righe(sessione_id, stato);
+    """)
+    _inv_conn.commit()
+    _inv_conn.close()
+    log.info("Tabelle inventario pronte")
+except Exception as _e:
+    log.warning(f"Tabelle inventario: {_e}")
+
 # ── Scrittura sicura: tutte le operazioni passano da qui ─────────────────────
 def db_write(statements: list):
     """Esegue più statement in una singola transazione atomica."""
@@ -1890,6 +1932,308 @@ def api_cambia_password():
     db_write([("UPDATE utenti SET password_hash=? WHERE id=?",
                (hashlib.sha256(nuova.encode()).hexdigest(), u.get("id")))])
     return jsonify({"ok": True, "msg": "Password aggiornata"})
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# MODULO INVENTARIO — PC controller + Mobile client
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.route("/inventario")
+@require_login
+def page_inventario():
+    return render_template("inventario.html", user=cu())
+
+@app.route("/inventario-mobile")
+@require_login
+def page_inventario_mobile():
+    sid = request.args.get("sessione")
+    return render_template("inventario_mobile.html", user=cu(), sessione_id=sid or "")
+
+# ── CATEGORIE disponibili ─────────────────────────────────────────────
+@app.route("/api/inventario/categorie")
+@require_login
+def api_inv_categorie():
+    rows = db.fetchall("""
+        SELECT categoria, COUNT(*) as n, SUM(esistenza) as tot_pezzi
+        FROM v_giacenza
+        WHERE categoria IS NOT NULL AND categoria != ''
+        GROUP BY categoria ORDER BY categoria
+    """)
+    return jsonify(rows)
+
+# ── SESSIONI ──────────────────────────────────────────────────────────
+@app.route("/api/inventario/sessioni")
+@require_login
+def api_inv_sessioni():
+    rows = db.fetchall("""
+        SELECT s.*, u.username as creato_da_nome
+        FROM sessioni_inventario s
+        LEFT JOIN utenti u ON u.id = s.creato_da
+        ORDER BY s.id DESC LIMIT 50
+    """)
+    return jsonify(rows)
+
+@app.route("/api/inventario/sessioni", methods=["POST"])
+@require_login
+def api_inv_crea_sessione():
+    import json
+    d  = request.json or {}
+    u  = cu()
+    categoria = d.get("categoria", "").strip()
+    nome      = d.get("nome", categoria or "Inventario").strip()
+    if not categoria:
+        return jsonify({"ok": False, "msg": "Categoria obbligatoria"}), 400
+
+    try:
+        with db._write_lock:
+            conn = db.get_connection()
+            try:
+                # Crea sessione
+                cur = conn.execute(
+                    "INSERT INTO sessioni_inventario(nome,categoria,stato,creato_da) VALUES(?,?,?,?)",
+                    (nome, categoria, "attiva", u.get("id")))
+                sid = cur.lastrowid
+
+                # Recupera componenti della categoria
+                comps = db.fetchall(
+                    "SELECT componente_id, esistenza FROM v_giacenza WHERE categoria=? ORDER BY articolo",
+                    (categoria,))
+
+                for i, c in enumerate(comps):
+                    conn.execute(
+                        "INSERT INTO inventario_righe(sessione_id,componente_id,qty_attesa,stato,ordine) VALUES(?,?,?,?,?)",
+                        (sid, c["componente_id"], c["esistenza"] or 0, "sospeso", i))
+
+                conn.execute(
+                    "UPDATE sessioni_inventario SET totale_pezzi=? WHERE id=?",
+                    (len(comps), sid))
+                conn.commit()
+                log.info(f"Inventario sessione {sid} creata: {len(comps)} pezzi categoria '{categoria}'")
+
+                # Notifica tutti i client connessi
+                socketio.emit("inventario_nuova_sessione", {
+                    "sessione_id": sid, "nome": nome, "categoria": categoria,
+                    "totale": len(comps)
+                })
+                return jsonify({"ok": True, "id": sid, "totale": len(comps), "msg": f"Sessione creata: {len(comps)} pezzi"})
+            except Exception as e:
+                conn.rollback()
+                raise
+            finally:
+                conn.close()
+    except Exception as e:
+        return jsonify({"ok": False, "msg": str(e)}), 500
+
+@app.route("/api/inventario/sessioni/<int:sid>")
+@require_login
+def api_inv_sessione_dettaglio(sid):
+    sess = db.fetchone("SELECT * FROM sessioni_inventario WHERE id=?", (sid,))
+    if not sess:
+        return jsonify({"ok": False, "msg": "Sessione non trovata"}), 404
+    righe = db.fetchall("""
+        SELECT r.*, c.codice as cmp, c.nome as articolo,
+               c.marca, c.categoria, c.immagine_path, c.files_path
+        FROM inventario_righe r
+        JOIN componenti c ON c.id = r.componente_id
+        WHERE r.sessione_id=?
+        ORDER BY r.ordine
+    """, (sid,))
+    return jsonify({"ok": True, "sessione": dict(sess), "righe": righe})
+
+@app.route("/api/inventario/sessioni/<int:sid>/prossimo")
+@require_login
+def api_inv_prossimo(sid):
+    """Restituisce il prossimo pezzo sospeso da inventariare."""
+    riga = db.fetchone("""
+        SELECT r.*, c.codice as cmp, c.nome as articolo,
+               c.marca, c.categoria, c.immagine_path, c.files_path,
+               c.colore, c.modello, c.anno_da, c.anno_a
+        FROM inventario_righe r
+        JOIN componenti c ON c.id = r.componente_id
+        WHERE r.sessione_id=? AND r.stato='sospeso'
+        ORDER BY r.ordine LIMIT 1
+    """, (sid,))
+    if not riga:
+        # Controlla se ci sono rimandati
+        rimandato = db.fetchone("""
+            SELECT r.*, c.codice as cmp, c.nome as articolo,
+                   c.marca, c.categoria, c.immagine_path, c.files_path
+            FROM inventario_righe r
+            JOIN componenti c ON c.id = r.componente_id
+            WHERE r.sessione_id=? AND r.stato='rimandato'
+            ORDER BY r.ordine LIMIT 1
+        """, (sid,))
+        if rimandato:
+            return jsonify({"ok": True, "riga": dict(rimandato), "fase": "rimandati"})
+        return jsonify({"ok": True, "riga": None, "fase": "completato"})
+    return jsonify({"ok": True, "riga": dict(riga), "fase": "principale"})
+
+@app.route("/api/inventario/sessioni/<int:sid>/stats")
+@require_login
+def api_inv_stats(sid):
+    stats = db.fetchone("""
+        SELECT
+            COUNT(*) as totale,
+            SUM(CASE WHEN stato='confermato' THEN 1 ELSE 0 END) as confermati,
+            SUM(CASE WHEN stato='mancante' THEN 1 ELSE 0 END) as mancanti,
+            SUM(CASE WHEN stato='rimandato' THEN 1 ELSE 0 END) as rimandati,
+            SUM(CASE WHEN stato='sospeso' THEN 1 ELSE 0 END) as sospesi
+        FROM inventario_righe WHERE sessione_id=?
+    """, (sid,))
+    return jsonify(dict(stats) if stats else {})
+
+@app.route("/api/inventario/righe/<int:rid>", methods=["PUT"])
+@require_login
+def api_inv_aggiorna_riga(rid):
+    """Aggiorna stato di una riga inventario (dal mobile o dal PC)."""
+    import json
+    d     = request.json or {}
+    u     = cu()
+    stato = d.get("stato")           # confermato | mancante | rimandato
+    qty   = d.get("qty_trovata")
+    note  = d.get("note", "")
+
+    riga = db.fetchone("SELECT * FROM inventario_righe WHERE id=?", (rid,))
+    if not riga:
+        return jsonify({"ok": False, "msg": "Riga non trovata"}), 404
+
+    try:
+        with db._write_lock:
+            conn = db.get_connection()
+            try:
+                # Aggiorna riga inventario
+                conn.execute("""UPDATE inventario_righe
+                    SET stato=?, qty_trovata=?, note=?, aggiornato_il=datetime('now')
+                    WHERE id=?""",
+                    (stato, qty if qty is not None else riga["qty_attesa"], note, rid))
+
+                sid  = riga["sessione_id"]
+                cid  = riga["componente_id"]
+                qatt = riga["qty_attesa"] or 0
+                qtrv = qty if qty is not None else qatt
+
+                # Se confermato o mancante: registra movimento se qty diversa
+                if stato in ("confermato", "mancante"):
+                    diff = qtrv - qatt
+                    if diff != 0:
+                        tipo_mov = "carico" if diff > 0 else "scarico"
+                        q_mov    = abs(diff)
+                        mov_cols = [r[1] for r in conn.execute("PRAGMA table_info(movimenti_magazzino)").fetchall()]
+                        m_fields = ["componente_id","tipo","quantita","riferimento","note","utente_id"]
+                        m_vals   = [cid, tipo_mov, q_mov, f"INVENTARIO-{sid}", f"Rettifica inventario: trovati {qtrv} attesi {qatt}", u.get("id")]
+                        if "quantita_prima" in mov_cols:
+                            m_fields += ["quantita_prima","quantita_dopo"]
+                            m_vals   += [qatt, qtrv]
+                        conn.execute(
+                            "INSERT INTO movimenti_magazzino ("+",".join(m_fields)+") VALUES ("+",".join(["?"]*len(m_fields))+")",
+                            m_vals)
+
+                # Aggiorna contatori sessione
+                stats = conn.execute("""
+                    SELECT
+                        SUM(CASE WHEN stato='confermato' THEN 1 ELSE 0 END) as c,
+                        SUM(CASE WHEN stato='mancante'   THEN 1 ELSE 0 END) as m,
+                        SUM(CASE WHEN stato='rimandato'  THEN 1 ELSE 0 END) as r
+                    FROM inventario_righe WHERE sessione_id=?
+                """, (sid,)).fetchone()
+                conn.execute("""UPDATE sessioni_inventario
+                    SET confermati=?, mancanti=?, sospesi=?
+                    WHERE id=?""",
+                    (stats[0] or 0, stats[1] or 0, stats[2] or 0, sid))
+
+                # Log
+                try:
+                    conn.execute("""INSERT INTO log_operazioni
+                        (utente_id,username,modulo,azione,tabella,record_id,dati_nuovi)
+                        VALUES(?,?,?,?,?,?,?)""",
+                        (u.get("id"),u.get("username"),"INVENTARIO",stato.upper(),
+                         "inventario_righe",rid,str({"qty":qtrv,"stato":stato})))
+                except: pass
+
+                conn.commit()
+
+                # Notifica PC in tempo reale
+                socketio.emit("inventario_aggiornamento", {
+                    "sessione_id": sid, "riga_id": rid,
+                    "componente_id": cid, "stato": stato,
+                    "qty_trovata": qtrv, "qty_attesa": qatt
+                }, room=f"inventario_{sid}")
+
+                return jsonify({"ok": True, "msg": f"Pezzo {stato}"})
+            except Exception as e:
+                conn.rollback(); raise
+            finally:
+                conn.close()
+    except Exception as e:
+        return jsonify({"ok": False, "msg": str(e)}), 500
+
+@app.route("/api/inventario/righe/<int:rid>/foto", methods=["POST"])
+@require_login
+def api_inv_foto(rid):
+    """Upload foto da mobile per un pezzo inventario."""
+    import uuid
+    if "file" not in request.files:
+        return jsonify({"ok": False, "msg": "Nessun file"}), 400
+    f   = request.files["file"]
+    ext = f.filename.rsplit(".",1)[-1].lower() if "." in f.filename else "jpg"
+    if ext not in {"png","jpg","jpeg","webp","gif"}:
+        return jsonify({"ok": False, "msg": "Solo immagini"}), 400
+
+    riga = db.fetchone("SELECT * FROM inventario_righe WHERE id=?", (rid,))
+    if not riga:
+        return jsonify({"ok": False, "msg": "Riga non trovata"}), 404
+
+    fname = f"inv_{rid}_{uuid.uuid4().hex[:8]}.{ext}"
+    f.save(UPLOAD_FOLDER / fname)
+    url   = f"/static/uploads/{fname}"
+
+    cid = riga["componente_id"]
+    try:
+        with db._write_lock:
+            conn = db.get_connection()
+            try:
+                # Salva url foto nella riga inventario
+                conn.execute("UPDATE inventario_righe SET foto_url=? WHERE id=?", (url, rid))
+                # Aggiorna anche immagine_path del componente se non ne ha già una
+                comp = conn.execute("SELECT immagine_path, files_path FROM componenti WHERE id=?", (cid,)).fetchone()
+                if comp:
+                    new_img   = comp[0] or url
+                    old_files = comp[1] or ""
+                    new_files = (old_files + "|" + url).strip("|") if old_files else url
+                    conn.execute("UPDATE componenti SET immagine_path=?, files_path=?, modificato_il=datetime('now') WHERE id=?",
+                                 (new_img, new_files, cid))
+                conn.commit()
+            finally:
+                conn.close()
+        return jsonify({"ok": True, "url": url})
+    except Exception as e:
+        return jsonify({"ok": False, "msg": str(e)}), 500
+
+@app.route("/api/inventario/sessioni/<int:sid>/chiudi", methods=["POST"])
+@require_login
+def api_inv_chiudi(sid):
+    try:
+        db_write([("UPDATE sessioni_inventario SET stato='chiusa', chiuso_il=datetime('now') WHERE id=?", (sid,))])
+        socketio.emit("inventario_chiusa", {"sessione_id": sid})
+        return jsonify({"ok": True, "msg": "Sessione chiusa"})
+    except Exception as e:
+        return jsonify({"ok": False, "msg": str(e)}), 500
+
+# SocketIO room per inventario
+from flask_socketio import join_room, leave_room
+
+@socketio.on("join_inventario")
+def on_join_inventario(data):
+    sid = data.get("sessione_id")
+    if sid:
+        join_room(f"inventario_{sid}")
+        log.info(f"Client joined inventario_{sid}")
+
+@socketio.on("leave_inventario")
+def on_leave_inventario(data):
+    sid = data.get("sessione_id")
+    if sid:
+        leave_room(f"inventario_{sid}")
 
 # HOT RELOAD
 # ══════════════════════════════════════════════════════════════════════════════
