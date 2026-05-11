@@ -137,6 +137,7 @@ input:checked+.toggle-slider:before{transform:translateX(18px)}
   </div>
 </div>
 <input type="file" id="inp-file" accept="image/*" multiple onchange="fotoGalleria(this)">
+<input type="file" id="inp-camera" accept="image/*" capture="environment" onchange="fotoCameraCapture(this)">
 
 <!-- Pannello impostazioni -->
 <div class="settings-ov hidden" id="settings-ov" onclick="if(event.target===this)chiudiImpostazioni()">
@@ -322,28 +323,20 @@ function apriFotoMenu(){
   m.style.cssText='position:fixed;inset:0;z-index:400;background:rgba(0,0,0,.5);display:flex;align-items:flex-end';
   m.innerHTML='<div style="background:#fff;width:100%;border-radius:20px 20px 0 0;padding:20px;padding-bottom:max(env(safe-area-inset-bottom),20px)">'
     +'<div style="font-weight:700;font-size:16px;text-align:center;margin-bottom:14px">Aggiungi foto</div>'
-    +'<button onclick="this.closest(\'div[style]\').remove();apriCam()" style="display:block;width:100%;padding:15px;border:none;border-radius:12px;background:#f3f4f6;font-size:15px;font-weight:600;cursor:pointer;margin-bottom:8px">📷 Fotocamera</button>'
-    +'<button onclick="this.closest(\'div[style]\').remove();document.getElementById(\'inp-file\').click()" style="display:block;width:100%;padding:15px;border:none;border-radius:12px;background:#f3f4f6;font-size:15px;font-weight:600;cursor:pointer;margin-bottom:8px">🖼 Galleria</button>'
+    +'<button onclick="this.closest(\'div[style]\').remove();document.getElementById(\'inp-camera\').click()" style="display:block;width:100%;padding:15px;border:none;border-radius:12px;background:#f0fdf4;color:#16a34a;font-size:15px;font-weight:700;cursor:pointer;margin-bottom:8px">📷 Fotocamera</button>'
+    +'<button onclick="this.closest(\'div[style]\').remove();document.getElementById(\'inp-file\').click()" style="display:block;width:100%;padding:15px;border:none;border-radius:12px;background:#f3f4f6;font-size:15px;font-weight:600;cursor:pointer;margin-bottom:8px">🖼 Galleria / File</button>'
     +'<button onclick="this.closest(\'div[style]\').remove()" style="display:block;width:100%;padding:15px;border:none;border-radius:12px;background:#fee2e2;color:#dc2626;font-size:15px;font-weight:600;cursor:pointer">✕ Annulla</button>'
     +'</div>';
   document.body.appendChild(m);
 }
 
-async function apriCam(){
-  try{
-    _camStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'},audio:false});
-    document.getElementById('cam-video').srcObject=_camStream;
-    document.getElementById('cam-ov').classList.remove('hidden');
-  }catch(e){
-    try{
-      _camStream=await navigator.mediaDevices.getUserMedia({video:true,audio:false});
-      document.getElementById('cam-video').srcObject=_camStream;
-      document.getElementById('cam-ov').classList.remove('hidden');
-    }catch(e2){toast('Fotocamera non disponibile','err');}
-  }
+function apriCam(){
+  // capture=environment apre direttamente la fotocamera posteriore
+  // Funziona su HTTP (no HTTPS richiesto) — nessun permesso manuale necessario
+  document.getElementById('inp-camera').click();
 }
 function chiudiCamera(){
-  if(_camStream){_camStream.getTracks().forEach(t=>t.stop());_camStream=null;}
+  if(_camStream){_camStream.getTracks().forEach(function(t){t.stop();});_camStream=null;}
   document.getElementById('cam-ov').classList.add('hidden');
 }
 function scattaFoto(){
@@ -353,6 +346,10 @@ function scattaFoto(){
   can.getContext('2d').drawImage(vid,0,0);
   chiudiCamera();
   can.toBlob(function(blob){aggFoto(blob,'scatto.jpg');},'image/jpeg',0.88);
+}
+function fotoCameraCapture(input){
+  Array.from(input.files).forEach(function(f){aggFoto(f,f.name);});
+  input.value='';
 }
 function fotoGalleria(input){
   Array.from(input.files).forEach(function(f){aggFoto(f,f.name);});
