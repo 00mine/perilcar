@@ -2565,20 +2565,29 @@ async function invAvvia(){
   if(!_invSelDesc){ document.getElementById('inv-err').textContent='Seleziona una descrizione'; return; }
   const nome = document.getElementById('inv-nome').value.trim();
   const btn  = document.getElementById('inv-btn-avvia');
-  btn.disabled=true; btn.textContent='Avvio...';
-  const res = await apiFetch('/api/inventario/sessioni',{method:'POST',body:JSON.stringify({
-    descrizione: _invSelDesc, nome: nome||_invSelDesc
-  })});
-  btn.textContent='▶ Avvia sessione';
-  if(res.ok){
-    closeModal('modal-inv');
-    toast('✅ Sessione avviata: '+res.totale+' pezzi');
-    const url = '/inventario-mobile?sessione='+res.id;
-    // Apri pagina inventario in nuova scheda
-    window.open('/inventario?highlight='+res.id, '_blank');
-  } else {
+  const err  = document.getElementById('inv-err');
+  btn.disabled=true; btn.textContent='Avvio...'; err.textContent='';
+  try {
+    const r = await fetch('/api/inventario/sessioni', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({descrizione: _invSelDesc, nome: nome||_invSelDesc})
+    });
+    const res = await r.json();
+    btn.textContent='▶ Avvia sessione';
+    if(res.ok){
+      closeModal('modal-inv');
+      toast('✅ Sessione avviata: '+res.totale+' pezzi');
+      window.open('/inventario?sessione='+res.id, '_blank');
+    } else {
+      btn.disabled=false;
+      err.textContent = res.msg||'Errore sconosciuto';
+    }
+  } catch(e) {
     btn.disabled=false;
-    document.getElementById('inv-err').textContent = res.msg;
+    btn.textContent='▶ Avvia sessione';
+    err.textContent = 'Errore: '+e.message;
+    console.error('invAvvia error:', e);
   }
 }
 
