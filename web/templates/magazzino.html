@@ -507,6 +507,50 @@
   </div>
 </div>
 
+
+<!-- MODAL INVENTARIO SESSIONE -->
+<div class="overlay hidden" id="modal-inv">
+  <div class="modal" style="max-width:500px">
+    <div class="modal-hdr">
+      <h3>📋 Avvia Inventario</h3>
+      <button class="modal-close" onclick="closeModal('modal-inv')">×</button>
+    </div>
+    <div class="modal-body" style="gap:14px">
+      <div style="position:relative">
+        <label style="font-size:11px;font-weight:700;color:var(--text2);display:block;margin-bottom:4px">Cerca descrizione pezzo</label>
+        <input type="text" id="inv-search" placeholder="es. Alternatore, Fanale, Paraurti..."
+          style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:var(--font);outline:none"
+          oninput="invCerca(this.value)" onfocus="invFocus()" autocomplete="off">
+        <div id="inv-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:9999;
+          background:#fff;border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.12);
+          max-height:200px;overflow-y:auto;margin-top:3px;font-size:13px"></div>
+      </div>
+      <div id="inv-sel-box" style="display:none;background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:8px;padding:10px 14px">
+        <div style="font-size:10px;font-weight:700;color:var(--green);margin-bottom:3px;text-transform:uppercase">Selezionato</div>
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <div><span id="inv-sel-nome" style="font-size:14px;font-weight:700"></span>
+          <span id="inv-sel-n" style="font-size:12px;color:var(--text2);margin-left:8px"></span></div>
+          <button onclick="invDeseleziona()" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--text3)">×</button>
+        </div>
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:700;color:var(--text2);display:block;margin-bottom:4px">Nome sessione (opzionale)</label>
+        <input type="text" id="inv-nome" placeholder="es. Inventario alternatori maggio 2026"
+          style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:var(--font);outline:none">
+      </div>
+      <div style="border-top:1px solid var(--border);padding-top:12px">
+        <div style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:8px">Sessioni attive</div>
+        <div id="inv-sessioni-list" style="font-size:12px;color:var(--text3)">Caricamento...</div>
+      </div>
+      <div class="err" id="inv-err"></div>
+    </div>
+    <div class="modal-ftr">
+      <button class="btn btn-ghost" onclick="closeModal('modal-inv')">Chiudi</button>
+      <button class="btn" style="background:#6d28d9;color:#fff" onclick="invAvvia()" id="inv-btn-avvia" disabled>▶ Avvia sessione</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL FORM -->
 <div class="overlay hidden" id="modal-form">
   <div class="modal">
@@ -1592,47 +1636,7 @@ function stampaInventario(){
     <p style="color:#888;font-size:10px;margin-bottom:10px">Generato il ${new Date().toLocaleString('it-IT')}</p>
     ${content}<script>window.onload=()=>window.print()<\/script>
 <!-- MODAL INVENTARIO -->
-<div class="overlay hidden" id="modal-inv">
-  <div class="modal" style="max-width:500px">
-    <div class="modal-hdr">
-      <h3>📋 Avvia Inventario</h3>
-      <button class="modal-close" onclick="closeModal('modal-inv')">×</button>
-    </div>
-    <div class="modal-body" style="gap:14px">
-      <div style="position:relative">
-        <label style="font-size:11px;font-weight:700;color:var(--text2);display:block;margin-bottom:4px">Cerca descrizione pezzo</label>
-        <input type="text" id="inv-search" placeholder="es. Alternatore, Fanale, Paraurti..."
-          style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:var(--font);outline:none"
-          oninput="invCerca(this.value)" onfocus="invFocus()" autocomplete="off">
-        <div id="inv-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:9999;
-          background:#fff;border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.12);
-          max-height:200px;overflow-y:auto;margin-top:3px;font-size:13px"></div>
-      </div>
-      <div id="inv-sel-box" style="display:none;background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:8px;padding:10px 14px">
-        <div style="font-size:10px;font-weight:700;color:var(--green);margin-bottom:3px;text-transform:uppercase">Selezionato</div>
-        <div style="display:flex;align-items:center;justify-content:space-between">
-          <div><span id="inv-sel-nome" style="font-size:14px;font-weight:700"></span>
-          <span id="inv-sel-n" style="font-size:12px;color:var(--text2);margin-left:8px"></span></div>
-          <button onclick="invDeseleziona()" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--text3)">×</button>
-        </div>
-      </div>
-      <div>
-        <label style="font-size:11px;font-weight:700;color:var(--text2);display:block;margin-bottom:4px">Nome sessione (opzionale)</label>
-        <input type="text" id="inv-nome" placeholder="es. Inventario alternatori maggio 2026"
-          style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:var(--font);outline:none">
-      </div>
-      <div style="border-top:1px solid var(--border);padding-top:12px">
-        <div style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:8px">Sessioni attive</div>
-        <div id="inv-sessioni-list" style="font-size:12px;color:var(--text3)">Caricamento...</div>
-      </div>
-      <div class="err" id="inv-err"></div>
-    </div>
-    <div class="modal-ftr">
-      <button class="btn btn-ghost" onclick="closeModal('modal-inv')">Chiudi</button>
-      <button class="btn" style="background:#6d28d9;color:#fff" onclick="invAvvia()" id="inv-btn-avvia" disabled>▶ Avvia sessione</button>
-    </div>
-  </div>
-</div>
+
 </body></html>`);
   w.document.close();
 }
@@ -2619,5 +2623,47 @@ document.addEventListener('click', function(e){
 });
 
 </script>
+
+<div class="overlay hidden" id="modal-inv">
+  <div class="modal" style="max-width:500px">
+    <div class="modal-hdr">
+      <h3>📋 Avvia Inventario</h3>
+      <button class="modal-close" onclick="closeModal('modal-inv')">×</button>
+    </div>
+    <div class="modal-body" style="gap:14px">
+      <div style="position:relative">
+        <label style="font-size:11px;font-weight:700;color:var(--text2);display:block;margin-bottom:4px">Cerca descrizione pezzo</label>
+        <input type="text" id="inv-search" placeholder="es. Alternatore, Fanale, Paraurti..."
+          style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:var(--font);outline:none"
+          oninput="invCerca(this.value)" onfocus="invFocus()" autocomplete="off">
+        <div id="inv-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:9999;
+          background:#fff;border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.12);
+          max-height:200px;overflow-y:auto;margin-top:3px;font-size:13px"></div>
+      </div>
+      <div id="inv-sel-box" style="display:none;background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:8px;padding:10px 14px">
+        <div style="font-size:10px;font-weight:700;color:var(--green);margin-bottom:3px;text-transform:uppercase">Selezionato</div>
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <div><span id="inv-sel-nome" style="font-size:14px;font-weight:700"></span>
+          <span id="inv-sel-n" style="font-size:12px;color:var(--text2);margin-left:8px"></span></div>
+          <button onclick="invDeseleziona()" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--text3)">×</button>
+        </div>
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:700;color:var(--text2);display:block;margin-bottom:4px">Nome sessione (opzionale)</label>
+        <input type="text" id="inv-nome" placeholder="es. Inventario alternatori maggio 2026"
+          style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:var(--font);outline:none">
+      </div>
+      <div style="border-top:1px solid var(--border);padding-top:12px">
+        <div style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:8px">Sessioni attive</div>
+        <div id="inv-sessioni-list" style="font-size:12px;color:var(--text3)">Caricamento...</div>
+      </div>
+      <div class="err" id="inv-err"></div>
+    </div>
+    <div class="modal-ftr">
+      <button class="btn btn-ghost" onclick="closeModal('modal-inv')">Chiudi</button>
+      <button class="btn" style="background:#6d28d9;color:#fff" onclick="invAvvia()" id="inv-btn-avvia" disabled>▶ Avvia sessione</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>
