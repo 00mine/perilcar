@@ -1459,7 +1459,6 @@ async function showResoconto() {
     ? '€ ' + parseFloat(s.valore_stima).toLocaleString('it-IT',{minimumFractionDigits:2}) : 'n/d (listini mancanti)';
   document.getElementById('res-mov').textContent   = (s.ultimo_movimento||'—').slice(0,19);
   openModal('modal-resoconto');
-}\nSotto scorta: ${s.sotto_scorta}\nUltimo movimento: ${s.ultimo_movimento}`);
 }
 
 // ── STORICO ───────────────────────────────────────────────────────────

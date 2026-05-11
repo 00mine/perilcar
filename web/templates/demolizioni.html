@@ -438,7 +438,11 @@ function fb(msg, ok) {
 
 function logout(){ apiFetch('/api/logout',{method:'POST'}).then(function(){ window.location.href='/login'; }); }
 function chiudi(id){ document.getElementById(id).classList.add('hidden'); }
-function apri(id){ document.getElementById(id).classList.remove('hidden'); }
+function apri(id){
+  document.getElementById(id).classList.remove('hidden');
+  if(id==='m-ana')     onModalAnaAperta();
+  if(id==='m-veicolo') onModalVeicoloAperta();
+}
 
 document.querySelectorAll('.overlay').forEach(function(o){
   o.addEventListener('click', function(e){ if(e.target===o) o.classList.add('hidden'); });
