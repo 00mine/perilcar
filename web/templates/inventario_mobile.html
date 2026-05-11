@@ -82,15 +82,35 @@ textarea:focus{border-color:var(--orange)}
 .cam-btn{padding:14px 28px;border-radius:12px;border:none;font-size:16px;font-weight:700;font-family:var(--font);cursor:pointer}
 canvas{display:none}
 input[type=file]{display:none}
+
+/* Pannello impostazioni */
+.settings-ov{position:fixed;inset:0;z-index:600;background:rgba(0,0,0,.5);display:flex;align-items:flex-end}
+.settings-ov.hidden{display:none}
+.settings-panel{background:#fff;width:100%;border-radius:20px 20px 0 0;padding:20px;padding-bottom:max(env(safe-area-inset-bottom),20px);max-height:80vh;overflow-y:auto}
+.settings-titolo{font-size:17px;font-weight:800;margin-bottom:4px}
+.settings-sub{font-size:12px;color:var(--text3);margin-bottom:16px}
+.campo-row{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid #f3f4f6}
+.campo-row:last-child{border:none}
+.campo-nome{font-size:14px;font-weight:600}
+.campo-desc{font-size:11px;color:var(--text3);margin-top:1px}
+.toggle{position:relative;width:44px;height:26px;flex-shrink:0}
+.toggle input{opacity:0;width:0;height:0}
+.toggle-slider{position:absolute;inset:0;background:#dde1e8;border-radius:26px;cursor:pointer;transition:.2s}
+.toggle-slider:before{content:'';position:absolute;width:20px;height:20px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:.2s}
+input:checked+.toggle-slider{background:var(--orange)}
+input:checked+.toggle-slider:before{transform:translateX(18px)}
 .fase-warn{background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:8px 12px;font-size:12px;color:var(--yellow);font-weight:600;margin-bottom:10px}
 </style>
 </head>
 <body>
 <div class="hdr">
   <div class="hdr-logo">Peril<span>Car</span> 📋</div>
-  <div class="hdr-right">
-    <div class="hdr-sess" id="hdr-sess">Inventario</div>
-    <div class="hdr-prog" id="hdr-prog"></div>
+  <div class="hdr-right" style="display:flex;align-items:center;gap:10px">
+    <div>
+      <div class="hdr-sess" id="hdr-sess">Inventario</div>
+      <div class="hdr-prog" id="hdr-prog"></div>
+    </div>
+    <button onclick="apriImpostazioni()" style="background:rgba(255,255,255,.2);border:1.5px solid rgba(255,255,255,.4);color:#fff;border-radius:10px;padding:7px 10px;font-size:17px;cursor:pointer;-webkit-tap-highlight-color:transparent">⚙️</button>
   </div>
 </div>
 <div class="prog-bar"><div class="prog-fill" id="prog-fill" style="width:0%"></div></div>
@@ -117,6 +137,20 @@ input[type=file]{display:none}
   </div>
 </div>
 <input type="file" id="inp-file" accept="image/*" multiple onchange="fotoGalleria(this)">
+
+<!-- Pannello impostazioni -->
+<div class="settings-ov hidden" id="settings-ov" onclick="if(event.target===this)chiudiImpostazioni()">
+  <div class="settings-panel">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+      <div class="settings-titolo">⚙️ Campi da mostrare</div>
+      <button onclick="chiudiImpostazioni()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text3)">×</button>
+    </div>
+    <div class="settings-sub">Seleziona le informazioni che vuoi vedere per ogni pezzo</div>
+    <div id="campi-list"></div>
+    <button onclick="chiudiImpostazioni()" style="width:100%;margin-top:14px;padding:14px;border:none;border-radius:12px;background:var(--orange);color:#fff;font-size:16px;font-weight:700;cursor:pointer">Salva e chiudi</button>
+  </div>
+</div>
+
 <script>
 const _sock=io();
 const _p=new URLSearchParams(window.location.search);
@@ -185,13 +219,27 @@ function renderP(){
 
   const faseHtml=_fase==='rimandati'?'<div class="fase-warn">⚠️ Revisione pezzi rimandati</div>':'';
 
-  // Info aggiuntive
+  // Info aggiuntive — solo campi attivati nelle impostazioni
   var infoHtml='';
-  if(r.marca) infoHtml+='<div class="info-item"><div class="info-lbl">Produttore</div><div class="info-val">'+esc(r.marca)+'</div></div>';
-  if(r.modello) infoHtml+='<div class="info-item"><div class="info-lbl">Modello</div><div class="info-val">'+esc(r.modello)+'</div></div>';
-  if(r.categoria) infoHtml+='<div class="info-item"><div class="info-lbl">Categoria</div><div class="info-val">'+esc(r.categoria)+'</div></div>';
-  if(r.colore) infoHtml+='<div class="info-item"><div class="info-lbl">Colore</div><div class="info-val">'+esc(r.colore)+'</div></div>';
-  if(r.anno_da) infoHtml+='<div class="info-item"><div class="info-lbl">Anno</div><div class="info-val">'+r.anno_da+(r.anno_a?' – '+r.anno_a:'')+'</div></div>';
+  var CAMPO_MAP = {
+    marca:      function(r){return r.marca?{l:'Produttore',v:esc(r.marca)}:null;},
+    modello:    function(r){return r.modello?{l:'Modello',v:esc(r.modello)}:null;},
+    categoria:  function(r){return r.categoria?{l:'Categoria',v:esc(r.categoria)}:null;},
+    colore:     function(r){return r.colore?{l:'Colore',v:esc(r.colore)}:null;},
+    anno_da:    function(r){return r.anno_da?{l:'Anno',v:r.anno_da+(r.anno_a?' – '+r.anno_a:'')}:null;},
+    cmp:        function(r){return r.cmp?{l:'Codice',v:'<span style="font-family:monospace">'+esc(r.cmp)+'</span>'}:null;},
+    cod_modello:function(r){return r.cod_modello?{l:'Cod. modello',v:esc(r.cod_modello)}:null;},
+    carburante: function(r){return r.carburante?{l:'Carburante',v:esc(r.carburante)}:null;},
+    cilindrata: function(r){return r.cilindrata?{l:'Cilindrata',v:esc(r.cilindrata)+'cc'}:null;},
+    versione:   function(r){return r.versione?{l:'Versione',v:esc(r.versione)}:null;},
+    nota:       function(r){return r.nota?{l:'Note',v:esc(r.nota)}:null;},
+  };
+  _campiAttivi.forEach(function(key){
+    if(CAMPO_MAP[key]){
+      var res=CAMPO_MAP[key](r);
+      if(res) infoHtml+='<div class="info-item"><div class="info-lbl">'+res.l+'</div><div class="info-val">'+res.v+'</div></div>';
+    }
+  });
 
   document.getElementById('scroll-area').innerHTML=faseHtml+
     '<div class="card">'
@@ -386,6 +434,53 @@ async function mostraListaSessioni(){
 _sock.on('inventario_chiusa',function(d){
   if(d.sessione_id===_sessId) mostraScherm('🔒','Sessione chiusa','Il responsabile ha chiuso questa sessione.');
 });
+
+
+// ── IMPOSTAZIONI CAMPI ────────────────────────────────────────────────
+var CAMPI_DISPONIBILI = [
+  {key:'marca',       label:'Produttore',     desc:'Marca/produttore del pezzo'},
+  {key:'modello',     label:'Modello auto',   desc:'Modello di riferimento'},
+  {key:'categoria',   label:'Categoria',      desc:'Categoria magazzino'},
+  {key:'colore',      label:'Colore',         desc:'Colore del pezzo'},
+  {key:'anno_da',     label:'Anno',           desc:'Anno di produzione/compatibilità'},
+  {key:'cmp',         label:'Codice',         desc:'Codice identificativo pezzo'},
+  {key:'cod_modello', label:'Cod. modello',   desc:'Codice modello specifico'},
+  {key:'carburante',  label:'Carburante',     desc:'Tipo di carburante'},
+  {key:'cilindrata',  label:'Cilindrata',     desc:'Cilindrata motore'},
+  {key:'versione',    label:'Versione',       desc:'Versione del veicolo'},
+  {key:'nota',        label:'Note pezzo',     desc:'Note interne del magazzino'},
+];
+
+// Carica preferenze dal localStorage
+var _campiAttivi = JSON.parse(localStorage.getItem('inv_campi') || 'null') ||
+  ['marca','modello','categoria','colore','anno_da'];
+
+function apriImpostazioni(){
+  var list = document.getElementById('campi-list');
+  list.innerHTML = CAMPI_DISPONIBILI.map(function(c){
+    var checked = _campiAttivi.includes(c.key) ? 'checked' : '';
+    return '<div class="campo-row">'
+      +'<div><div class="campo-nome">'+c.label+'</div><div class="campo-desc">'+c.desc+'</div></div>'
+      +'<label class="toggle">'
+      +'<input type="checkbox" '+checked+' onchange="toggleCampo(''+c.key+'',this.checked)">'
+      +'<span class="toggle-slider"></span>'
+      +'</label>'
+      +'</div>';
+  }).join('');
+  document.getElementById('settings-ov').classList.remove('hidden');
+}
+
+function chiudiImpostazioni(){
+  document.getElementById('settings-ov').classList.add('hidden');
+  localStorage.setItem('inv_campi', JSON.stringify(_campiAttivi));
+  // Ri-renderizza se c'è un pezzo attivo
+  if(_riga) renderP();
+}
+
+function toggleCampo(key, attivo){
+  if(attivo){ if(!_campiAttivi.includes(key)) _campiAttivi.push(key); }
+  else { _campiAttivi = _campiAttivi.filter(function(k){return k!==key;}); }
+}
 
 init();
 </script>
