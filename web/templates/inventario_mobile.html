@@ -462,7 +462,7 @@ function apriImpostazioni(){
     return '<div class="campo-row">'
       +'<div><div class="campo-nome">'+c.label+'</div><div class="campo-desc">'+c.desc+'</div></div>'
       +'<label class="toggle">'
-      +'<input type="checkbox" '+checked+' onchange="toggleCampo(''+c.key+'',this.checked)">'
+      +'<input type="checkbox" '+checked+' data-k="'+c.key+'" onchange="toggleCampo(this.dataset.k,this.checked)">'
       +'<span class="toggle-slider"></span>'
       +'</label>'
       +'</div>';
