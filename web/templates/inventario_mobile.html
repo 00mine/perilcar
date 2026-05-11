@@ -365,14 +365,14 @@ function fotoGalleria(input){
 
 // Chiamata quando arriva un file (da fotocamera o galleria)
 function riceviFile(file){
-  // Mostra anteprima subito
+  if(!_riga){ toast('Nessun pezzo attivo','err'); return; }
+  var rigaId = _riga.id; // cattura subito prima di qualsiasi await
   var url = URL.createObjectURL(file);
   var id  = 'foto-'+Date.now()+'-'+Math.random().toString(36).slice(2);
-  _fotoNuove.push({file:file, nome:file.name, id:id, url:url, caricata:false});
+  _fotoNuove.push({file:file, nome:file.name, id:id, url:url, caricata:false, rigaId:rigaId});
   aggiungiAnteprima(id, url);
   updFotoCount();
-  // Upload immediato sul server
-  uploadFoto(file, file.name, id);
+  uploadFoto(file, file.name, id, rigaId);
 }
 
 function aggiungiAnteprima(id, url){
@@ -398,12 +398,12 @@ function aggiungiAnteprima(id, url){
   grid.appendChild(wrap);
 }
 
-async function uploadFoto(file, nome, id){
-  if(!_riga){ toast('Nessun pezzo selezionato','err'); return; }
+async function uploadFoto(file, nome, id, rigaId){
+  if(!rigaId){ toast('Nessun pezzo selezionato','err'); return; }
   try{
     var fd = new FormData();
     fd.append('file', file, nome);
-    var r   = await fetch('/api/inventario/righe/'+_riga.id+'/foto', {method:'POST', body:fd});
+    var r   = await fetch('/api/inventario/righe/'+rigaId+'/foto', {method:'POST', body:fd});
     var res = await r.json();
     // Aggiorna UI
     var imgEl  = document.getElementById('img-'+id);

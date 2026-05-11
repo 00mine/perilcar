@@ -375,9 +375,13 @@ function renderRighe(righe){
   const tbody= document.getElementById('righe-tbody');
   if(!tbody) return;
   tbody.innerHTML = filt.map(r=>{
-    const img = r.foto_url
-      ? `<img src="${esc(r.foto_url)}" class="foto-thumb" onclick="window.open('${esc(r.foto_url)}','_blank')">`
-      : (r.immagine_path ? `<img src="${esc(r.immagine_path.split('|')[0])}" class="foto-thumb">` : '—');
+    // foto_url può contenere più URL separati da |
+    const fotoUrls = r.foto_url ? r.foto_url.split('|').filter(Boolean)
+                   : r.immagine_path ? r.immagine_path.split('|').filter(Boolean).slice(0,1)
+                   : [];
+    const img = fotoUrls.length
+      ? fotoUrls.map(u=>`<img src="${esc(u)}" class="foto-thumb" style="margin-right:3px" onclick="window.open('${esc(u)}','_blank')">`).join('')
+      : '—';
     const badge = {
       confermato:'<span class="stato-badge sb-confermato">✅ Confermato</span>',
       mancante:  '<span class="stato-badge sb-mancante">❌ Mancante</span>',

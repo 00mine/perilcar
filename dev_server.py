@@ -2250,14 +2250,22 @@ def api_inv_foto(rid):
         with db._write_lock:
             conn = db.get_connection()
             try:
-                # Salva url foto nella riga inventario
-                conn.execute("UPDATE inventario_righe SET foto_url=? WHERE id=?", (url, rid))
-                # Aggiorna anche immagine_path del componente se non ne ha già una
+                # Salva url foto nella riga inventario (append, non sovrascrive)
+                old_riga = conn.execute("SELECT foto_url FROM inventario_righe WHERE id=?", (rid,)).fetchone()
+                old_foto_url = old_riga[0] if old_riga and old_riga[0] else ""
+                new_foto_url = (old_foto_url + "|" + url).strip("|") if old_foto_url else url
+                conn.execute("UPDATE inventario_righe SET foto_url=? WHERE id=?", (new_foto_url, rid))
+                # Aggiorna immagine_path e files_path del componente
                 comp = conn.execute("SELECT immagine_path, files_path FROM componenti WHERE id=?", (cid,)).fetchone()
                 if comp:
-                    new_img   = comp[0] or url
+                    new_img   = comp[0] or url   # prima foto diventa immagine principale
                     old_files = comp[1] or ""
-                    new_files = (old_files + "|" + url).strip("|") if old_files else url
+                    # Evita duplicati
+                    existing  = set(old_files.split("|")) if old_files else set()
+                    if url not in existing:
+                        new_files = (old_files + "|" + url).strip("|") if old_files else url
+                    else:
+                        new_files = old_files
                     conn.execute("UPDATE componenti SET immagine_path=?, files_path=?, modificato_il=datetime('now') WHERE id=?",
                                  (new_img, new_files, cid))
                 conn.commit()
