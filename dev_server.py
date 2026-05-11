@@ -19,7 +19,7 @@ from flask import Flask, render_template, request, jsonify, session, redirect, u
 from flask_socketio import SocketIO
 
 app = Flask(__name__, template_folder="web/templates", static_folder="web/static")
-app.secret_key = "perilcar-dev-secret-2024"
+app.secret_key = "8e805f4e5eac7a1f47eb5e377af5a2e64ba46d5463746e980201e5a31bae4d24"
 
 @app.route('/favicon.ico')
 def favicon():
@@ -152,8 +152,8 @@ try:
     _cp = _sq3.connect(cfg.get("db_path"), timeout=10)
     _cp.execute("PRAGMA journal_mode=WAL")
     for _tbak in ['veicoli_bak','veicoli_old','veicoli_tmp']:
-        if _cp.execute(f"SELECT 1 FROM sqlite_master WHERE type='table' AND name='{_tbak}'").fetchone():
-            _cp.execute(f"DROP TABLE IF EXISTS [{_tbak}]")
+        if _cp.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (_tbak,)).fetchone():
+            _cp.execute("DROP TABLE IF EXISTS ["+_tbak+"]")
             log.info(f"Rimossa tabella residua: {_tbak}")
     _cp.commit()
     _cp.close()
@@ -178,14 +178,16 @@ def require_login(f):
     from functools import wraps
     @wraps(f)
     def wrapper(*args, **kwargs):
-        # Login disabilitato temporaneamente
         if not session.get("user"):
-            session["user"] = {"id": 1, "username": "admin", "ruolo": "admin"}
+            # API → 401 JSON; pagine → redirect login
+            if request.path.startswith('/api/'):
+                return jsonify({"ok": False, "msg": "Non autenticato"}), 401
+            return redirect("/login")
         return f(*args, **kwargs)
     return wrapper
 
 def cu():
-    return session.get("user", {"id": 1, "username": "admin", "ruolo": "admin"})
+    return session.get("user", {})
 
 # ══════════════════════════════════════════════════════════════════════════════
 # PAGINE
@@ -193,8 +195,9 @@ def cu():
 
 @app.route("/")
 def index():
-    session["user"] = {"id": 1, "username": "admin", "ruolo": "admin"}
-    return redirect("/dashboard")
+    if session.get("user"):
+        return redirect("/dashboard")
+    return redirect("/login")
 
 @app.route("/login")
 def login_page():
@@ -1752,6 +1755,130 @@ def api_demolizione_get(did):
     if not row:
         return jsonify({"ok": False, "msg": "Non trovata"}), 404
     return jsonify({"ok": True, "data": row[0]})
+
+# ══════════════════════════════════════════════════════════════════════════════
+# GESTIONE UTENTI (solo admin)
+# ══════════════════════════════════════════════════════════════════════════════
+
+def require_admin(f):
+    from functools import wraps
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        u = cu()
+        if not u:
+            return jsonify({"ok": False, "msg": "Non autenticato"}), 401
+        if u.get("ruolo") != "admin":
+            return jsonify({"ok": False, "msg": "Accesso negato — solo admin"}), 403
+        return f(*args, **kwargs)
+    return wrapper
+
+@app.route("/utenti")
+@require_login
+def page_utenti():
+    if cu().get("ruolo") != "admin":
+        return redirect("/dashboard")
+    return render_template("utenti.html", user=cu())
+
+@app.route("/api/utenti", methods=["GET"])
+@require_admin
+def api_utenti_lista():
+    rows = db.fetchall("SELECT id,username,nome_completo,ruolo,attivo,eliminato,creato_il FROM utenti WHERE eliminato=0 ORDER BY username")
+    return jsonify(rows)
+
+@app.route("/api/utenti", methods=["POST"])
+@require_admin
+def api_utenti_crea():
+    import hashlib
+    d = request.json or {}
+    username = (d.get("username") or "").strip().lower()
+    password = (d.get("password") or "").strip()
+    ruolo    = d.get("ruolo", "operatore")
+    nome     = d.get("nome_completo", "").strip()
+    if not username or not password:
+        return jsonify({"ok": False, "msg": "Username e password obbligatori"}), 400
+    if len(password) < 6:
+        return jsonify({"ok": False, "msg": "Password minimo 6 caratteri"}), 400
+    if db.fetchone("SELECT id FROM utenti WHERE username=? AND eliminato=0", (username,)):
+        return jsonify({"ok": False, "msg": f"Username '{username}' già esistente"}), 400
+    pwd_hash = hashlib.sha256(password.encode()).hexdigest()
+    try:
+        with db._write_lock:
+            conn = db.get_connection()
+            try:
+                cur = conn.execute(
+                    "INSERT INTO utenti(username,password_hash,ruolo,nome_completo,attivo) VALUES(?,?,?,?,1)",
+                    (username, pwd_hash, ruolo, nome))
+                uid = cur.lastrowid
+                conn.execute("INSERT INTO log_operazioni(utente_id,username,modulo,azione,tabella,record_id) VALUES(?,?,?,?,?,?)",
+                    (cu().get("id"), cu().get("username"), "UTENTI", "CREA", "utenti", uid))
+                conn.commit()
+            finally:
+                conn.close()
+        return jsonify({"ok": True, "msg": f"Utente '{username}' creato", "id": uid})
+    except Exception as e:
+        return jsonify({"ok": False, "msg": str(e)}), 500
+
+@app.route("/api/utenti/<int:uid>", methods=["PUT"])
+@require_admin
+def api_utenti_modifica(uid):
+    import hashlib
+    d = request.json or {}
+    updates = []
+    vals = []
+    if "ruolo" in d:
+        updates.append("ruolo=?"); vals.append(d["ruolo"])
+    if "nome_completo" in d:
+        updates.append("nome_completo=?"); vals.append(d["nome_completo"])
+    if "attivo" in d:
+        updates.append("attivo=?"); vals.append(1 if d["attivo"] else 0)
+    if d.get("password"):
+        if len(d["password"]) < 6:
+            return jsonify({"ok": False, "msg": "Password minimo 6 caratteri"}), 400
+        updates.append("password_hash=?")
+        vals.append(hashlib.sha256(d["password"].encode()).hexdigest())
+    if not updates:
+        return jsonify({"ok": False, "msg": "Nessun campo da aggiornare"}), 400
+    vals.append(uid)
+    try:
+        db_write([(f"UPDATE utenti SET {','.join(updates)} WHERE id=? AND eliminato=0", vals),
+                  ("INSERT INTO log_operazioni(utente_id,username,modulo,azione,tabella,record_id) VALUES(?,?,?,?,?,?)",
+                   (cu().get("id"), cu().get("username"), "UTENTI", "MODIFICA", "utenti", uid))])
+        return jsonify({"ok": True, "msg": "Utente aggiornato"})
+    except Exception as e:
+        return jsonify({"ok": False, "msg": str(e)}), 500
+
+@app.route("/api/utenti/<int:uid>", methods=["DELETE"])
+@require_admin
+def api_utenti_elimina(uid):
+    if uid == cu().get("id"):
+        return jsonify({"ok": False, "msg": "Non puoi eliminare te stesso"}), 400
+    try:
+        db_write([("UPDATE utenti SET eliminato=1 WHERE id=?", (uid,)),
+                  ("INSERT INTO log_operazioni(utente_id,username,modulo,azione,tabella,record_id) VALUES(?,?,?,?,?,?)",
+                   (cu().get("id"), cu().get("username"), "UTENTI", "ELIMINA", "utenti", uid))])
+        return jsonify({"ok": True, "msg": "Utente eliminato"})
+    except Exception as e:
+        return jsonify({"ok": False, "msg": str(e)}), 500
+
+@app.route("/api/utenti/cambia-password", methods=["POST"])
+@require_login
+def api_cambia_password():
+    """Ogni utente può cambiare la propria password."""
+    import hashlib
+    d = request.json or {}
+    vecchia   = d.get("vecchia", "")
+    nuova     = d.get("nuova", "")
+    if len(nuova) < 6:
+        return jsonify({"ok": False, "msg": "Nuova password minimo 6 caratteri"}), 400
+    u = cu()
+    utente = db.fetchone("SELECT password_hash FROM utenti WHERE id=? AND eliminato=0", (u.get("id"),))
+    if not utente:
+        return jsonify({"ok": False, "msg": "Utente non trovato"}), 404
+    if utente["password_hash"] != hashlib.sha256(vecchia.encode()).hexdigest():
+        return jsonify({"ok": False, "msg": "Password attuale errata"}), 400
+    db_write([("UPDATE utenti SET password_hash=? WHERE id=?",
+               (hashlib.sha256(nuova.encode()).hexdigest(), u.get("id")))])
+    return jsonify({"ok": True, "msg": "Password aggiornata"})
 
 # HOT RELOAD
 # ══════════════════════════════════════════════════════════════════════════════

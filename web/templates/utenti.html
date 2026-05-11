@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Gestione Utenti — PerilCar</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono&display=swap" rel="stylesheet">
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f7f8fa;--surface:#fff;--border:#dde1e8;
+  --orange:#e94c00;--orange2:#ff6b35;--blue:#3a5bd9;
+  --green:#16a34a;--red:#dc2626;--text:#111827;--text2:#4b5563;--text3:#9ca3af;
+  --radius:8px;--font:'DM Sans',system-ui,sans-serif;--mono:'DM Mono',monospace;
+  --shadow:0 1px 4px rgba(0,0,0,.08),0 4px 16px rgba(0,0,0,.06);
+}
+body{font-family:var(--font);background:var(--bg);color:var(--text);font-size:13px;min-height:100vh}
+.topbar{height:50px;background:#fff;border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 20px;gap:12px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.topbar-logo{font-weight:700;font-size:17px}.topbar-logo span{color:var(--orange)}
+.nav-link{padding:5px 12px;border-radius:6px;font-size:12.5px;font-weight:500;text-decoration:none;color:var(--text2);transition:.15s}
+.nav-link:hover{background:#eef0f4}.nav-link.active{background:var(--orange);color:#fff}
+.topbar-right{margin-left:auto;display:flex;gap:10px;align-items:center}
+.user-chip{font-size:12px;color:var(--text2);background:var(--bg);border:1px solid var(--border);padding:4px 10px;border-radius:20px}
+.btn-logout{font-size:12px;padding:5px 12px;border-radius:6px;border:1px solid var(--border);background:#fff;color:var(--text2);cursor:pointer;font-family:var(--font)}
+.btn-logout:hover{background:#fee2e2;color:var(--red)}
+.page{max-width:860px;margin:0 auto;padding:28px 16px}
+.page-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+.page-hdr h1{font-size:22px;font-weight:700}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:var(--radius);font-size:12px;font-weight:600;cursor:pointer;border:none;font-family:var(--font)}
+.btn-primary{background:var(--orange);color:#fff}.btn-primary:hover{background:var(--orange2)}
+.btn-ghost{background:#fff;color:var(--text2);border:1px solid var(--border)}.btn-ghost:hover{background:var(--bg)}
+.btn-danger{background:#fff;color:var(--red);border:1px solid #fca5a5}.btn-danger:hover{background:#fee2e2}
+.btn-green{background:var(--green);color:#fff}
+.card{background:#fff;border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow);overflow:hidden;margin-bottom:20px}
+table{width:100%;border-collapse:collapse}
+thead th{background:var(--bg);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text2);padding:10px 14px;text-align:left;border-bottom:1px solid var(--border)}
+tbody tr{border-bottom:1px solid #f3f4f6;transition:background .08s}
+tbody tr:hover{background:#fafafa}
+tbody td{padding:10px 14px;font-size:12.5px}
+.badge{display:inline-block;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:600}
+.badge-admin{background:#fff3ee;color:var(--orange);border:1px solid #ffd0b5}
+.badge-op{background:#eff3ff;color:var(--blue);border:1px solid #c7d2fe}
+.badge-on{background:#f0fdf4;color:var(--green);border:1px solid #bbf7d0}
+.badge-off{background:#f9fafb;color:var(--text3);border:1px solid var(--border)}
+.overlay{position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;padding:16px}
+.overlay.hidden{display:none}
+.modal{background:#fff;border-radius:14px;width:100%;max-width:460px;box-shadow:0 20px 60px rgba(0,0,0,.2)}
+.mhdr{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--border)}
+.mhdr h3{font-size:15px;font-weight:700}
+.mclose{background:none;border:none;font-size:22px;cursor:pointer;color:var(--text3);line-height:1}
+.mbody{padding:18px;display:flex;flex-direction:column;gap:12px}
+.mftr{display:flex;justify-content:flex-end;gap:8px;padding:12px 18px;border-top:1px solid var(--border)}
+.field{display:flex;flex-direction:column;gap:4px}
+.field label{font-size:11px;font-weight:600;color:var(--text2)}
+input[type=text],input[type=password],select{font-family:var(--font);font-size:13px;background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:8px 12px;color:var(--text);outline:none;width:100%;transition:border-color .15s}
+input:focus,select:focus{border-color:var(--blue)}
+.err{font-size:11.5px;color:var(--red);min-height:16px;font-weight:500}
+.toast{position:fixed;bottom:18px;right:18px;z-index:9999;padding:9px 16px;border-radius:10px;font-size:12.5px;font-weight:600;box-shadow:0 4px 20px rgba(0,0,0,.12)}
+.tok{background:#fff;color:var(--green);border:1px solid #bbf7d0}
+.terr{background:#fff;color:var(--red);border:1px solid #fca5a5}
+.info-box{background:#fff8f5;border:1px solid #ffd0b5;border-radius:10px;padding:12px 16px;font-size:12px;color:var(--text2);margin-bottom:16px}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <span class="topbar-logo">Peril<span>Car</span></span>
+  <nav style="display:flex;gap:4px;margin-left:12px">
+    <a href="/dashboard" class="nav-link">🏠 Home</a>
+    <a href="/magazzino" class="nav-link">📦 Magazzino</a>
+    <a href="/demolizioni" class="nav-link">🚗 Demolizioni</a>
+    <a href="/utenti" class="nav-link active">👥 Utenti</a>
+  </nav>
+  <div class="topbar-right">
+    <span class="user-chip">👤 {{ user.username }}</span>
+    <button class="btn-logout" onclick="logout()">Esci</button>
+  </div>
+</header>
+
+<div class="page">
+  <div class="page-hdr">
+    <h1>👥 Gestione Utenti</h1>
+    <button class="btn btn-primary" onclick="apriNuovo()">＋ Nuovo utente</button>
+  </div>
+
+  <div class="info-box">
+    ⚠️ <b>Solo gli amministratori</b> possono accedere a questa pagina. Le password sono salvate in formato hash SHA-256 — nessuno può leggerle, nemmeno l'amministratore.
+  </div>
+
+  <div class="card">
+    <table>
+      <thead><tr>
+        <th>Username</th><th>Nome completo</th><th>Ruolo</th>
+        <th>Stato</th><th>Creato il</th><th style="text-align:right">Azioni</th>
+      </tr></thead>
+      <tbody id="tbl-body">
+        <tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text3)">Caricamento...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Cambio password proprio -->
+  <div class="card" style="padding:16px 18px">
+    <div style="font-size:13px;font-weight:700;margin-bottom:12px">🔑 Cambia la tua password</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:8px;align-items:end">
+      <div class="field"><label>Password attuale</label><input type="password" id="cp-vecchia" placeholder="••••••"></div>
+      <div class="field"><label>Nuova password</label><input type="password" id="cp-nuova" placeholder="min. 6 caratteri"></div>
+      <div class="field"><label>Conferma</label><input type="password" id="cp-conf" placeholder="••••••"></div>
+      <button class="btn btn-green" onclick="cambiaPassword()">Aggiorna</button>
+    </div>
+    <div class="err" id="cp-err" style="margin-top:6px"></div>
+  </div>
+</div>
+
+<!-- MODAL NUOVO/MODIFICA UTENTE -->
+<div class="overlay hidden" id="modal-utente">
+  <div class="modal">
+    <div class="mhdr"><h3 id="m-title">Nuovo Utente</h3><button class="mclose" onclick="chiudiModal()">×</button></div>
+    <div class="mbody">
+      <div class="field"><label>Username *</label><input type="text" id="m-username" placeholder="es. mario.rossi"></div>
+      <div class="field"><label>Nome completo</label><input type="text" id="m-nome" placeholder="es. Mario Rossi"></div>
+      <div class="field"><label>Ruolo</label>
+        <select id="m-ruolo">
+          <option value="operatore">Operatore</option>
+          <option value="admin">Amministratore</option>
+        </select>
+      </div>
+      <div class="field" id="f-password"><label>Password *</label><input type="password" id="m-password" placeholder="min. 6 caratteri"></div>
+      <div class="field" id="f-nuova-pwd" style="display:none"><label>Nuova password (lascia vuoto per non cambiare)</label><input type="password" id="m-nuova-pwd" placeholder="min. 6 caratteri"></div>
+      <div class="field" id="f-attivo" style="display:none">
+        <label>Stato account</label>
+        <select id="m-attivo"><option value="1">Attivo</option><option value="0">Disabilitato</option></select>
+      </div>
+      <div class="err" id="m-err"></div>
+    </div>
+    <div class="mftr">
+      <button class="btn btn-ghost" onclick="chiudiModal()">Annulla</button>
+      <button class="btn btn-primary" id="m-salva" onclick="salvaUtente()">Crea utente</button>
+    </div>
+  </div>
+</div>
+
+<script>
+io().on('reload', ()=>{ setTimeout(()=>window.location.reload(),400); });
+
+var _editId = null;
+
+async function apiFetch(url, opts={}) {
+  opts.headers = {'Content-Type':'application/json',...(opts.headers||{})};
+  const r = await fetch(url, opts); return r.json();
+}
+function esc(s){ return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function toast(msg, ok=true){
+  document.querySelectorAll('.toast').forEach(e=>e.remove());
+  const d=document.createElement('div'); d.className='toast '+(ok?'tok':'terr');
+  d.textContent=msg; document.body.appendChild(d);
+  setTimeout(()=>d.remove(),3500);
+}
+async function logout(){ await apiFetch('/api/logout',{method:'POST'}); window.location.href='/login'; }
+
+async function caricaUtenti(){
+  const rows = await apiFetch('/api/utenti');
+  const tbody = document.getElementById('tbl-body');
+  if(!rows.length){ tbody.innerHTML='<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text3)">Nessun utente</td></tr>'; return; }
+  tbody.innerHTML = rows.map(u => `<tr>
+    <td><b style="font-family:var(--mono)">${esc(u.username)}</b></td>
+    <td>${esc(u.nome_completo||'—')}</td>
+    <td><span class="badge ${u.ruolo==='admin'?'badge-admin':'badge-op'}">${u.ruolo}</span></td>
+    <td><span class="badge ${u.attivo?'badge-on':'badge-off'}">${u.attivo?'Attivo':'Disabilitato'}</span></td>
+    <td style="color:var(--text3);font-size:11px">${(u.creato_il||'').slice(0,10)}</td>
+    <td style="text-align:right">
+      <button class="btn btn-ghost" style="font-size:11px;padding:4px 10px" onclick="apriModifica(${u.id},'${esc(u.username)}','${esc(u.nome_completo||'')}','${u.ruolo}',${u.attivo})">✏ Modifica</button>
+      <button class="btn btn-danger" style="font-size:11px;padding:4px 10px;margin-left:4px" onclick="eliminaUtente(${u.id},'${esc(u.username)}')">✕ Elimina</button>
+    </td>
+  </tr>`).join('');
+}
+
+function apriNuovo(){
+  _editId = null;
+  document.getElementById('m-title').textContent = '＋ Nuovo Utente';
+  document.getElementById('m-username').value = '';
+  document.getElementById('m-username').removeAttribute('readonly');
+  document.getElementById('m-nome').value = '';
+  document.getElementById('m-ruolo').value = 'operatore';
+  document.getElementById('m-password').value = '';
+  document.getElementById('m-err').textContent = '';
+  document.getElementById('m-salva').textContent = 'Crea utente';
+  document.getElementById('f-password').style.display = '';
+  document.getElementById('f-nuova-pwd').style.display = 'none';
+  document.getElementById('f-attivo').style.display = 'none';
+  document.getElementById('modal-utente').classList.remove('hidden');
+  setTimeout(()=>document.getElementById('m-username').focus(), 50);
+}
+
+function apriModifica(id, username, nome, ruolo, attivo){
+  _editId = id;
+  document.getElementById('m-title').textContent = '✏ Modifica Utente';
+  document.getElementById('m-username').value = username;
+  document.getElementById('m-username').setAttribute('readonly','');
+  document.getElementById('m-nome').value = nome;
+  document.getElementById('m-ruolo').value = ruolo;
+  document.getElementById('m-nuova-pwd').value = '';
+  document.getElementById('m-attivo').value = attivo ? '1' : '0';
+  document.getElementById('m-err').textContent = '';
+  document.getElementById('m-salva').textContent = 'Salva modifiche';
+  document.getElementById('f-password').style.display = 'none';
+  document.getElementById('f-nuova-pwd').style.display = '';
+  document.getElementById('f-attivo').style.display = '';
+  document.getElementById('modal-utente').classList.remove('hidden');
+}
+
+function chiudiModal(){ document.getElementById('modal-utente').classList.add('hidden'); }
+
+async function salvaUtente(){
+  const err = document.getElementById('m-err');
+  err.textContent = '';
+  if(!_editId){
+    // CREA
+    const username = document.getElementById('m-username').value.trim();
+    const password = document.getElementById('m-password').value;
+    const ruolo    = document.getElementById('m-ruolo').value;
+    const nome     = document.getElementById('m-nome').value.trim();
+    if(!username||!password){ err.textContent='Username e password obbligatori'; return; }
+    const res = await apiFetch('/api/utenti',{method:'POST',body:JSON.stringify({username,password,ruolo,nome_completo:nome})});
+    if(res.ok){ chiudiModal(); toast(res.msg); caricaUtenti(); }
+    else err.textContent = res.msg;
+  } else {
+    // MODIFICA
+    const dati = {
+      ruolo:         document.getElementById('m-ruolo').value,
+      nome_completo: document.getElementById('m-nome').value.trim(),
+      attivo:        parseInt(document.getElementById('m-attivo').value),
+    };
+    const nuovaPwd = document.getElementById('m-nuova-pwd').value;
+    if(nuovaPwd) dati.password = nuovaPwd;
+    const res = await apiFetch('/api/utenti/'+_editId,{method:'PUT',body:JSON.stringify(dati)});
+    if(res.ok){ chiudiModal(); toast(res.msg); caricaUtenti(); }
+    else err.textContent = res.msg;
+  }
+}
+
+async function eliminaUtente(id, username){
+  if(!confirm(`Eliminare l'utente "${username}"? L'operazione non è reversibile.`)) return;
+  const res = await apiFetch('/api/utenti/'+id,{method:'DELETE'});
+  if(res.ok){ toast(res.msg); caricaUtenti(); }
+  else toast(res.msg, false);
+}
+
+async function cambiaPassword(){
+  const err = document.getElementById('cp-err');
+  const vecchia = document.getElementById('cp-vecchia').value;
+  const nuova   = document.getElementById('cp-nuova').value;
+  const conf    = document.getElementById('cp-conf').value;
+  err.textContent = '';
+  if(!vecchia||!nuova){ err.textContent='Compila tutti i campi'; return; }
+  if(nuova !== conf){ err.textContent='Le nuove password non coincidono'; return; }
+  if(nuova.length < 6){ err.textContent='Password minimo 6 caratteri'; return; }
+  const res = await apiFetch('/api/utenti/cambia-password',{method:'POST',body:JSON.stringify({vecchia,nuova})});
+  if(res.ok){
+    toast('✅ Password aggiornata');
+    document.getElementById('cp-vecchia').value='';
+    document.getElementById('cp-nuova').value='';
+    document.getElementById('cp-conf').value='';
+  } else { err.textContent = res.msg; }
+}
+
+// Chiudi modal cliccando fuori
+document.getElementById('modal-utente').addEventListener('click', function(e){
+  if(e.target===this) chiudiModal();
+});
+
+caricaUtenti();
+</script>
+</body>
+</html>

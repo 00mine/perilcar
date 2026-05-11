@@ -324,6 +324,7 @@
     <a href="/magazzino" class="nav-link active">📦 Magazzino</a>
     <a href="/storico"   class="nav-link">📋 Storico</a>
     <a href="/demolizioni" class="nav-link">🚗 Demolizioni</a>
+    {% if user.ruolo == 'admin' %}<a href="/utenti" class="nav-link">👥 Utenti</a>{% endif %}
   </nav>
   <div class="topbar-right">
     <span class="user-chip">👤 {{ user.username }}</span>

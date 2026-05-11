@@ -72,12 +72,11 @@
     <p class="card-title">Accedi al sistema</p>
     <div>
       <label>Username</label>
-      <input type="text" id="inp-user" value="admin" autocomplete="username">
+      <input type="text" id="inp-user" autocomplete="username" placeholder="Username">
     </div>
     <div>
       <label>Password</label>
-      <input type="password" id="inp-pass" value="admin123"
-             autocomplete="current-password"
+      <input type="password" id="inp-pass" autocomplete="current-password" placeholder="Password"
              onkeydown="if(event.key==='Enter') doLogin()">
     </div>
     <div class="err" id="err-msg"></div>
