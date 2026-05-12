@@ -860,18 +860,24 @@ async function azioneConferma(){
   } else {
     // OFFLINE: salva in coda
     codaAggiungi({tipo:'aggiorna_riga', rigaId:rigaId, stato:'confermato', qty:_qty, note:note});
-    // Salva anche le foto non ancora caricate
+    // Salva TUTTE le foto non ancora caricate — ognuna separata in coda
     for(var i=0;i<_fotoNuove.length;i++){
       var f = _fotoNuove[i];
-      if(!f.caricata){
-        // Converti blob in base64 per salvarla
+      if(!f.caricata && f.file){
         await new Promise(function(resolve){
+          var fRef = f; // cattura riferimento
           var reader = new FileReader();
           reader.onload = function(e){
-            codaAggiungi({tipo:'upload_foto', rigaId:rigaId, b64:e.target.result, nome:f.nome});
+            codaAggiungi({
+              tipo: 'upload_foto',
+              rigaId: rigaId,
+              b64: e.target.result,
+              nome: fRef.nome,
+              fotoId: fRef.id
+            });
             resolve();
           };
-          reader.readAsDataURL(f.file);
+          reader.readAsDataURL(fRef.file);
         });
       }
     }

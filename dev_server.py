@@ -2310,6 +2310,11 @@ def on_leave_inventario(data):
     if sid:
         leave_room(f"inventario_{sid}")
 
+@app.route("/api/ping")
+def api_ping():
+    """Endpoint leggero per verificare connessione al server."""
+    return jsonify({"ok": True, "ts": __import__("time").time()})
+
 @app.route("/sw.js")
 def service_worker():
     from flask import send_from_directory
