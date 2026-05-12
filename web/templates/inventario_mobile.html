@@ -86,6 +86,28 @@ textarea:focus{border-color:var(--orange)}
 canvas{display:none}
 input[type=file]{display:none}
 
+/* Barra cerca */
+.cerca-bar{flex-shrink:0;padding:8px 12px;background:#fff;border-bottom:1px solid var(--border);display:flex;gap:8px;align-items:center}
+.cerca-inp{flex:1;padding:9px 12px;border:1.5px solid var(--border);border-radius:10px;font-size:14px;font-family:var(--font);outline:none;background:var(--bg)}
+.cerca-inp:focus{border-color:var(--orange)}
+.cerca-btn{width:40px;height:40px;border-radius:10px;border:1.5px solid var(--border);background:var(--bg);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.cerca-btn.active{background:var(--orange);border-color:var(--orange)}
+
+/* Lista risultati cerca */
+.cerca-results{position:fixed;inset:0;z-index:300;background:#fff;display:flex;flex-direction:column}
+.cerca-results.hidden{display:none}
+.cerca-results-hdr{padding:12px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;flex-shrink:0;background:#fff}
+.cerca-results-hdr input{flex:1;padding:9px 12px;border:1.5px solid var(--orange);border-radius:10px;font-size:14px;font-family:var(--font);outline:none}
+.cerca-list{flex:1;overflow-y:auto}
+.cerca-item{padding:12px 16px;border-bottom:1px solid #f3f4f6;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.cerca-item:active{background:#fff8f5}
+.cerca-item-nome{font-size:14px;font-weight:700;margin-bottom:2px}
+.cerca-item-sub{font-size:11px;color:var(--text3);display:flex;gap:8px}
+.cerca-item-qty{font-size:12px;font-weight:700;padding:2px 8px;border-radius:20px;margin-left:auto}
+.qty-ok{background:#f0fdf4;color:var(--green)}
+.qty-zero{background:#f9fafb;color:var(--text3)}
+.cerca-empty{text-align:center;padding:40px 20px;color:var(--text3);font-size:14px}
+
 /* Pannello impostazioni */
 .settings-ov{position:fixed;inset:0;z-index:600;background:rgba(0,0,0,.5);display:flex;align-items:flex-end}
 .settings-ov.hidden{display:none}
@@ -113,6 +135,7 @@ input:checked+.toggle-slider:before{transform:translateX(18px)}
       <div class="hdr-sess" id="hdr-sess">Inventario</div>
       <div class="hdr-prog" id="hdr-prog"></div>
     </div>
+    <button onclick="apriCerca()" style="background:rgba(255,255,255,.2);border:1.5px solid rgba(255,255,255,.4);color:#fff;border-radius:10px;padding:7px 10px;font-size:17px;cursor:pointer;-webkit-tap-highlight-color:transparent">🔍</button>
     <button onclick="apriImpostazioni()" style="background:rgba(255,255,255,.2);border:1.5px solid rgba(255,255,255,.4);color:#fff;border-radius:10px;padding:7px 10px;font-size:17px;cursor:pointer;-webkit-tap-highlight-color:transparent">⚙️</button>
   </div>
 </div>
@@ -121,6 +144,23 @@ input:checked+.toggle-slider:before{transform:translateX(18px)}
   <div class="stat"><div class="stat-n" id="s-conf">0</div><div class="stat-l">✅ Fatti</div></div>
   <div class="stat"><div class="stat-n" id="s-risc">0</div><div class="stat-l">⏳ Risc.</div></div>
   <div class="stat"><div class="stat-n" id="s-tot">0</div><div class="stat-l">📦 Tot.</div></div>
+</div>
+
+<!-- BARRA CERCA -->
+<div class="cerca-bar" id="cerca-bar" style="display:none">
+  <input class="cerca-inp" id="cerca-inp" placeholder="Cerca per nome o codice..." 
+    oninput="cercaFiltра(this.value)" autocomplete="off" autocorrect="off" spellcheck="false">
+  <button class="cerca-btn active" onclick="chiudiCerca()">✕</button>
+</div>
+
+<!-- LISTA RISULTATI CERCA -->
+<div class="cerca-results hidden" id="cerca-results">
+  <div class="cerca-results-hdr">
+    <input id="cerca-inp2" placeholder="Cerca per nome o codice..." 
+      oninput="cercaFiltра(this.value)" autocomplete="off" autocorrect="off" autofocus>
+    <button onclick="chiudiCerca()" style="padding:8px 14px;border:none;border-radius:10px;background:#fee2e2;color:#dc2626;font-weight:700;cursor:pointer;font-size:14px">✕ Chiudi</button>
+  </div>
+  <div class="cerca-list" id="cerca-list"></div>
 </div>
 
 <!-- BARRA STATO RETE -->
@@ -219,8 +259,14 @@ async function init(){
       var daFare = righe.filter(function(r){ return r.stato==='sospeso'||r.stato==='rimandato'; });
       // Metti prima i sospesi, poi i rimandati
       daFare.sort(function(a,b){
-        if(a.stato===b.stato) return a.ordine-b.ordine;
-        return a.stato==='sospeso'?-1:1;
+        // Prima per stato (sospesi prima dei rimandati)
+        if(a.stato!==b.stato) return a.stato==='sospeso'?-1:1;
+        // Poi: qty > 0 prima di qty = 0
+        var qa = a.qty_attesa||0, qb = b.qty_attesa||0;
+        if(qa>0 && qb===0) return -1;
+        if(qa===0 && qb>0) return  1;
+        // Infine per ordine originale
+        return a.ordine-b.ordine;
       });
       _pezziLocali = daFare;
       _idxCorrente = 0;
@@ -994,6 +1040,89 @@ async function pingServer(){
 function avviaPing(){
   pingServer();
   _pingInterval = setInterval(pingServer, 5000);
+}
+
+
+// ── RICERCA PEZZI ─────────────────────────────────────────────────────
+function apriCerca(){
+  if(!_pezziLocali||!_pezziLocali.length){
+    toast('Nessun pezzo caricato','err'); return;
+  }
+  document.getElementById('cerca-results').classList.remove('hidden');
+  cercaFiltра('');
+  setTimeout(function(){ document.getElementById('cerca-inp2').focus(); }, 100);
+}
+
+function chiudiCerca(){
+  document.getElementById('cerca-results').classList.add('hidden');
+}
+
+function cercaFiltра(q){
+  // Sincronizza i due input
+  var inp1 = document.getElementById('cerca-inp');
+  var inp2 = document.getElementById('cerca-inp2');
+  if(inp1 && document.activeElement===inp1) { if(inp2) inp2.value=q; }
+  else { if(inp1) inp1.value=q; }
+
+  var list = document.getElementById('cerca-list');
+  if(!_pezziLocali){ list.innerHTML='<div class="cerca-empty">Nessun pezzo caricato</div>'; return; }
+
+  q = q.toLowerCase().trim();
+  var coda = codaLeggi();
+  var fatti = {};
+  coda.forEach(function(op){
+    if(op.tipo==='aggiorna_riga') fatti[op.rigaId]=op.stato;
+  });
+
+  var risultati = _pezziLocali.filter(function(p){
+    if(!q) return true;
+    var nome = (p.articolo||'').toLowerCase();
+    var cod  = (p.cmp||'').toLowerCase();
+    var marc = (p.marca||'').toLowerCase();
+    return nome.indexOf(q)>=0 || cod.indexOf(q)>=0 || marc.indexOf(q)>=0;
+  });
+
+  if(!risultati.length){
+    list.innerHTML='<div class="cerca-empty">Nessun risultato per "'+q+'"</div>';
+    return;
+  }
+
+  list.innerHTML = risultati.map(function(p){
+    var stato = fatti[p.id]||p.stato;
+    var qty   = p.qty_attesa||0;
+    var statoLabel = stato==='confermato'?'✅':stato==='rimandato'?'⏳':'○';
+    var hi = function(s){ 
+      if(!q) return s;
+      return s.replace(new RegExp('('+q.replace(/[\-\[\]{}()*+?.,\\^$|#]/g,'\\$&')+')','gi'),
+        '<b style="color:var(--orange)">$1</b>');
+    };
+    return '<div class="cerca-item" onclick="selezionaPezzoId('+p.id+')">'
+      +'<div class="cerca-item-nome">'+statoLabel+' '+hi(p.articolo||p.cmp||'—')+'</div>'
+      +'<div class="cerca-item-sub">'
+      +'<span>'+hi(p.cmp||'')+'</span>'
+      +(p.marca?'<span>'+hi(p.marca)+'</span>':'')
+      +(p.modello?'<span>'+p.modello+'</span>':'')
+      +'<span class="cerca-item-qty '+(qty>0?'qty-ok':'qty-zero')+'">'+qty+' pz</span>'
+      +'</div>'
+      +'</div>';
+  }).join('');
+}
+
+function selezionaPezzoId(id){
+  if(!_pezziLocali) return;
+  var idx = _pezziLocali.findIndex(function(p){ return p.id===id; });
+  if(idx<0){ toast('Pezzo non trovato','err'); return; }
+  _idxCorrente = idx;
+  idxSalva(idx);
+  chiudiCerca();
+  _fotoNuove=[];
+  _riga = _pezziLocali[idx];
+  _qty  = _riga.qty_attesa||0;
+  renderP();
+  document.getElementById('azioni').style.display='flex';
+  // Scroll in cima
+  var scroll = document.getElementById('scroll-area');
+  if(scroll) scroll.scrollTop=0;
 }
 
 init();
