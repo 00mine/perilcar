@@ -234,6 +234,13 @@ async function api(url,opts){
   return (await fetch(url,opts)).json();
 }
 
+// Ordinamento: sospesi > rimandati, qty>0 > qty=0, poi ordine
+function ordinaPezzi(a,b){
+  if(a.stato!==b.stato) return a.stato==='sospeso'?-1:1;
+  var qa=a.qty_attesa||0, qb=b.qty_attesa||0;
+  if(qa>0 && qb===0) return -1;
+}
+
 async function init(){
   avviaPing(); // ping ogni 5s per rilevare connessione al server
   await new Promise(function(r){setTimeout(r,700);}); // aspetta primo ping
@@ -258,16 +265,7 @@ async function init(){
       // Tieni solo quelle non ancora completate (sospese o rimAndate)
       var daFare = righe.filter(function(r){ return r.stato==='sospeso'||r.stato==='rimandato'; });
       // Metti prima i sospesi, poi i rimandati
-      daFare.sort(function(a,b){
-        // Prima per stato (sospesi prima dei rimandati)
-        if(a.stato!==b.stato) return a.stato==='sospeso'?-1:1;
-        // Poi: qty > 0 prima di qty = 0
-        var qa = a.qty_attesa||0, qb = b.qty_attesa||0;
-        if(qa>0 && qb===0) return -1;
-        if(qa===0 && qb>0) return  1;
-        // Infine per ordine originale
-        return a.ordine-b.ordine;
-      });
+      daFare.sort(ordinaPezzi);
       _pezziLocali = daFare;
       _idxCorrente = 0;
       pezziSalva(_pezziLocali);
@@ -382,7 +380,7 @@ async function prossimoP(){
       var data = await api('/api/inventario/sessioni/'+_sessId);
       if(data.ok && data.righe){
         var daFare = data.righe.filter(function(r){ return r.stato==='sospeso'||r.stato==='rimandato'; });
-        daFare.sort(function(a,b){ if(a.stato===b.stato) return a.ordine-b.ordine; return a.stato==='sospeso'?-1:1; });
+        daFare.sort(ordinaPezzi);
         _pezziLocali = daFare;
         _idxCorrente = 0;
         pezziSalva(_pezziLocali);
