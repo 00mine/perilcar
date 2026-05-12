@@ -821,123 +821,141 @@ DANEA_MAP = {
 @app.route("/api/magazzino/export-excel")
 @require_login
 def api_export_excel():
-    import xlsxwriter
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+    from openpyxl.drawing.image import Image as XLImage
+    from PIL import Image as PILImage
+    import tempfile, os
+
     rows = db.fetchall("SELECT * FROM v_giacenza ORDER BY articolo")
-    buf  = io.BytesIO()
-    wb   = xlsxwriter.Workbook(buf, {"in_memory": True})
-    ws   = wb.add_worksheet("Magazzino")
+    wb   = openpyxl.Workbook()
+    ws   = wb.active
+    ws.title = "Magazzino"
 
-    hdr  = wb.add_format({"bold":True,"bg_color":"#E94C00","font_color":"white",
-                           "border":1,"align":"center","valign":"vcenter","font_size":10})
-    cell = wb.add_format({"border":1,"valign":"vcenter","font_size":10})
-    num  = wb.add_format({"border":1,"align":"center","valign":"vcenter","font_size":10})
-    alt  = wb.add_format({"border":1,"bg_color":"#FFF3EE","valign":"vcenter","font_size":10})
+    # Stili
+    hdr_fill = PatternFill("solid", fgColor="E94C00")
+    alt_fill = PatternFill("solid", fgColor="FFF3EE")
+    thin = Side(style="thin", color="CCCCCC")
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+    hdr_font = Font(bold=True, color="FFFFFF", size=10)
+    cell_font = Font(size=10)
+    center = Alignment(horizontal="center", vertical="center")
+    left   = Alignment(horizontal="left",   vertical="center", wrap_text=True)
 
-    # Colonne esatte come Danea + quelle aggiuntive
     cols = [
-        ("Cod.",            "cmp",            10),
-        ("Descrizione",     "articolo",       36),
-        ("Tipologia",       "tipologia",      18),
-        ("Categoria",       "categoria",      14),
-        ("Sottocategoria",  "sottocategoria", 14),
-        ("Cod. Udm",        "cod_udm",        10),
-        ("Cod. Iva",        "cod_iva",        10),
-        ("Listino 1",       "listino1",       12),
-        ("Listino 2",       "listino2",       12),
-        ("Listino 3",       "listino3",       12),
-        ("Note",            "nota",           30),
-        ("Cod. a barre",    "cod_barre",      14),
-        ("Internet",        "internet",       10),
-        ("Produttore",      "marca",          16),
-        ("Extra 1",         "extra1",         12),
-        ("Extra 2",         "extra2",         12),
-        ("Extra 3",         "extra3",         12),
-        ("Extra 4",         "extra4",         12),
-        ("Cod. fornitore",  "cod_fornitore",  14),
-        ("Fornitore",       "fornitore",      16),
-        ("Cod. prod. forn.","cod_prod_forn",  16),
-        ("Prezzo forn.",    "prezzo_forn",    12),
-        ("Note fornitura",  "note_fornitura", 20),
-        ("Ord. a multipli di","ord_multipli", 14),
-        ("Gg. ordine",      "gg_ordine",      10),
-        ("Scorta min.",     "scorta",         10),
-        ("Ubicazione",      "ubicazione",     18),
-        ("Q.tà giacenza",   "esistenza",      12),
-        ("Stato magazzino", "stato_magazzino",14),
-        ("Modello",         "modello",        16),
-        ("Colore",          "colore",         12),
-        ("Cilindrata",      "cilindrata",     12),
-        ("Carburante",      "carburante",     12),
-        ("Versione",        "versione",       12),
-        ("Anno da",         "anno_da",        10),
-        ("Anno a",          "anno_a",         10),
-        ("Intervallo",      "intervallo",     14),
-        ("File/Immagini",   "files_path",     30),
+        ("Cod.",             "cmp",            10),
+        ("Descrizione",      "articolo",       36),
+        ("Tipologia",        "tipologia",      18),
+        ("Categoria",        "categoria",      14),
+        ("Sottocategoria",   "sottocategoria", 14),
+        ("Cod. Udm",         "cod_udm",        10),
+        ("Cod. Iva",         "cod_iva",        10),
+        ("Listino 1",        "listino1",       12),
+        ("Listino 2",        "listino2",       12),
+        ("Listino 3",        "listino3",       12),
+        ("Note",             "nota",           30),
+        ("Cod. a barre",     "cod_barre",      14),
+        ("Produttore",       "marca",          16),
+        ("Extra 1",          "extra1",         12),
+        ("Extra 2",          "extra2",         12),
+        ("Extra 3",          "extra3",         12),
+        ("Extra 4",          "extra4",         12),
+        ("Cod. fornitore",   "cod_fornitore",  14),
+        ("Fornitore",        "fornitore",      16),
+        ("Prezzo forn.",     "prezzo_forn",    12),
+        ("Scorta min.",      "scorta",         10),
+        ("Ubicazione",       "ubicazione",     18),
+        ("Q.tà giacenza",    "esistenza",      12),
+        ("Stato magazzino",  "stato_magazzino",14),
+        ("Modello",          "modello",        16),
+        ("Colore",           "colore",         12),
+        ("Cilindrata",       "cilindrata",     12),
+        ("Carburante",       "carburante",     12),
+        ("Versione",         "versione",       12),
+        ("Anno da",          "anno_da",        10),
+        ("Anno a",           "anno_a",         10),
+        ("Foto",             "files_path",     20),
     ]
-
-    ws.set_row(0, 22)
-    for c,(label,_,w) in enumerate(cols):
-        ws.write(0, c, label, hdr)
-        ws.set_column(c, c, w)
 
     NUM_KEYS = {"esistenza","scorta","listino1","listino2","listino3",
                 "prezzo_forn","ord_multipli","gg_ordine","anno_da","anno_a"}
 
-    # Indice colonna files_path
-    foto_col = next((c for c,(l,k,w) in enumerate(cols) if k=="files_path"), None)
+    # Intestazioni
+    for c, (label, _, w) in enumerate(cols, 1):
+        cell = ws.cell(row=1, column=c, value=label)
+        cell.font       = hdr_font
+        cell.fill       = hdr_fill
+        cell.alignment  = center
+        cell.border     = border
+        ws.column_dimensions[get_column_letter(c)].width = w
+    ws.row_dimensions[1].height = 20
+    ws.freeze_panes = "A2"
 
-    for ri, r in enumerate(rows):
-        fmt = cell if ri%2==0 else alt
-        ws.set_row(ri+1, 60)  # altezza riga 60pt per le foto
-        for c, (_,key,_) in enumerate(cols):
+    # Dati
+    foto_col_idx = next((c+1 for c,(l,k,w) in enumerate(cols) if k=="files_path"), None)
+    tmp_files = []
+
+    for ri, r in enumerate(rows, 2):
+        is_alt = (ri % 2 == 0)
+        ws.row_dimensions[ri].height = 15  # altezza normale
+
+        for ci, (_, key, _) in enumerate(cols, 1):
             if key == "files_path":
-                # Inserisci immagini fisicamente nel file
+                # Scrivi URL come testo per ora, foto sotto
                 paths = [p for p in (r.get("files_path") or "").split("|") if p]
                 if not paths and r.get("immagine_path"):
                     paths = [r.get("immagine_path")]
+                cell = ws.cell(row=ri, column=ci, value="")
+                cell.border    = border
+                cell.alignment = center
                 if paths:
-                    # Prova a inserire la prima immagine valida
-                    inserted = False
-                    for img_url in paths[:1]:  # solo prima foto nella cella
-                        # Converti URL relativo in path fisico
-                        # Ricostruisci path fisico dalla URL relativa
+                    # Inserisci immagine
+                    img_url = paths[0]
+                    if img_url.startswith("/static/"):
+                        img_path = ROOT / "web" / img_url[1:]
+                    else:
                         img_path = None
-                        if img_url.startswith("/static/"):
-                            img_path = ROOT / "web" / img_url[1:]  # es: web/static/uploads/foto.jpg
-                        elif img_url.startswith("/uploads/"):
-                            img_path = UPLOAD_FOLDER / img_url.split("/")[-1]
-                        # Log per debug
-                        log.info(f"Export foto: url={img_url} path={img_path} exists={img_path.exists() if img_path else False}")
-                        if img_path and img_path.exists():
-                            try:
-                                ws.insert_image(ri+1, c, str(img_path), {
-                                    "x_scale": 0.8, "y_scale": 0.8,
-                                    "x_offset": 2, "y_offset": 2,
-                                    "positioning": 1,
-                                    "url": f"http://localhost:5000{img_url}"
-                                })
-                                inserted = True
-                            except Exception as _ie:
-                                log.warning(f"insert_image fallito per {img_path}: {_ie}")
-                        if inserted: break
-                    if not inserted:
-                        # Fallback: scrivi URL come testo cliccabile
-                        url = f"http://localhost:5000{paths[0]}" if paths else ""
-                        if url:
-                            ws.write_url(ri+1, c, url, fmt, "📷 Vedi foto")
-                        else:
-                            ws.write(ri+1, c, "", fmt)
-                else:
-                    ws.write(ri+1, c, "", fmt)
+                    if img_path and img_path.exists():
+                        try:
+                            # Ridimensiona a 60x60 con PIL
+                            pil = PILImage.open(str(img_path))
+                            pil.thumbnail((60, 60), PILImage.LANCZOS)
+                            tmp = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
+                            pil.save(tmp.name, "PNG")
+                            tmp.close()
+                            tmp_files.append(tmp.name)
+                            img = XLImage(tmp.name)
+                            img.anchor = get_column_letter(ci) + str(ri)
+                            ws.add_image(img)
+                            ws.row_dimensions[ri].height = 48
+                        except Exception as e:
+                            log.warning(f"Foto Excel fallita: {e}")
+                            cell.value = "📷"
             else:
-                val = r.get(key) or ""
-                if val == "" and key in NUM_KEYS: val = 0
-                ws.write(ri+1, c, val, num if key in NUM_KEYS else fmt)
+                val = r.get(key)
+                if val is None or val == "":
+                    val = 0 if key in NUM_KEYS else ""
+                c2 = ws.cell(row=ri, column=ci, value=val)
+                c2.font      = cell_font
+                c2.border    = border
+                c2.alignment = center if key in NUM_KEYS else left
+                if is_alt:
+                    c2.fill = alt_fill
 
-    wb.close(); buf.seek(0)
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+
+    # Pulisci file temporanei
+    for f in tmp_files:
+        try: os.unlink(f)
+        except: pass
+
     return send_file(buf,
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         as_attachment=True, download_name="perilcar_magazzino.xlsx")
+
 
 @app.route("/api/magazzino/import-excel", methods=["POST"])
 @require_login
