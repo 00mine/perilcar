@@ -183,8 +183,21 @@ async function api(url,opts){
 }
 
 async function init(){
+  aggiornaNetBar();
   if(!_sessId){await mostraListaSessioni();return;}
-  const data=await api('/api/inventario/sessioni/'+_sessId);
+  var data;
+  try{
+    data = await api('/api/inventario/sessioni/'+_sessId);
+  }catch(e){
+    var nCoda = codaLeggi().length;
+    document.getElementById('scroll-area').innerHTML='<div class="schermata">'
+      +'<div class="s-ico">📴</div><div class="s-titolo">Modalità Offline</div>'
+      +'<div class="s-sub">Sei offline. Le azioni vengono salvate in locale e sincronizzate quando torni online.</div>'
+      +(nCoda>0?'<div style="background:#fffbeb;border-radius:10px;padding:12px;margin-top:10px;font-size:13px;color:#d97706">⏳ <b>'+nCoda+'</b> operazioni in coda</div>':'')
+      +'</div>';
+    document.getElementById('azioni').style.display='none';
+    return;
+  }
   if(!data.ok){mostraScherm('⚠️','Sessione non trovata','Controlla il link.');return;}
   if(data.sessione.stato==='chiusa'){mostraScherm('🔒','Sessione chiusa','Il responsabile ha chiuso questa sessione.');return;}
   document.getElementById('hdr-sess').textContent=data.sessione.nome;

@@ -2310,6 +2310,14 @@ def on_leave_inventario(data):
     if sid:
         leave_room(f"inventario_{sid}")
 
+@app.route("/sw.js")
+def service_worker():
+    from flask import send_from_directory
+    resp = send_from_directory("web/static", "sw.js")
+    resp.headers["Service-Worker-Allowed"] = "/"
+    resp.headers["Cache-Control"] = "no-cache"
+    return resp
+
 # HOT RELOAD
 # ══════════════════════════════════════════════════════════════════════════════
 
