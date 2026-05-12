@@ -171,6 +171,18 @@ const _p=new URLSearchParams(window.location.search);
 const _sessId=parseInt(_p.get('sessione'))||null;
 var _riga=null,_qty=0,_fotoNuove=[],_camStream=null,_stats={},_fase='principale';
 
+// ── CACHE PEZZI LOCALE ────────────────────────────────────────────────
+var PEZZI_KEY = 'inv_pezzi_'+(_sessId||'x');
+var IDX_KEY   = 'inv_idx_'  +(_sessId||'x');
+
+function pezziSalva(lista){ try{ localStorage.setItem(PEZZI_KEY, JSON.stringify(lista)); }catch(e){} }
+function pezziLeggi(){ try{ return JSON.parse(localStorage.getItem(PEZZI_KEY)||'null'); }catch(e){ return null; } }
+function idxSalva(i){ try{ localStorage.setItem(IDX_KEY, String(i)); }catch(e){} }
+function idxLeggi(){ try{ return parseInt(localStorage.getItem(IDX_KEY)||'0')||0; }catch(e){ return 0; } }
+
+var _pezziLocali = null;   // tutti i pezzi scaricati
+var _idxCorrente = 0;      // indice corrente
+
 function esc(s){return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 function toast(msg,tipo){
   document.querySelectorAll('.toast').forEach(e=>e.remove());
@@ -184,54 +196,158 @@ async function api(url,opts){
 
 async function init(){
   aggiornaNetBar();
-  if(!_sessId){await mostraListaSessioni();return;}
-  var data;
-  try{
-    data = await api('/api/inventario/sessioni/'+_sessId);
-  }catch(e){
-    var nCoda = codaLeggi().length;
-    document.getElementById('scroll-area').innerHTML='<div class="schermata">'
-      +'<div class="s-ico">📴</div><div class="s-titolo">Modalità Offline</div>'
-      +'<div class="s-sub">Sei offline. Le azioni vengono salvate in locale e sincronizzate quando torni online.</div>'
-      +(nCoda>0?'<div style="background:#fffbeb;border-radius:10px;padding:12px;margin-top:10px;font-size:13px;color:#d97706">⏳ <b>'+nCoda+'</b> operazioni in coda</div>':'')
-      +'</div>';
-    document.getElementById('azioni').style.display='none';
-    return;
+  if(!_sessId){ await mostraListaSessioni(); return; }
+
+  // Prova a caricare pezzi dalla cache locale
+  _pezziLocali = pezziLeggi();
+  _idxCorrente = idxLeggi();
+
+  if(_isOnline){
+    // Online: scarica TUTTI i pezzi della sessione e li salva in locale
+    mostraCaricamento('📥 Caricamento pezzi in corso...');
+    try{
+      var data = await api('/api/inventario/sessioni/'+_sessId);
+      if(!data.ok){ mostraScherm('⚠️','Sessione non trovata','Controlla il link.'); return; }
+      if(data.sessione.stato==='chiusa'){ mostraScherm('🔒','Sessione chiusa','Il responsabile ha chiuso questa sessione.'); return; }
+      document.getElementById('hdr-sess').textContent = data.sessione.nome;
+
+      // Scarica tutte le righe della sessione
+      var righe = data.righe || [];
+      // Tieni solo quelle non ancora completate (sospese o rimAndate)
+      var daFare = righe.filter(function(r){ return r.stato==='sospeso'||r.stato==='rimandato'; });
+      // Metti prima i sospesi, poi i rimandati
+      daFare.sort(function(a,b){
+        if(a.stato===b.stato) return a.ordine-b.ordine;
+        return a.stato==='sospeso'?-1:1;
+      });
+      _pezziLocali = daFare;
+      _idxCorrente = 0;
+      pezziSalva(_pezziLocali);
+      idxSalva(0);
+
+      // Aggiorna stats locali
+      _stats.totale    = righe.length;
+      _stats.confermati= righe.filter(function(r){return r.stato==='confermato';}).length;
+      _stats.mancanti  = righe.filter(function(r){return r.stato==='mancante';}).length;
+      _stats.rimandati = righe.filter(function(r){return r.stato==='rimandato';}).length;
+      aggiornaStatsUI();
+
+      _sock.emit('join_inventario',{sessione_id:_sessId});
+      toast('✅ '+daFare.length+' pezzi caricati — puoi lavorare anche offline','ok');
+    }catch(e){
+      if(_pezziLocali){ toast('⚠️ Uso pezzi in cache locale','warn'); }
+      else { mostraScherm('⚠️','Errore caricamento','Controlla la connessione.'); return; }
+    }
+  } else {
+    // Offline: usa cache locale
+    if(!_pezziLocali || _pezziLocali.length===0){
+      mostraScherm('📴','Nessun dato in cache',
+        'Devi accedere almeno una volta online per scaricare i pezzi. Connettiti al WiFi aziendale e ricarica la pagina.');
+      return;
+    }
+    document.getElementById('hdr-sess').textContent = 'Inventario (offline)';
+    toast('📴 Offline — lavori su '+_pezziLocali.length+' pezzi in cache','warn');
   }
-  if(!data.ok){mostraScherm('⚠️','Sessione non trovata','Controlla il link.');return;}
-  if(data.sessione.stato==='chiusa'){mostraScherm('🔒','Sessione chiusa','Il responsabile ha chiuso questa sessione.');return;}
-  document.getElementById('hdr-sess').textContent=data.sessione.nome;
-  _sock.emit('join_inventario',{sessione_id:_sessId});
-  await aggStats();
-  await prossimoP();
+
+  mostraPezzoCorrente();
+}
+
+function mostraCaricamento(msg){
+  document.getElementById('scroll-area').innerHTML='<div class="schermata"><div class="spinner"></div><div class="s-sub">'+msg+'</div></div>';
+  document.getElementById('azioni').style.display='none';
+}
+
+function aggiornaStatsUI(){
+  var tot  = _stats.totale||1;
+  var done = (_stats.confermati||0)+(_stats.mancanti||0);
+  var pct  = Math.round(done/tot*100);
+  var el=function(id){return document.getElementById(id);};
+  if(el('s-conf')) el('s-conf').textContent=done;
+  if(el('s-risc')) el('s-risc').textContent=_stats.rimandati||0;
+  if(el('s-tot'))  el('s-tot').textContent=_stats.totale||0;
+  if(el('prog-fill')) el('prog-fill').style.width=pct+'%';
+  if(el('hdr-prog'))  el('hdr-prog').textContent=pct+'% completato';
 }
 
 async function aggStats(){
-  const s=await api('/api/inventario/sessioni/'+_sessId+'/stats');
-  _stats=s;
-  const done=(s.confermati||0)+(s.mancanti||0);
-  const pct=Math.round(done/(s.totale||1)*100);
-  document.getElementById('s-conf').textContent=done;
-  document.getElementById('s-risc').textContent=s.rimandati||0;
-  document.getElementById('s-tot').textContent=s.totale||0;
-  document.getElementById('prog-fill').style.width=pct+'%';
-  document.getElementById('hdr-prog').textContent=pct+'% completato';
+  if(_isOnline){
+    try{
+      var s=await api('/api/inventario/sessioni/'+_sessId+'/stats');
+      _stats=s;
+    }catch(e){}
+  }
+  aggiornaStatsUI();
 }
 
-async function prossimoP(){
-  document.getElementById('azioni').style.display='none';
-  document.getElementById('scroll-area').innerHTML='<div class="schermata"><div class="spinner"></div></div>';
+function mostraPezzoCorrente(){
   _fotoNuove=[];
-  const data=await api('/api/inventario/sessioni/'+_sessId+'/prossimo');
-  if(!data.ok){mostraScherm('⚠️','Errore',data.msg||'');return;}
-  _fase=data.fase;
-  if(!data.riga||_fase==='completato'){mostraCompletato();return;}
-  _riga=data.riga;
-  _qty=_riga.qty_attesa||0;
+  document.getElementById('azioni').style.display='none';
+
+  if(!_pezziLocali || _pezziLocali.length===0){
+    mostraCompletato(); return;
+  }
+
+  // Cerca il prossimo pezzo non ancora fatto (nella coda locale)
+  // Un pezzo è "fatto" se è nella coda come aggiorna_riga con stato confermato/rimandato
+  var coda = codaLeggi();
+  var righeGiaFatte = {};
+  coda.forEach(function(op){
+    if(op.tipo==='aggiorna_riga' && op.stato!=='rimandato') righeGiaFatte[op.rigaId]=true;
+  });
+
+  var pezzo = null;
+  for(var i=_idxCorrente; i<_pezziLocali.length; i++){
+    if(!righeGiaFatte[_pezziLocali[i].id]){
+      pezzo = _pezziLocali[i];
+      _idxCorrente = i;
+      idxSalva(i);
+      break;
+    }
+  }
+
+  if(!pezzo){
+    // Controlla rimandati
+    var rimandati = coda.filter(function(op){ return op.tipo==='aggiorna_riga' && op.stato==='rimandato'; });
+    if(rimandati.length>0){
+      // Trova il pezzo rimandato nella lista locale
+      var rimId = rimandati[0].rigaId;
+      pezzo = _pezziLocali.find(function(p){ return p.id===rimId; });
+      if(pezzo) _fase='rimandati';
+    }
+  }
+
+  if(!pezzo){ mostraCompletato(); return; }
+
+  _riga = pezzo;
+  _qty  = _riga.qty_attesa||0;
+  _fase = _fase||'principale';
   renderP();
   document.getElementById('azioni').style.display='flex';
-  // Ripristina foto se c'erano state scattate prima del refresh
-  setTimeout(ripristinaFotoSession, 300);
+}
+
+// Mantieni prossimoP come alias
+async function prossimoP(){
+  _fotoNuove=[];
+  if(_isOnline && _pezziLocali){
+    // Aggiorna la lista locale dal server (rimuovi i pezzi già confermati)
+    try{
+      var data = await api('/api/inventario/sessioni/'+_sessId);
+      if(data.ok && data.righe){
+        var daFare = data.righe.filter(function(r){ return r.stato==='sospeso'||r.stato==='rimandato'; });
+        daFare.sort(function(a,b){ if(a.stato===b.stato) return a.ordine-b.ordine; return a.stato==='sospeso'?-1:1; });
+        _pezziLocali = daFare;
+        _idxCorrente = 0;
+        pezziSalva(_pezziLocali);
+        idxSalva(0);
+        _stats.confermati = data.righe.filter(function(r){return r.stato==='confermato';}).length;
+        _stats.mancanti   = data.righe.filter(function(r){return r.stato==='mancante';}).length;
+        _stats.rimandati  = data.righe.filter(function(r){return r.stato==='rimandato';}).length;
+        _stats.totale     = data.righe.length;
+        aggiornaStatsUI();
+      }
+    }catch(e){}
+  }
+  mostraPezzoCorrente();
 }
 
 function renderP(){
@@ -731,7 +847,15 @@ async function azioneConferma(){
       body:JSON.stringify({stato:'confermato', qty_trovata:_qty, note:note})
     });
     btn.classList.remove('busy'); lbl.textContent='Conferma';
-    if(res.ok){ await aggStats(); setTimeout(prossimoP,300); }
+    if(res.ok){
+      // Rimuovi pezzo dalla lista locale
+      if(_pezziLocali && _riga){
+        _pezziLocali = _pezziLocali.filter(function(p){return p.id!==_riga.id;});
+        pezziSalva(_pezziLocali);
+        _idxCorrente = 0; idxSalva(0);
+      }
+      await aggStats(); setTimeout(prossimoP,300);
+    }
     else toast(res.msg||'Errore','err');
   } else {
     // OFFLINE: salva in coda
@@ -754,7 +878,10 @@ async function azioneConferma(){
     btn.classList.remove('busy'); lbl.textContent='Conferma';
     toast('💾 Salvato offline — sync quando torni online','warn');
     aggiornaNetBar();
-    setTimeout(prossimoP, 300);
+    // Avanza al prossimo pezzo anche offline
+    _idxCorrente++;
+    idxSalva(_idxCorrente);
+    setTimeout(mostraPezzoCorrente, 300);
   }
 }
 
@@ -771,7 +898,9 @@ async function azioneRimanda(){
     codaAggiungi({tipo:'aggiorna_riga', rigaId:rigaId, stato:'rimandato', qty:_qty});
     toast('💾 Rimandato salvato offline','warn');
     aggiornaNetBar();
-    setTimeout(prossimoP, 300);
+    _idxCorrente++;
+    idxSalva(_idxCorrente);
+    setTimeout(mostraPezzoCorrente, 300);
   }
 }
 
