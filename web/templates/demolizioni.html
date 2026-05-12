@@ -147,16 +147,16 @@ thead th .f-inp-range span{font-size:10px;color:var(--text3);align-self:center;f
         </div>
       </div>
       <div class="f-row" style="grid-template-columns:70px 155px 110px 1fr 80px">
-        <div class="field"><label>ID</label><input type="text" id="f-id" readonly></div>
-        <div class="field"><label>Data presa in carico</label><input type="date" id="f-data" oninput="filtra()"></div>
-        <div class="field"><label>Ora</label><input type="time" id="f-ora"></div>
-        <div class="field"><label>Reg. demolitori</label><input type="text" id="f-reg" placeholder="01/2026" oninput="filtra()"></div>
-        <div class="field"><label>Pag. Reg.</label><input type="text" id="f-pag" oninput="filtra()"></div>
+        <div class="field"><label>ID</label><input type="text" id="f-id" readonly autocomplete="off"></div>
+        <div class="field"><label>Data presa in carico</label><input type="date" id="f-data" oninput="filtra()" autocomplete="off"></div>
+        <div class="field"><label>Ora</label><input type="time" id="f-ora" autocomplete="off"></div>
+        <div class="field"><label>Reg. demolitori</label><input type="text" id="f-reg" placeholder="01/2026" oninput="filtra()" autocomplete="off"></div>
+        <div class="field"><label>Pag. Reg.</label><input type="text" id="f-pag" oninput="filtra()" autocomplete="off"></div>
       </div>
       <div class="f-row" style="grid-template-columns:1fr">
         <div class="field"><label>Veicolo</label>
           <div class="ig">
-            <select id="f-veicolo" onchange="filtra()"><option value="">&#8212; cerca o seleziona &#8212;</option></select>
+            <select id="f-veicolo" onchange="filtra()" autocomplete="off"><option value="">&#8212; cerca o seleziona &#8212;</option></select>
             <button class="btn-plus" onclick="apreVeicolo()">+</button>
           </div>
         </div>
@@ -164,21 +164,21 @@ thead th .f-inp-range span{font-size:10px;color:var(--text3);align-self:center;f
       <div class="f-row" style="grid-template-columns:1fr 1fr">
         <div class="field"><label>Proprietario</label>
           <div class="ig">
-            <select id="f-prop" onchange="filtra()"><option value="">&#8212; cerca o seleziona &#8212;</option></select>
+            <select id="f-prop" onchange="filtra()" autocomplete="off"><option value="">&#8212; cerca o seleziona &#8212;</option></select>
             <button class="btn-plus" onclick="apreAna('prop')">+</button>
           </div>
         </div>
         <div class="field"><label>Detentore</label>
           <div class="ig">
-            <select id="f-det" onchange="filtra()"><option value="">&#8212; cerca o seleziona &#8212;</option></select>
+            <select id="f-det" onchange="filtra()" autocomplete="off"><option value="">&#8212; cerca o seleziona &#8212;</option></select>
             <button class="btn-plus" onclick="apreAna('det')">+</button>
             <button class="btn-copy" onclick="copiaProp()" title="Copia proprietario">&#8663;</button>
           </div>
         </div>
       </div>
       <div class="f-row" style="grid-template-columns:100px 1fr auto">
-        <div class="field"><label>Ufficio Prov.</label><input type="text" id="f-ufficio" placeholder="es. VI" oninput="filtra()"></div>
-        <div class="field"><label>Concessionaria</label><input type="text" id="f-conc" oninput="filtra()"></div>
+        <div class="field"><label>Ufficio Prov.</label><input type="text" id="f-ufficio" placeholder="es. VI" oninput="filtra()" autocomplete="off"></div>
+        <div class="field"><label>Concessionaria</label><input type="text" id="f-conc" oninput="filtra()" autocomplete="off"></div>
         <div style="display:flex;gap:10px;align-items:flex-end;padding-bottom:2px">
           <div class="check-pill"><input type="checkbox" id="f-targhe"><label for="f-targhe">Targhe</label></div>
           <div class="check-pill"><input type="checkbox" id="f-carta"><label for="f-carta">Carta circ.</label></div>
@@ -189,11 +189,11 @@ thead th .f-inp-range span{font-size:10px;color:var(--text3);align-self:center;f
       <div class="card">
         <div class="card-title">Dati rottamazione</div>
         <div class="rott-field"><label>Peso Effettivo</label>
-          <div class="rott-kg"><span>Kg</span><input type="number" id="f-peso-eff" placeholder="0.00" step="0.01" oninput="aggNetto()"></div></div>
+          <div class="rott-kg"><span>Kg</span><input type="number" id="f-peso-eff" placeholder="0.00" step="0.01" oninput="aggNetto()" autocomplete="off"></div></div>
         <div class="rott-field"><label>Peso netto (da ricambi)</label>
-          <div class="rott-kg"><span>Kg</span><input type="number" id="f-peso-netto" readonly style="color:var(--orange);font-weight:700"></div></div>
+          <div class="rott-kg"><span>Kg</span><input type="number" id="f-peso-netto" readonly style="color:var(--orange);font-weight:700" autocomplete="off"></div></div>
         <div class="rott-field"><label>Modalita' Radiazione</label>
-          <select id="f-modalita"><option value="">&#8212; seleziona &#8212;</option>
+          <select id="f-modalita" autocomplete="off"><option value="">&#8212; seleziona &#8212;</option>
             <option>Rottamazione</option><option>Demolizione</option>
             <option>Esportazione</option><option>Furto</option><option>Altro</option>
           </select></div>
@@ -222,27 +222,27 @@ thead th .f-inp-range span{font-size:10px;color:var(--text3);align-self:center;f
   </tr>
   <tr id="tr-filtri" style="background:var(--surface)">
     <th></th>
-    <th><input class="f-inp" id="tf-id" placeholder="ID" oninput="filtraTabella()"></th>
-    <th><input class="f-inp" id="tf-reg" placeholder="es. 01/2026" oninput="filtraTabella()"></th>
+    <th><input class="f-inp" id="tf-id" placeholder="ID" oninput="filtraTabella()" autocomplete="off"></th>
+    <th><input class="f-inp" id="tf-reg" placeholder="es. 01/2026" oninput="filtraTabella()" autocomplete="off"></th>
     <th>
       <div class="f-inp-range">
-        <input id="tf-pag-da" placeholder="da" oninput="filtraTabella()">
+        <input id="tf-pag-da" placeholder="da" oninput="filtraTabella()" autocomplete="off">
         <span>&#8212;</span>
-        <input id="tf-pag-a" placeholder="a" oninput="filtraTabella()">
+        <input id="tf-pag-a" placeholder="a" oninput="filtraTabella()" autocomplete="off">
       </div>
     </th>
     <th>
       <div class="f-inp-range">
-        <input type="date" id="tf-data-da" oninput="filtraTabella()" title="Data da">
+        <input type="date" id="tf-data-da" oninput="filtraTabella()" title="Data da" autocomplete="off">
         <span>&#8212;</span>
-        <input type="date" id="tf-data-a" oninput="filtraTabella()" title="Data a">
+        <input type="date" id="tf-data-a" oninput="filtraTabella()" title="Data a" autocomplete="off">
       </div>
     </th>
-    <th><input class="f-inp" id="tf-veicolo" placeholder="marca, targa..." oninput="filtraTabella()"></th>
-    <th><input class="f-inp" id="tf-prop" placeholder="nome..." oninput="filtraTabella()"></th>
-    <th><input class="f-inp" id="tf-det" placeholder="nome..." oninput="filtraTabella()"></th>
+    <th><input class="f-inp" id="tf-veicolo" placeholder="marca, targa..." oninput="filtraTabella()" autocomplete="off"></th>
+    <th><input class="f-inp" id="tf-prop" placeholder="nome..." oninput="filtraTabella()" autocomplete="off"></th>
+    <th><input class="f-inp" id="tf-det" placeholder="nome..." oninput="filtraTabella()" autocomplete="off"></th>
     <th></th><th></th>
-    <th><input class="f-inp" id="tf-modalita" placeholder="..." oninput="filtraTabella()"></th>
+    <th><input class="f-inp" id="tf-modalita" placeholder="..." oninput="filtraTabella()" autocomplete="off"></th>
     <th></th><th></th><th></th>
   </tr>
 </thead>
@@ -258,11 +258,11 @@ thead th .f-inp-range span{font-size:10px;color:var(--text3);align-self:center;f
     <div class="mhdr"><h3>Veicolo</h3><button class="mclose" onclick="chiudi('m-veicolo')">x</button></div>
     <div class="mbody">
       <div class="mg" style="grid-template-columns:80px 1fr 1fr 1fr;margin-bottom:10px">
-        <div class="field"><label>ID</label><input type="text" id="v-id" readonly></div>
-        <div class="field"><label>Targa</label><input type="text" id="v-targa"></div>
-        <div class="field"><label>Telaio</label><input type="text" id="v-telaio"></div>
+        <div class="field"><label>ID</label><input type="text" id="v-id" readonly autocomplete="off"></div>
+        <div class="field"><label>Targa</label><input type="text" id="v-targa" autocomplete="off"></div>
+        <div class="field"><label>Telaio</label><input type="text" id="v-telaio" autocomplete="off"></div>
         <div class="field"><label>Classe</label>
-          <select id="v-classe"><option value="">&#8212; seleziona &#8212;</option>
+          <select id="v-classe" autocomplete="off"><option value="">&#8212; seleziona &#8212;</option>
             <option>Autoveicolo</option><option>Motoveicolo</option><option>Ciclomotore</option>
             <option>Rimorchio</option><option>Motociclo</option><option>Autocarro</option>
             <option>Motocarro</option><option>Autovettura</option><option>Quadriciclo</option>
@@ -275,10 +275,10 @@ thead th .f-inp-range span{font-size:10px;color:var(--text3);align-self:center;f
         </div>
       </div>
       <div class="mg mg4" style="margin-bottom:10px">
-        <div class="field"><label>Marca</label><input type="text" id="v-marca"></div>
-        <div class="field"><label>Modello</label><input type="text" id="v-modello"></div>
-        <div class="field"><label>Anno imm.</label><input type="text" id="v-anno"></div>
-        <div class="field"><label>Num. Motore</label><input type="text" id="v-motore"></div>
+        <div class="field"><label>Marca</label><input type="text" id="v-marca" autocomplete="off"></div>
+        <div class="field"><label>Modello</label><input type="text" id="v-modello" autocomplete="off"></div>
+        <div class="field"><label>Anno imm.</label><input type="text" id="v-anno" autocomplete="off"></div>
+        <div class="field"><label>Num. Motore</label><input type="text" id="v-motore" autocomplete="off"></div>
       </div>
       <div class="mg mg2">
         <div class="field"><label>Note</label><textarea id="v-note" rows="4"></textarea></div>
@@ -304,44 +304,44 @@ thead th .f-inp-range span{font-size:10px;color:var(--text3);align-self:center;f
     <div class="mhdr"><h3 id="ana-titolo">Proprietario</h3><button class="mclose" onclick="chiudi('m-ana')">x</button></div>
     <div class="mbody">
       <div class="mg" style="grid-template-columns:80px 1fr 1fr 110px 130px;margin-bottom:8px">
-        <div class="field"><label>ID</label><input type="text" id="a-id" readonly></div>
-        <div class="field"><label>Cognome/Denominazione</label><input type="text" id="a-cognome"></div>
-        <div class="field"><label>Nome</label><input type="text" id="a-nome"></div>
+        <div class="field"><label>ID</label><input type="text" id="a-id" readonly autocomplete="off"></div>
+        <div class="field"><label>Cognome/Denominazione</label><input type="text" id="a-cognome" autocomplete="off"></div>
+        <div class="field"><label>Nome</label><input type="text" id="a-nome" autocomplete="off"></div>
         <div class="field"><label>Sesso</label>
-          <select id="a-sesso"><option value="">&#8212;</option><option value="M">M</option><option value="F">F</option></select></div>
+          <select id="a-sesso" autocomplete="off"><option value="">&#8212;</option><option value="M">M</option><option value="F">F</option></select></div>
         <div class="field"><label>Tipo Societa'</label>
-          <select id="a-tsoc"><option value="">&#8212;</option><option>SRL</option><option>SPA</option><option>SNC</option><option>SAS</option><option>Ditt.Ind.</option></select></div>
+          <select id="a-tsoc" autocomplete="off"><option value="">&#8212;</option><option>SRL</option><option>SPA</option><option>SNC</option><option>SAS</option><option>Ditt.Ind.</option></select></div>
       </div>
       <div class="mg" style="grid-template-columns:140px 1fr 100px 1fr;margin-bottom:8px">
-        <div class="field"><label>Data di nascita</label><input type="date" id="a-datanascita"></div>
-        <div class="field"><label>Luogo di Nascita</label><input type="text" id="a-luogo"></div>
-        <div class="field"><label>Provincia nasc.</label><input type="text" id="a-provnascita" placeholder="es. VI"></div>
-        <div class="field"><label>CF/PIVA</label><input type="text" id="a-cf"></div>
+        <div class="field"><label>Data di nascita</label><input type="date" id="a-datanascita" autocomplete="off"></div>
+        <div class="field"><label>Luogo di Nascita</label><input type="text" id="a-luogo" autocomplete="off"></div>
+        <div class="field"><label>Provincia nasc.</label><input type="text" id="a-provnascita" placeholder="es. VI" autocomplete="off"></div>
+        <div class="field"><label>CF/PIVA</label><input type="text" id="a-cf" autocomplete="off"></div>
       </div>
       <div class="mg" style="grid-template-columns:1fr 90px 1fr 80px 70px;margin-bottom:8px">
-        <div class="field"><label>Comune di residenza</label><input type="text" id="a-comune"></div>
-        <div class="field"><label>Provincia</label><input type="text" id="a-prov" placeholder="es. VI"></div>
-        <div class="field"><label>Via</label><input type="text" id="a-via"></div>
-        <div class="field"><label>Num. Civico</label><input type="text" id="a-civico"></div>
-        <div class="field"><label>CAP</label><input type="text" id="a-cap"></div>
+        <div class="field"><label>Comune di residenza</label><input type="text" id="a-comune" autocomplete="off"></div>
+        <div class="field"><label>Provincia</label><input type="text" id="a-prov" placeholder="es. VI" autocomplete="off"></div>
+        <div class="field"><label>Via</label><input type="text" id="a-via" autocomplete="off"></div>
+        <div class="field"><label>Num. Civico</label><input type="text" id="a-civico" autocomplete="off"></div>
+        <div class="field"><label>CAP</label><input type="text" id="a-cap" autocomplete="off"></div>
       </div>
       <div class="mg" style="grid-template-columns:1fr 1fr 120px 1fr;margin-bottom:8px">
         <div class="field"><label>Tipo documento</label>
-          <select id="a-tdoc"><option value="">&#8212; seleziona &#8212;</option>
+          <select id="a-tdoc" autocomplete="off"><option value="">&#8212; seleziona &#8212;</option>
             <option>Carta d'identita'</option><option>Passaporto</option><option>Patente</option><option>Altro</option>
           </select></div>
-        <div class="field"><label>Num. documento</label><input type="text" id="a-numdoc"></div>
-        <div class="field"><label>Rilasciato il</label><input type="date" id="a-datadoc"></div>
-        <div class="field"><label>Rilasciato da</label><input type="text" id="a-rilda"></div>
+        <div class="field"><label>Num. documento</label><input type="text" id="a-numdoc" autocomplete="off"></div>
+        <div class="field"><label>Rilasciato il</label><input type="date" id="a-datadoc" autocomplete="off"></div>
+        <div class="field"><label>Rilasciato da</label><input type="text" id="a-rilda" autocomplete="off"></div>
       </div>
       <div class="mg mg4" style="margin-bottom:8px">
-        <div class="field"><label>Telefono</label><input type="text" id="a-tel"></div>
-        <div class="field"><label>Cellulare</label><input type="text" id="a-cell"></div>
-        <div class="field"><label>Fax</label><input type="text" id="a-fax"></div>
-        <div class="field"><label>E-mail</label><input type="text" id="a-email"></div>
+        <div class="field"><label>Telefono</label><input type="text" id="a-tel" autocomplete="off"></div>
+        <div class="field"><label>Cellulare</label><input type="text" id="a-cell" autocomplete="off"></div>
+        <div class="field"><label>Fax</label><input type="text" id="a-fax" autocomplete="off"></div>
+        <div class="field"><label>E-mail</label><input type="text" id="a-email" autocomplete="off"></div>
       </div>
       <div class="mg mg2">
-        <div class="field"><label>Note</label><input type="text" id="a-note"></div>
+        <div class="field"><label>Note</label><input type="text" id="a-note" autocomplete="off"></div>
         <div class="field"><label>Allegati</label>
           <div class="all-box">
             <input type="file" id="a-files" multiple style="font-size:11px;width:100%" onchange="prevFile(this,'a-prev')">
@@ -378,7 +378,7 @@ thead th .f-inp-range span{font-size:10px;color:var(--text3);align-self:center;f
         <div>
           <div style="display:flex;gap:6px;margin-bottom:6px;align-items:center">
             <input type="text" id="sr-cerca" placeholder="&#128269; Cerca ricambio..." oninput="filtraRicambi()"
-                   style="flex:1;font-size:12px;padding:5px 8px">
+                   style="flex:1;font-size:12px;padding:5px 8px" autocomplete="off">
             <button class="btn btn-ghost" onclick="deselTutti()" style="font-size:11px;padding:4px 8px">Deseleziona tutto</button>
           </div>
           <div id="sr-lista" style="height:260px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:4px"></div>
@@ -390,9 +390,9 @@ thead th .f-inp-range span{font-size:10px;color:var(--text3);align-self:center;f
           </div>
           <div style="margin-top:8px;display:grid;grid-template-columns:1fr 1fr;gap:6px">
             <div class="field"><label>Peso totale (Kg)</label>
-              <input type="number" id="sr-peso" placeholder="0.00" step="0.01" min="0"></div>
+              <input type="number" id="sr-peso" placeholder="0.00" step="0.01" min="0" autocomplete="off"></div>
             <div class="field"><label>Note</label>
-              <input type="text" id="sr-note" placeholder="facoltativo"></div>
+              <input type="text" id="sr-note" placeholder="facoltativo" autocomplete="off"></div>
           </div>
           <button class="btn btn-green" onclick="aggRicambio()" style="width:100%;margin-top:8px;justify-content:center">+ Aggiungi selezionati</button>
         </div>
