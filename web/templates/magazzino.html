@@ -360,7 +360,7 @@
       <button class="btn btn-ghost" onclick="openModal('modal-colonne')" title="Gestisci colonne">⚙ Colonne</button>
       <button class="btn btn-ghost" onclick="stampaMagazzino()">🖨 Stampa</button>
       <button class="btn btn-ghost" id="btn-assistente"
-              onclick="openModal('modal-assistente')"
+              onclick="openAssistente()"
               style="background:#7c3aed;color:#fff;border-color:#7c3aed">
         🤖 Assistente
       </button>
@@ -626,8 +626,12 @@
           <div style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px">Pezzi fisici totali</div>
           <div id="res-pezzi" style="font-size:28px;font-weight:700;color:var(--blue)">—</div>
         </div>
-        <div style="background:var(--surface);border-radius:10px;padding:14px 16px;border:1px solid var(--border);grid-column:1/-1">
-          <div style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px">Valore stimato (su listino 1)</div>
+        <div style="background:var(--surface);border-radius:10px;padding:14px 16px;border:1px solid var(--border)">
+          <div style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px">Con foto</div>
+          <div id="res-foto" style="font-size:28px;font-weight:700;color:var(--blue)">—</div>
+        </div>
+        <div style="background:var(--surface);border-radius:10px;padding:14px 16px;border:1px solid var(--border)">
+          <div style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px">Valore stimato (€)</div>
           <div id="res-val" style="font-size:22px;font-weight:700;color:var(--text)">—</div>
         </div>
         <div style="background:var(--surface);border-radius:10px;padding:12px 16px;border:1px solid var(--border);grid-column:1/-1">
@@ -1467,6 +1471,14 @@ function openFormModifica() {
 async function salvaForm() {
   const dati = {};
   FORM_CAMPI.forEach(k=>{ const el=document.getElementById('f-'+k); dati[k]=el?el.value.trim():''; });
+  // Cattura dati PRECEDENTI prima della PUT (per undo)
+  const prevRowPre = _modifica ? _tutti.find(x=>x.componente_id===_selId) : null;
+  const prevDatiPre = prevRowPre ? {
+    nome: prevRowPre.articolo, marca: prevRowPre.marca, modello: prevRowPre.modello,
+    categoria: prevRowPre.categoria, scorta_minima: prevRowPre.scorta,
+    ubicazione: prevRowPre.ubicazione, note: prevRowPre.nota,
+  } : {};
+
   const res = _modifica
     ? await apiFetch(`/api/magazzino/componenti/${_selId}`,{method:'PUT',body:JSON.stringify(dati)})
     : await apiFetch('/api/magazzino/componenti',{method:'POST',body:JSON.stringify(dati)});
@@ -1475,9 +1487,9 @@ async function salvaForm() {
     await caricaDati();
     toast(res.msg);
     if(_modifica) {
-      // Undo: ripristina valori precedenti
-      const prevRow = _tutti.find(x=>x.componente_id===_selId);
-      const prevDati = prevRow ? {
+      // Undo: ripristina valori precedenti (già catturati prima della PUT)
+      const prevRow = prevRowPre;
+      const prevDati = prevDatiPre || {
         nome: prevRow.articolo, marca: prevRow.marca, modello: prevRow.modello,
         categoria: prevRow.categoria, scorta_minima: prevRow.scorta,
         ubicazione: prevRow.ubicazione, note: prevRow.nota,
@@ -1581,6 +1593,7 @@ async function showResoconto() {
   document.getElementById('res-pezzi').textContent = (s.pezzi_totali||0).toLocaleString('it-IT');
   document.getElementById('res-val').textContent   = (s.valore_stima||0) > 0
     ? '€ ' + parseFloat(s.valore_stima).toLocaleString('it-IT',{minimumFractionDigits:2}) : 'n/d (listini mancanti)';
+  document.getElementById('res-foto').textContent  = (s.con_foto||0).toLocaleString('it-IT');
   document.getElementById('res-mov').textContent   = (s.ultimo_movimento||'—').slice(0,19);
   openModal('modal-resoconto');
 }
@@ -2079,6 +2092,16 @@ let _riconoscimento = null;
 let _staRecordando  = false;
 let _voce_synth     = window.speechSynthesis;
 let _chat_aperta    = false;
+
+function openAssistente() {
+  // Reset chat se vuota
+  const msgs = document.getElementById('chat-messages');
+  if(msgs && msgs.children.length === 0) {
+    aggiungiMessaggio('Ciao! Sono PERI, il tuo assistente PerilCar. Puoi chiedermi informazioni sui pezzi in magazzino: quantità, disponibilità, ubicazione e altro. Come posso aiutarti?', 'ai');
+  }
+  openModal('modal-assistente');
+  setTimeout(()=>{ const inp=document.getElementById('chat-input'); if(inp) inp.focus(); }, 100);
+}
 
 function closeAssistente() {
   closeModal('modal-assistente');

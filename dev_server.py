@@ -661,11 +661,13 @@ def api_stats():
     val= db.fetchone("""SELECT COALESCE(SUM(v.esistenza * COALESCE(c.listino1,0)),0) AS n
                          FROM v_giacenza v JOIN componenti c ON c.id=v.componente_id
                          WHERE v.esistenza>0 AND c.listino1>0""")
+    foto = db.fetchone("SELECT COUNT(*) AS n FROM componenti WHERE immagine_path IS NOT NULL AND immagine_path!='' AND eliminato=0")
     return jsonify({"totale_componenti": t["n"] if t else 0,
                     "sotto_scorta": s["n"] if s else 0,
                     "ultimo_movimento": u["creato_il"] if u else "—",
                     "pezzi_totali": pz["n"] if pz else 0,
-                    "valore_stima": round(float(val["n"]) if val else 0, 2)})
+                    "valore_stima": round(float(val["n"]) if val else 0, 2),
+                    "con_foto": foto["n"] if foto else 0})
 
 @app.route("/api/backup", methods=["POST"])
 @require_login
@@ -906,9 +908,9 @@ def api_export_excel():
                 paths = [p for p in (r.get("files_path") or "").split("|") if p]
                 if not paths and r.get("immagine_path"):
                     paths = [r.get("immagine_path")]
-                cell = ws.cell(row=ri, column=ci, value="")
-                cell.border    = border
-                cell.alignment = center
+                foto_cell = ws.cell(row=ri, column=ci, value="")
+                foto_cell.border    = border
+                foto_cell.alignment = center
                 if paths:
                     # Inserisci immagine
                     img_url = paths[0]

@@ -180,6 +180,7 @@
 
     <button class="btn btn-ghost" onclick="clearAllFilters()">✕ Pulisci filtri</button>
     <button class="btn btn-ghost" onclick="stampa()">🖨 Stampa</button>
+    <button class="btn btn-ghost" onclick="exportCSV()">📥 Export CSV</button>
     <button class="btn btn-ghost" onclick="caricaDati()">🔄 Aggiorna</button>
   </div>
 
@@ -187,6 +188,9 @@
   <div class="status-bar">
     <span id="s-period">Tutti i movimenti</span>
     <span id="s-count"></span>
+    <span id="btn-back-comp" style="display:none">
+      <a href="/magazzino" style="font-size:11px;color:var(--blue);text-decoration:none;font-weight:600">← Torna al magazzino</a>
+    </span>
     <span id="s-vis" style="color:var(--blue)"></span>
     <span id="s-filtri" style="color:var(--orange)"></span>
   </div>
@@ -300,6 +304,13 @@ const OVERSCAN = 20;
 let _scrollTop = 0;
 
 // ── UTILS ────────────────────────────────────────────────────────────
+function toast(msg, ok=true) {
+  const t = document.createElement('div');
+  t.style.cssText = 'position:fixed;bottom:16px;right:16px;z-index:9999;padding:8px 14px;border-radius:8px;font-size:12px;font-weight:600;box-shadow:0 2px 12px rgba(0,0,0,.15);'+(ok?'background:#fff;color:#16a34a;border:1px solid #bbf7d0':'background:#fff;color:#dc2626;border:1px solid #fca5a5');
+  t.textContent = msg; document.body.appendChild(t);
+  setTimeout(()=>t.remove(), 3000);
+}
+
 async function apiFetch(url, opts={}) {
   opts.headers = {'Content-Type':'application/json',...(opts.headers||{})};
   const r = await fetch(url, opts); return r.json();
@@ -543,6 +554,33 @@ function updateStatus() {
 }
 
 // ── STAMPA ────────────────────────────────────────────────────────────
+function exportCSV() {
+  if(!_filt.length){ alert('Nessun dato da esportare'); return; }
+  const cols = [
+    ['Data','creato_il'],['Codice','cmp'],['Descrizione','articolo'],
+    ['Produttore','produttore'],['Categoria','categoria'],['Tipo','tipo'],
+    ['Quantità','quantita'],['Q.Prima','quantita_prima'],['Q.Dopo','quantita_dopo'],
+    ['Delta','delta'],['Riferimento','riferimento'],['Note','note'],['Utente','username']
+  ];
+  const header = cols.map(c=>'"'+c[0]+'"').join(';');
+  const rows   = _filt.map(m =>
+    cols.map(([,k]) => {
+      const v = k==='delta' ? (m.delta??0) : (m[k]??'');
+      return '"'+String(v).replace(/"/g,'""')+'"';
+    }).join(';')
+  );
+  const csv  = '﻿' + header + '
+' + rows.join('
+'); // BOM per Excel italiano
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8'});
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = 'storico_movimenti.csv';
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+  toast && toast('📥 CSV esportato ('+_filt.length+' righe)', true);
+}
+
 function stampa() {
   const periodo = document.getElementById('s-period').textContent;
   const w = window.open('','_blank');
@@ -592,6 +630,8 @@ resizeObs.observe(document.getElementById('tbl-body'));
 
 // Se arrivato da magazzino con ?comp=X
 if(_urlComp) {
+  const backBtn = document.getElementById('btn-back-comp');
+  if(backBtn) backBtn.style.display='inline';
   document.getElementById('s-period').textContent = `Movimenti componente #${_urlComp}`;
   document.getElementById('btn-tutti').classList.remove('active');
 }
