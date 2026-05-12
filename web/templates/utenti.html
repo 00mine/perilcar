@@ -159,9 +159,12 @@ function toast(msg, ok=true){
 async function logout(){ await apiFetch('/api/logout',{method:'POST'}); window.location.href='/login'; }
 
 async function caricaUtenti(){
-  const rows = await apiFetch('/api/utenti');
+  let rows;
+  try { rows = await apiFetch('/api/utenti'); }
+  catch(e){ div.innerHTML='<div style="text-align:center;padding:20px;color:var(--red)">Errore caricamento: '+e.message+'</div>'; return; }
+  if(!Array.isArray(rows)){ div.innerHTML='<div style="text-align:center;padding:20px;color:var(--red)">Errore: '+(rows.msg||'risposta non valida')+'</div>'; return; }
   const tbody = document.getElementById('tbl-body');
-  if(!rows.length){ tbody.innerHTML='<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text3)">Nessun utente</td></tr>'; return; }
+  if(!Array.isArray(rows)||!rows.length){ tbody.innerHTML='<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text3)">Nessun utente trovato</td></tr>'; return; }
   tbody.innerHTML = rows.map(u => `<tr>
     <td><b style="font-family:var(--mono)">${esc(u.username)}</b></td>
     <td>${esc(u.nome_completo||'—')}</td>
@@ -222,7 +225,7 @@ async function salvaUtente(){
     const nome     = document.getElementById('m-nome').value.trim();
     if(!username||!password){ err.textContent='Username e password obbligatori'; return; }
     const res = await apiFetch('/api/utenti',{method:'POST',body:JSON.stringify({username,password,ruolo,nome_completo:nome})});
-    if(res.ok){ chiudiModal(); toast(res.msg); caricaUtenti(); }
+    if(res.ok){ chiudiModal(); toast(res.msg); setTimeout(caricaUtenti, 300); }
     else err.textContent = res.msg;
   } else {
     // MODIFICA

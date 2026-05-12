@@ -1902,14 +1902,19 @@ def page_utenti():
 @require_admin
 def api_utenti_lista():
     try:
-        _ucols = [r[1] for r in db.fetchall("PRAGMA table_info(utenti)")]
-        _sel = "id,username,ruolo,attivo,creato_il"
-        if "nome_completo" in _ucols: _sel = "id,username,nome_completo,ruolo,attivo,creato_il"
-        _where = "WHERE eliminato=0" if "eliminato" in _ucols else "WHERE 1=1"
-        rows = db.fetchall(f"SELECT {_sel} FROM utenti {_where} ORDER BY username")
-    except Exception:
-        rows = db.fetchall("SELECT id,username,ruolo,attivo FROM utenti ORDER BY username")
-    return jsonify(rows)
+        ucols = [r["name"] for r in db.fetchall("PRAGMA table_info(utenti)")]
+        sel   = "id,username,ruolo,attivo,creato_il"
+        if "nome_completo" in ucols: sel += ",nome_completo"
+        where = "WHERE eliminato=0" if "eliminato" in ucols else ""
+        rows  = db.fetchall(f"SELECT {sel} FROM utenti {where} ORDER BY username")
+        # Normalizza: aggiungi nome_completo se manca
+        for r in rows:
+            if "nome_completo" not in r.keys():
+                r = dict(r); r["nome_completo"] = ""
+        return jsonify([dict(r) for r in rows])
+    except Exception as e:
+        log.warning(f"api_utenti_lista error: {e}")
+        return jsonify({"ok": False, "msg": str(e)}), 500
 
 @app.route("/api/utenti", methods=["POST"])
 @require_admin
