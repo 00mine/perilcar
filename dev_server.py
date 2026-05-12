@@ -882,12 +882,54 @@ def api_export_excel():
 
     NUM_KEYS = {"esistenza","scorta","listino1","listino2","listino3",
                 "prezzo_forn","ord_multipli","gg_ordine","anno_da","anno_a"}
+
+    # Indice colonna files_path
+    foto_col = next((c for c,(l,k,w) in enumerate(cols) if k=="files_path"), None)
+
     for ri, r in enumerate(rows):
         fmt = cell if ri%2==0 else alt
+        ws.set_row(ri+1, 60)  # altezza riga 60pt per le foto
         for c, (_,key,_) in enumerate(cols):
-            val = r.get(key) or ""
-            if val == "" and key in NUM_KEYS: val = 0
-            ws.write(ri+1, c, val, num if key in NUM_KEYS else fmt)
+            if key == "files_path":
+                # Inserisci immagini fisicamente nel file
+                paths = [p for p in (r.get("files_path") or "").split("|") if p]
+                if not paths and r.get("immagine_path"):
+                    paths = [r.get("immagine_path")]
+                if paths:
+                    # Prova a inserire la prima immagine valida
+                    inserted = False
+                    for img_url in paths[:1]:  # solo prima foto nella cella
+                        # Converti URL relativo in path fisico
+                        if img_url.startswith("/static/uploads/"):
+                            img_path = ROOT / "web" / img_url.lstrip("/")
+                        elif img_url.startswith("/uploads/"):
+                            img_path = ROOT / "web" / "static" / img_url.lstrip("/")
+                        else:
+                            img_path = None
+                        if img_path and img_path.exists():
+                            try:
+                                ws.insert_image(ri+1, c, str(img_path), {
+                                    "x_scale": 0.15, "y_scale": 0.15,
+                                    "x_offset": 2, "y_offset": 2,
+                                    "url": f"http://localhost:5000{img_url}"
+                                })
+                                inserted = True
+                            except Exception:
+                                pass
+                        if inserted: break
+                    if not inserted:
+                        # Fallback: scrivi URL come testo cliccabile
+                        url = f"http://localhost:5000{paths[0]}" if paths else ""
+                        if url:
+                            ws.write_url(ri+1, c, url, fmt, "📷 Vedi foto")
+                        else:
+                            ws.write(ri+1, c, "", fmt)
+                else:
+                    ws.write(ri+1, c, "", fmt)
+            else:
+                val = r.get(key) or ""
+                if val == "" and key in NUM_KEYS: val = 0
+                ws.write(ri+1, c, val, num if key in NUM_KEYS else fmt)
 
     wb.close(); buf.seek(0)
     return send_file(buf,
