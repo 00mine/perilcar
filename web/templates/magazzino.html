@@ -1489,11 +1489,11 @@ async function salvaForm() {
     if(_modifica) {
       // Undo: ripristina valori precedenti (già catturati prima della PUT)
       const prevRow = prevRowPre;
-      const prevDati = prevDatiPre || {
+      const prevDati = prevDatiPre || (prevRow ? {
         nome: prevRow.articolo, marca: prevRow.marca, modello: prevRow.modello,
         categoria: prevRow.categoria, scorta_minima: prevRow.scorta,
         ubicazione: prevRow.ubicazione, note: prevRow.nota,
-      } : {};
+      } : {});
       pushUndo({
         label: 'Modifica ' + (dati.nome||_selId),
         undo: { url: '/api/magazzino/componenti/'+_selId, method: 'PUT', body: prevDati },
