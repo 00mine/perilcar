@@ -900,22 +900,25 @@ def api_export_excel():
                     inserted = False
                     for img_url in paths[:1]:  # solo prima foto nella cella
                         # Converti URL relativo in path fisico
-                        if img_url.startswith("/static/uploads/"):
-                            img_path = ROOT / "web" / img_url.lstrip("/")
+                        # Ricostruisci path fisico dalla URL relativa
+                        img_path = None
+                        if img_url.startswith("/static/"):
+                            img_path = ROOT / "web" / img_url[1:]  # es: web/static/uploads/foto.jpg
                         elif img_url.startswith("/uploads/"):
-                            img_path = ROOT / "web" / "static" / img_url.lstrip("/")
-                        else:
-                            img_path = None
+                            img_path = UPLOAD_FOLDER / img_url.split("/")[-1]
+                        # Log per debug
+                        log.info(f"Export foto: url={img_url} path={img_path} exists={img_path.exists() if img_path else False}")
                         if img_path and img_path.exists():
                             try:
                                 ws.insert_image(ri+1, c, str(img_path), {
-                                    "x_scale": 0.15, "y_scale": 0.15,
+                                    "x_scale": 0.8, "y_scale": 0.8,
                                     "x_offset": 2, "y_offset": 2,
+                                    "positioning": 1,
                                     "url": f"http://localhost:5000{img_url}"
                                 })
                                 inserted = True
-                            except Exception:
-                                pass
+                            except Exception as _ie:
+                                log.warning(f"insert_image fallito per {img_path}: {_ie}")
                         if inserted: break
                     if not inserted:
                         # Fallback: scrivi URL come testo cliccabile
