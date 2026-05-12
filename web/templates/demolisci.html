@@ -351,7 +351,7 @@ function renderTabella() {
         +'<span>%</span></div></td>'
       +'<td class="ta-right" id="calc-'+r.id+'" style="font-family:var(--mono);color:var(--text2)">'
         +(qtaCalc>0 ? fmt(qtaCalc) : '&mdash;')+'</td>'
-      +'<td><input type="number" value="'+(r.qtaSmaltire!==''&&r.qtaSmaltire!==undefined ? r.qtaSmaltire : (qtaCalc>0?fmt(qtaCalc):''))+'" placeholder="0.00" step="0.01" min="0"'
+      +'<td><input type="number" value="'+(r.qtaSmaltire!==''&&r.qtaSmaltire!==undefined ? r.qtaSmaltire : (qtaCalc>0?qtaCalc.toFixed(2):''))+'" placeholder="0.00" step="0.01" min="0"'
         +' oninput="aggiornaCampo('+r.id+',\'qtaSmaltire\',this.value); aggiornaTotale()"></td>'
       
       +'<td><input type="text" value="'+esc(r.pericolosita||_leggiPericolosita(r.codice))+'" placeholder="es. HP14"'
@@ -512,18 +512,43 @@ function stampa() {
     + ' AL ' + fmtData(ultima.data_presa_in_carico)
     + ' DEL NUMERO PROGRESSIVO ' + (ultima.pag_reg||'—');
 
+  // Sincronizza valori DOM->array prima di stampare
+  _righe.forEach(function(r){
+    var tr = document.getElementById('tr-'+r.id);
+    if(!tr) return;
+    tr.querySelectorAll('input[type=number][step="0.01"]').forEach(function(inp){
+      if(inp.placeholder==='0.00') r.qtaSmaltire = inp.value;
+    });
+    tr.querySelectorAll('input[placeholder="es. HP14"]').forEach(function(inp){
+      r.pericolosita = inp.value;
+      if(inp.value && r.codice) _salvaPericByRiga(r);
+    });
+    tr.querySelectorAll('input[placeholder="es. 547"]').forEach(function(inp){
+      r.albatros = inp.value;
+    });
+  });
   var righeValide = _righe.filter(function(r){ return r.descrizione; });
   var righeHtml = righeValide.map(function(r){
+    var pN = parseFloat((_payload&&_payload.pesoNettoTot)||0);
+    var qC = (parseFloat(r.percentuale)||0)>0 ? (pN*(parseFloat(r.percentuale)||0)/100) : 0;
+    var qOut = (r.qtaSmaltire!==''&&r.qtaSmaltire!=null&&r.qtaSmaltire!==undefined)
+      ? parseFloat(r.qtaSmaltire).toFixed(2) : (qC>0?qC.toFixed(2):'');
+    var peric = r.pericolosita || _leggiPericolosita(r.codice);
     return '<tr>'
       +'<td>'+esc(r.descrizione)+'</td>'
       +'<td style="text-align:center;font-weight:700">'+esc(r.codice)+'</td>'
-      +'<td style="text-align:right">'+(r.qtaSmaltire?parseFloat(r.qtaSmaltire).toFixed(2):'')+'</td>'
-      +'<td style="text-align:center">'+esc(r.pericolosita||'')+'</td>'
+      +'<td style="text-align:right">'+qOut+'</td>'
+      +'<td style="text-align:center">'+esc(peric)+'</td>'
       +'<td style="text-align:center">'+esc(r.albatros||'')+'</td>'
       +'</tr>';
   }).join('');
 
-  var totSmalt = _righe.reduce(function(s,r){ return s+(parseFloat(r.qtaSmaltire)||0); },0);
+  var totSmalt = _righe.reduce(function(s,r){
+    var pN2 = parseFloat((_payload&&_payload.pesoNettoTot)||0);
+    var qC2 = (parseFloat(r.percentuale)||0)>0?(pN2*(parseFloat(r.percentuale)||0)/100):0;
+    var q = (r.qtaSmaltire!==''&&r.qtaSmaltire!=null)?parseFloat(r.qtaSmaltire):qC2;
+    return s+(q||0);
+  },0);
 
   var html = '<!DOCTYPE html><html><head><meta charset="UTF-8">'
     +'<style>'
