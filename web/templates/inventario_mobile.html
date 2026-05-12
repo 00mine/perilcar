@@ -195,6 +195,8 @@ async function api(url,opts){
 }
 
 async function init(){
+  avviaPing(); // ping ogni 5s per rilevare connessione al server
+  await new Promise(function(r){setTimeout(r,700);}); // aspetta primo ping
   aggiornaNetBar();
   if(!_sessId){ await mostraListaSessioni(); return; }
 
@@ -701,7 +703,8 @@ function toggleCampo(key, attivo){
 // SISTEMA OFFLINE — coda locale con localStorage
 // ══════════════════════════════════════════════════════════════════════
 
-var _isOnline    = navigator.onLine;
+var _isOnline    = false; // True solo se il server è raggiungibile
+var _pingInterval = null;
 var _syncInCorso = false;
 var CODA_KEY     = 'inv_coda_' + (_sessId || 'x');
 
@@ -964,21 +967,34 @@ async function uploadFoto(file, nome, id, rigaId){
   }
 }
 
-// ── Listener rete ─────────────────────────────────────────────────────
-window.addEventListener('online', function(){
-  _isOnline = true;
-  aggiornaNetBar();
-  // Mostra notifica se ci sono operazioni in coda
-  var n = codaLeggi().length;
-  if(n > 0) toast('🟢 Tornato online — '+n+' operazioni in coda. Premi Sincronizza.','warn');
-  else toast('🟢 Tornato online','ok');
-});
 
-window.addEventListener('offline', function(){
-  _isOnline = false;
+// ── Connettività basata su ping al server ────────────────────────────
+async function pingServer(){
+  try{
+    var controller = new AbortController();
+    var tid = setTimeout(function(){ controller.abort(); }, 2000);
+    var r = await fetch("/api/ping", {cache:"no-cache", signal:controller.signal});
+    clearTimeout(tid);
+    var wasOffline = !_isOnline;
+    _isOnline = r.ok;
+    if(wasOffline && _isOnline){
+      aggiornaNetBar();
+      var n = codaLeggi().length;
+      if(n>0) toast("🟢 Server raggiunto — "+n+" operazioni in coda","warn");
+      else toast("🟢 Connesso al server","ok");
+    }
+  }catch(e){
+    var wasOnline = _isOnline;
+    _isOnline = false;
+    if(wasOnline){ aggiornaNetBar(); toast("🔴 Server non raggiungibile","warn"); }
+  }
   aggiornaNetBar();
-  toast('🔴 Connessione persa — continuo in modalità offline','warn');
-});
+}
+
+function avviaPing(){
+  pingServer();
+  _pingInterval = setInterval(pingServer, 5000);
+}
 
 init();
 </script>
