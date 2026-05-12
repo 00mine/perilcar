@@ -1990,16 +1990,19 @@ def api_utenti_modifica(uid):
         return jsonify({"ok": True, "msg": "Utente aggiornato"})
     except Exception as e:
         return jsonify({"ok": False, "msg": str(e)}), 500
-
 @app.route("/api/utenti/<int:uid>", methods=["DELETE"])
 @require_admin
 def api_utenti_elimina(uid):
     if uid == cu().get("id"):
         return jsonify({"ok": False, "msg": "Non puoi eliminare te stesso"}), 400
     try:
-        db_write([("UPDATE utenti SET eliminato=1 WHERE id=?", (uid,)),
-                  ("INSERT INTO log_operazioni(utente_id,username,modulo,azione,tabella,record_id) VALUES(?,?,?,?,?,?)",
-                   (cu().get("id"), cu().get("username"), "UTENTI", "ELIMINA", "utenti", uid))])
+        ucols_e = [r[1] for r in db.fetchall("PRAGMA table_info(utenti)")]
+        if "eliminato" in ucols_e:
+            db_write([("UPDATE utenti SET eliminato=1 WHERE id=?", (uid,)),
+                      ("INSERT INTO log_operazioni(utente_id,username,modulo,azione,tabella,record_id) VALUES(?,?,?,?,?,?)",
+                       (cu().get("id"), cu().get("username"), "UTENTI", "ELIMINA", "utenti", uid))])
+        else:
+            db_write([("DELETE FROM utenti WHERE id=?", (uid,))])
         return jsonify({"ok": True, "msg": "Utente eliminato"})
     except Exception as e:
         return jsonify({"ok": False, "msg": str(e)}), 500
