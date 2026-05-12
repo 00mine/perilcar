@@ -71,6 +71,9 @@ textarea:focus{border-color:var(--orange)}
 .s-sub{font-size:14px;color:var(--text2);line-height:1.5;max-width:280px}
 .sess-card{background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;border:2px solid var(--border);cursor:pointer;-webkit-tap-highlight-color:transparent}
 .sess-card:active{background:#fff8f5;border-color:var(--orange)}
+#net-bar.online{background:#16a34a;color:#fff}
+#net-bar.offline{background:#dc2626;color:#fff}
+#net-bar.pending{background:#d97706;color:#fff}
 .spinner{width:36px;height:36px;border:4px solid var(--border);border-top-color:var(--orange);border-radius:50%;animation:spin .7s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 .toast{position:fixed;top:80px;left:50%;transform:translateX(-50%);z-index:999;padding:10px 20px;border-radius:30px;font-weight:700;white-space:nowrap;box-shadow:0 4px 20px rgba(0,0,0,.2);font-size:14px;pointer-events:none}
@@ -119,6 +122,16 @@ input:checked+.toggle-slider:before{transform:translateX(18px)}
   <div class="stat"><div class="stat-n" id="s-risc">0</div><div class="stat-l">⏳ Risc.</div></div>
   <div class="stat"><div class="stat-n" id="s-tot">0</div><div class="stat-l">📦 Tot.</div></div>
 </div>
+
+<!-- BARRA STATO RETE -->
+<div id="net-bar" style="display:none;padding:8px 14px;display:flex;align-items:center;justify-content:space-between;font-size:12px;font-weight:700;flex-shrink:0">
+  <span id="net-label">🟢 Online</span>
+  <div style="display:flex;align-items:center;gap:8px">
+    <span id="net-queue" style="display:none;background:rgba(255,255,255,.3);padding:2px 8px;border-radius:20px;font-size:11px"></span>
+    <button id="btn-sync" onclick="sincronizzaOra()" style="display:none;padding:5px 12px;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;background:#fff;color:#d97706">↑ Sincronizza ora</button>
+  </div>
+</div>
+
 <div class="scroll" id="scroll-area">
   <div class="schermata"><div class="spinner"></div></div>
 </div>
@@ -398,46 +411,7 @@ function aggiungiAnteprima(id, url){
   grid.appendChild(wrap);
 }
 
-async function uploadFoto(file, nome, id, rigaId){
-  if(!rigaId){ toast('Nessun pezzo selezionato','err'); return; }
-  try{
-    var fd = new FormData();
-    fd.append('file', file, nome);
-    var r   = await fetch('/api/inventario/righe/'+rigaId+'/foto', {method:'POST', body:fd});
-    var res = await r.json();
-    // Aggiorna UI
-    var imgEl  = document.getElementById('img-'+id);
-    var spinEl = document.getElementById('spin-'+id);
-    var wrapEl = document.getElementById('wrap-'+id);
-    if(res.ok){
-      // Foto caricata: verde, rimuovi spinner
-      if(imgEl){ imgEl.style.opacity='1'; imgEl.src=res.url; }
-      if(spinEl) spinEl.remove();
-      // Segna come caricata e aggiungi tasto elimina
-      _fotoNuove.forEach(function(f){ if(f.id===id){ f.caricata=true; f.url=res.url; } });
-      if(wrapEl){
-        var del = document.createElement('div');
-        del.className = 'foto-del';
-        del.textContent = '×';
-        del.onclick = function(){
-          _fotoNuove = _fotoNuove.filter(function(f){return f.id!==id;});
-          wrapEl.remove();
-          updFotoCount();
-        };
-        wrapEl.appendChild(del);
-      }
-      toast('✅ Foto salvata!','ok');
-    } else {
-      // Errore: mostra X rosso
-      if(spinEl) spinEl.textContent = '❌';
-      toast('Errore upload: '+(res.msg||''),'err');
-    }
-  }catch(e){
-    var spinEl = document.getElementById('spin-'+id);
-    if(spinEl) spinEl.textContent = '❌';
-    toast('Errore: '+e.message,'err');
-  }
-}
+
 
 function updFotoCount(){
   var el = document.getElementById('foto-count');
@@ -447,50 +421,9 @@ function updFotoCount(){
   el.textContent = c+'/'+n+' foto salvate';
 }
 
-async function azioneConferma(){
-  if(!_riga)return;
-  var btn=document.getElementById('btn-conf');
-  var lbl=document.getElementById('btn-conf-lbl');
-  btn.classList.add('busy');lbl.textContent='Salvataggio...';
-  var note=(document.getElementById('note-inp')||{}).value||'';
-  var ubicazione=(document.getElementById('ubicazione-inp')||{}).value||'';
 
-  // Le foto sono già state caricate in automatico al momento dello scatto
-  // Non serve fare nulla qui
 
-  // Aggiorna riga
-  // Salva ubicazione sul componente se modificata
-  if(ubicazione && ubicazione !== (_riga.ubicazione||'')) {
-    try{
-      await api('/api/magazzino/componenti/'+_riga.componente_id,{
-        method:'PUT',
-        body:JSON.stringify({ubicazione:ubicazione})
-      });
-    }catch(e){console.warn('Ubicazione non salvata',e);}
-  }
 
-  var res=await api('/api/inventario/righe/'+_riga.id,{
-    method:'PUT',
-    body:JSON.stringify({stato:'confermato',qty_trovata:_qty,note:note})
-  });
-
-  btn.classList.remove('busy');lbl.textContent='Conferma';
-  if(res.ok){
-    // Pulisci le foto salvate per questo pezzo
-    try{localStorage.removeItem('inv_foto_'+_sessId+'_'+_riga.id);}catch(e){}
-    await aggStats();setTimeout(prossimoP,300);
-  }
-  else toast(res.msg||'Errore','err');
-}
-
-async function azioneRimanda(){
-  if(!_riga)return;
-  var res=await api('/api/inventario/righe/'+_riga.id,{
-    method:'PUT',body:JSON.stringify({stato:'rimandato',qty_trovata:_qty})
-  });
-  if(res.ok){await aggStats();setTimeout(prossimoP,300);}
-  else toast(res.msg||'Errore','err');
-}
 
 function mostraScherm(ico,titolo,sub){
   document.getElementById('scroll-area').innerHTML='<div class="schermata"><div class="s-ico">'+ico+'</div><div class="s-titolo">'+esc(titolo)+'</div><div class="s-sub">'+esc(sub)+'</div></div>';
@@ -633,6 +566,271 @@ function toggleCampo(key, attivo){
   if(attivo){ if(!_campiAttivi.includes(key)) _campiAttivi.push(key); }
   else { _campiAttivi = _campiAttivi.filter(function(k){return k!==key;}); }
 }
+
+
+// ══════════════════════════════════════════════════════════════════════
+// SISTEMA OFFLINE — coda locale con localStorage
+// ══════════════════════════════════════════════════════════════════════
+
+var _isOnline    = navigator.onLine;
+var _syncInCorso = false;
+var CODA_KEY     = 'inv_coda_' + (_sessId || 'x');
+
+// ── Coda operazioni ───────────────────────────────────────────────────
+function codaLeggi(){
+  try{ return JSON.parse(localStorage.getItem(CODA_KEY)||'[]'); }
+  catch(e){ return []; }
+}
+function codaScrivi(coda){
+  try{ localStorage.setItem(CODA_KEY, JSON.stringify(coda)); }
+  catch(e){ console.warn('localStorage pieno:', e); }
+}
+function codaAggiungi(op){
+  var coda = codaLeggi();
+  coda.push({...op, ts: Date.now()});
+  codaScrivi(coda);
+  aggiornaNetBar();
+}
+function codaRimuovi(ts){
+  var coda = codaLeggi().filter(function(o){ return o.ts !== ts; });
+  codaScrivi(coda);
+  aggiornaNetBar();
+}
+
+// ── UI barra rete ─────────────────────────────────────────────────────
+function aggiornaNetBar(){
+  var bar    = document.getElementById('net-bar');
+  var label  = document.getElementById('net-label');
+  var queue  = document.getElementById('net-queue');
+  var btnSync= document.getElementById('btn-sync');
+  if(!bar) return;
+
+  var coda = codaLeggi();
+  var n    = coda.length;
+
+  bar.style.display = 'flex';
+
+  if(!_isOnline){
+    bar.className = 'offline';
+    label.textContent = '🔴 Offline — le azioni vengono salvate in locale';
+    queue.style.display  = n>0 ? 'inline' : 'none';
+    queue.textContent    = n+' in coda';
+    btnSync.style.display= 'none';
+  } else if(n > 0){
+    bar.className = 'pending';
+    label.textContent = '🟡 Online — '+n+' operazioni da sincronizzare';
+    queue.style.display  = 'inline';
+    queue.textContent    = n+' in attesa';
+    btnSync.style.display= 'inline';
+  } else {
+    bar.className = 'online';
+    label.textContent = '🟢 Online';
+    queue.style.display  = 'none';
+    btnSync.style.display= 'none';
+  }
+}
+
+// ── Sincronizzazione ──────────────────────────────────────────────────
+async function sincronizzaOra(){
+  if(_syncInCorso || !_isOnline) return;
+  _syncInCorso = true;
+  var btnSync = document.getElementById('btn-sync');
+  if(btnSync) btnSync.textContent = '⏳ Sincronizzazione...';
+
+  var coda = codaLeggi();
+  var ok = 0, err = 0;
+
+  for(var i=0; i<coda.length; i++){
+    var op = coda[i];
+    try{
+      if(op.tipo === 'aggiorna_riga'){
+        var r = await fetch('/api/inventario/righe/'+op.rigaId, {
+          method:'PUT',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({stato:op.stato, qty_trovata:op.qty, note:op.note||''})
+        });
+        var res = await r.json();
+        if(res.ok){ codaRimuovi(op.ts); ok++; }
+        else { err++; console.warn('Sync errore:', res.msg); }
+
+      } else if(op.tipo === 'upload_foto'){
+        // Ricostruisci blob da base64
+        var mime = op.b64.split(';')[0].split(':')[1]||'image/jpeg';
+        var bin  = atob(op.b64.split(',')[1]);
+        var arr  = new Uint8Array(bin.length);
+        for(var j=0;j<bin.length;j++) arr[j]=bin.charCodeAt(j);
+        var blob = new Blob([arr],{type:mime});
+        var fd   = new FormData();
+        fd.append('file', blob, op.nome);
+        var r2 = await fetch('/api/inventario/righe/'+op.rigaId+'/foto', {method:'POST', body:fd});
+        var res2 = await r2.json();
+        if(res2.ok){ codaRimuovi(op.ts); ok++; }
+        else { err++; }
+      }
+    }catch(e){
+      err++;
+      console.warn('Sync op fallita:', e);
+    }
+  }
+
+  _syncInCorso = false;
+  aggiornaNetBar();
+
+  if(ok > 0 && err === 0){
+    toast('✅ Sincronizzazione completata ('+ok+' operazioni)', 'ok');
+    await aggStats();
+  } else if(err > 0){
+    toast('⚠️ '+ok+' OK, '+err+' errori — riprova', 'warn');
+  }
+}
+
+// ── Override azioni per supporto offline ─────────────────────────────
+// Sostituisce api() con versione offline-aware
+async function apiOffline(url, opts){
+  if(_isOnline){
+    return api(url, opts);
+  }
+  // Offline: simula risposta OK e salva in coda
+  return {ok: true, msg: 'Salvato offline', _offline: true};
+}
+
+// Versione offline di azioneConferma
+async function azioneConferma(){
+  if(!_riga) return;
+  var rigaId = _riga.id; // cattura subito
+  var btn    = document.getElementById('btn-conf');
+  var lbl    = document.getElementById('btn-conf-lbl');
+  btn.classList.add('busy'); lbl.textContent='Salvataggio...';
+  var note = (document.getElementById('note-inp')||{}).value||'';
+  var ubicazione = (document.getElementById('ubicazione-inp')||{}).value||'';
+
+  if(_isOnline){
+    // Upload foto già avvenuto in riceviFile, salva ubicazione se modificata
+    if(ubicazione && ubicazione !== (_riga.ubicazione||'')){
+      try{
+        await api('/api/magazzino/componenti/'+_riga.componente_id,{
+          method:'PUT', body:JSON.stringify({ubicazione:ubicazione})
+        });
+      }catch(e){}
+    }
+    var res = await api('/api/inventario/righe/'+rigaId,{
+      method:'PUT',
+      body:JSON.stringify({stato:'confermato', qty_trovata:_qty, note:note})
+    });
+    btn.classList.remove('busy'); lbl.textContent='Conferma';
+    if(res.ok){ await aggStats(); setTimeout(prossimoP,300); }
+    else toast(res.msg||'Errore','err');
+  } else {
+    // OFFLINE: salva in coda
+    codaAggiungi({tipo:'aggiorna_riga', rigaId:rigaId, stato:'confermato', qty:_qty, note:note});
+    // Salva anche le foto non ancora caricate
+    for(var i=0;i<_fotoNuove.length;i++){
+      var f = _fotoNuove[i];
+      if(!f.caricata){
+        // Converti blob in base64 per salvarla
+        await new Promise(function(resolve){
+          var reader = new FileReader();
+          reader.onload = function(e){
+            codaAggiungi({tipo:'upload_foto', rigaId:rigaId, b64:e.target.result, nome:f.nome});
+            resolve();
+          };
+          reader.readAsDataURL(f.file);
+        });
+      }
+    }
+    btn.classList.remove('busy'); lbl.textContent='Conferma';
+    toast('💾 Salvato offline — sync quando torni online','warn');
+    aggiornaNetBar();
+    setTimeout(prossimoP, 300);
+  }
+}
+
+async function azioneRimanda(){
+  if(!_riga) return;
+  var rigaId = _riga.id;
+  if(_isOnline){
+    var res = await api('/api/inventario/righe/'+rigaId,{
+      method:'PUT', body:JSON.stringify({stato:'rimandato', qty_trovata:_qty})
+    });
+    if(res.ok){ await aggStats(); setTimeout(prossimoP,300); }
+    else toast(res.msg||'Errore','err');
+  } else {
+    codaAggiungi({tipo:'aggiorna_riga', rigaId:rigaId, stato:'rimandato', qty:_qty});
+    toast('💾 Rimandato salvato offline','warn');
+    aggiornaNetBar();
+    setTimeout(prossimoP, 300);
+  }
+}
+
+// ── Upload foto offline-aware ─────────────────────────────────────────
+async function uploadFoto(file, nome, id, rigaId){
+  if(!rigaId){ toast('Nessun pezzo selezionato','err'); return; }
+  if(!_isOnline){
+    // Offline: segna come "da caricare" ma mostra anteprima
+    var imgEl  = document.getElementById('img-'+id);
+    var spinEl = document.getElementById('spin-'+id);
+    var wrapEl = document.getElementById('wrap-'+id);
+    if(spinEl) spinEl.textContent = '💾';
+    // Salveremo in coda al Conferma
+    _fotoNuove.forEach(function(f){ if(f.id===id){ f.caricata=false; } });
+    toast('📴 Foto salvata — si caricherà al sync','warn');
+    // Aggiungi tasto elimina
+    if(wrapEl && imgEl){
+      imgEl.style.opacity='0.7';
+      var del=document.createElement('div'); del.className='foto-del'; del.textContent='×';
+      del.onclick=function(){ _fotoNuove=_fotoNuove.filter(function(f){return f.id!==id;}); wrapEl.remove(); updFotoCount(); };
+      wrapEl.appendChild(del);
+    }
+    updFotoCount();
+    return;
+  }
+  // Online: upload normale
+  try{
+    var fd = new FormData(); fd.append('file', file, nome);
+    var r  = await fetch('/api/inventario/righe/'+rigaId+'/foto', {method:'POST', body:fd});
+    var res= await r.json();
+    var imgEl  = document.getElementById('img-'+id);
+    var spinEl = document.getElementById('spin-'+id);
+    var wrapEl = document.getElementById('wrap-'+id);
+    if(res.ok){
+      if(imgEl){ imgEl.style.opacity='1'; imgEl.src=res.url; }
+      if(spinEl) spinEl.remove();
+      _fotoNuove.forEach(function(f){ if(f.id===id){ f.caricata=true; f.url=res.url; } });
+      if(wrapEl){
+        var del=document.createElement('div'); del.className='foto-del'; del.textContent='×';
+        del.onclick=function(){
+          _fotoNuove=_fotoNuove.filter(function(f){return f.id!==id;});
+          wrapEl.remove(); updFotoCount();
+        };
+        wrapEl.appendChild(del);
+      }
+      toast('✅ Foto salvata!','ok');
+    } else {
+      if(spinEl) spinEl.textContent='❌';
+      toast('Errore: '+(res.msg||''),'err');
+    }
+  }catch(e){
+    var spinEl=document.getElementById('spin-'+id);
+    if(spinEl) spinEl.textContent='❌';
+    toast('Errore: '+e.message,'err');
+  }
+}
+
+// ── Listener rete ─────────────────────────────────────────────────────
+window.addEventListener('online', function(){
+  _isOnline = true;
+  aggiornaNetBar();
+  // Mostra notifica se ci sono operazioni in coda
+  var n = codaLeggi().length;
+  if(n > 0) toast('🟢 Tornato online — '+n+' operazioni in coda. Premi Sincronizza.','warn');
+  else toast('🟢 Tornato online','ok');
+});
+
+window.addEventListener('offline', function(){
+  _isOnline = false;
+  aggiornaNetBar();
+  toast('🔴 Connessione persa — continuo in modalità offline','warn');
+});
 
 init();
 </script>
