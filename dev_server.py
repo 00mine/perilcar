@@ -1905,7 +1905,7 @@ def api_utenti_lista():
         _ucols = [r[1] for r in db.fetchall("PRAGMA table_info(utenti)")]
         _sel = "id,username,ruolo,attivo,creato_il"
         if "nome_completo" in _ucols: _sel = "id,username,nome_completo,ruolo,attivo,creato_il"
-        _where = "WHERE eliminato=0" if "eliminato" in _ucols else ""
+        _where = "WHERE eliminato=0" if "eliminato" in _ucols else "WHERE 1=1"
         rows = db.fetchall(f"SELECT {_sel} FROM utenti {_where} ORDER BY username")
     except Exception:
         rows = db.fetchall("SELECT id,username,ruolo,attivo FROM utenti ORDER BY username")
@@ -1931,13 +1931,16 @@ def api_utenti_crea():
         with db._write_lock:
             conn = db.get_connection()
             try:
-                _ucols2 = [r[1] for r in conn.execute("PRAGMA table_info(utenti)").fetchall()]
-                if "nome_completo" in _ucols2 and "eliminato" in _ucols2:
-                    cur = conn.execute("INSERT INTO utenti(username,password_hash,ruolo,nome_completo,attivo,eliminato) VALUES(?,?,?,?,1,0)", (username,pwd_hash,ruolo,nome))
-                elif "nome_completo" in _ucols2:
-                    cur = conn.execute("INSERT INTO utenti(username,password_hash,ruolo,nome_completo,attivo) VALUES(?,?,?,?,1)", (username,pwd_hash,ruolo,nome))
-                else:
-                    cur = conn.execute("INSERT INTO utenti(username,password_hash,ruolo,attivo) VALUES(?,?,?,1)", (username,pwd_hash,ruolo))
+                # Adatta INSERT alle colonne disponibili
+                ucols2 = [r[1] for r in conn.execute("PRAGMA table_info(utenti)").fetchall()]
+                fields = ["username","password_hash","ruolo","attivo"]
+                values = [username, pwd_hash, ruolo, 1]
+                if "nome_completo" in ucols2 and nome:
+                    fields.append("nome_completo"); values.append(nome)
+                if "eliminato" in ucols2:
+                    fields.append("eliminato"); values.append(0)
+                sql = "INSERT INTO utenti("+",".join(fields)+") VALUES("+",".join(["?"]*len(fields))+")"
+                cur = conn.execute(sql, values)
                 uid = cur.lastrowid
                 conn.execute("INSERT INTO log_operazioni(utente_id,username,modulo,azione,tabella,record_id) VALUES(?,?,?,?,?,?)",
                     (cu().get("id"), cu().get("username"), "UTENTI", "CREA", "utenti", uid))
@@ -1958,6 +1961,12 @@ def api_utenti_modifica(uid):
     if "ruolo" in d:
         updates.append("ruolo=?"); vals.append(d["ruolo"])
     if "nome_completo" in d:
+        # Aggiungi colonna se non esiste
+        try:
+            ucols_m = [r[1] for r in db.fetchall("PRAGMA table_info(utenti)")]
+            if "nome_completo" not in ucols_m:
+                db_write([("ALTER TABLE utenti ADD COLUMN nome_completo TEXT", ())])
+        except: pass
         updates.append("nome_completo=?"); vals.append(d["nome_completo"])
     if "attivo" in d:
         updates.append("attivo=?"); vals.append(1 if d["attivo"] else 0)
