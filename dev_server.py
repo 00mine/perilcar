@@ -100,8 +100,10 @@ class _DemDB:
         );
         -- Voci default per ogni categoria
         INSERT OR IGNORE INTO voci_tendine(categoria,valore,ordine) VALUES
-            ('modalita','Rottamazione',1),('modalita','Demolizione',2),
-            ('modalita','Esportazione',3),('modalita','Furto',4),('modalita','Altro',5),
+            ('modalita','Cancellazione al PRA',1),
+            ('modalita','Solo presa in carico',2),
+            ('modalita','Radiazione targa e ciclomotore',3),
+            ('modalita','Solo radiazione ciclomotore',4),
             ('classe','Autovettura',1),('classe','Motoveicolo',2),('classe','Autocarro',3),
             ('classe','Rimorchio',4),('classe','Macchina agricola',5),('classe','Altro',6),
             ('concessionaria','',1);
