@@ -90,6 +90,22 @@ class _DemDB:
             componente_id INTEGER, peso_kg REAL, note TEXT, pezzo_nome TEXT,
             creato_il TEXT DEFAULT (datetime('now'))
         );
+        CREATE TABLE IF NOT EXISTS voci_tendine (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            categoria TEXT NOT NULL,
+            valore TEXT NOT NULL,
+            ordine INTEGER DEFAULT 0,
+            creato_il TEXT DEFAULT (datetime('now')),
+            UNIQUE(categoria, valore)
+        );
+        -- Voci default per ogni categoria
+        INSERT OR IGNORE INTO voci_tendine(categoria,valore,ordine) VALUES
+            ('modalita','Rottamazione',1),('modalita','Demolizione',2),
+            ('modalita','Esportazione',3),('modalita','Furto',4),('modalita','Altro',5),
+            ('classe','Autovettura',1),('classe','Motoveicolo',2),('classe','Autocarro',3),
+            ('classe','Rimorchio',4),('classe','Macchina agricola',5),('classe','Altro',6),
+            ('concessionaria','',1);
+
         CREATE TABLE IF NOT EXISTS schede_demolizione (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             dem_ids TEXT NOT NULL,
@@ -2404,6 +2420,33 @@ def service_worker():
     resp.headers["Service-Worker-Allowed"] = "/"
     resp.headers["Cache-Control"] = "no-cache"
     return resp
+
+# ══ VOCI TENDINE — voci personalizzabili nelle dropdown ═════════════════════
+@app.route("/api/voci-tendine/<categoria>")
+@require_login
+def api_voci_get(categoria):
+    rows = dem.all("SELECT id,valore FROM voci_tendine WHERE categoria=? AND valore!='' ORDER BY ordine,valore", (categoria,))
+    return jsonify(rows)
+
+@app.route("/api/voci-tendine/<categoria>", methods=["POST"])
+@require_login
+def api_voci_add(categoria):
+    d = request.json or {}
+    valore = (d.get("valore") or "").strip()
+    if not valore:
+        return jsonify({"ok": False, "msg": "Valore obbligatorio"}), 400
+    try:
+        dem.run("INSERT OR IGNORE INTO voci_tendine(categoria,valore) VALUES(?,?)", (categoria, valore))
+        row = dem.one("SELECT id FROM voci_tendine WHERE categoria=? AND valore=?", (categoria, valore))
+        return jsonify({"ok": True, "id": row["id"] if row else None, "valore": valore})
+    except Exception as e:
+        return jsonify({"ok": False, "msg": str(e)}), 500
+
+@app.route("/api/voci-tendine/<int:vid>", methods=["DELETE"])
+@require_login
+def api_voci_del(vid):
+    dem.run("DELETE FROM voci_tendine WHERE id=?", (vid,))
+    return jsonify({"ok": True})
 
 # HOT RELOAD
 # ══════════════════════════════════════════════════════════════════════════════

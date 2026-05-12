@@ -26,6 +26,11 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);font-size:13
 .user-chip{font-size:12px;color:var(--text2);background:var(--surface);border:1px solid var(--border);padding:4px 10px;border-radius:20px}
 .btn-logout{font-size:12px;padding:5px 12px;border-radius:6px;border:1px solid var(--border);background:#fff;color:var(--text2);cursor:pointer;font-family:var(--font)}
 .btn-logout:hover{background:#fee2e2;color:var(--red)}
+/* Select con pulsante + Nuovo */
+.sel-wrap{display:flex;gap:4px;align-items:center;width:100%}
+.sel-wrap select{flex:1;min-width:0}
+.btn-add-voce{flex-shrink:0;padding:0 8px;height:32px;border:1px solid var(--border);border-radius:6px;background:#fff;cursor:pointer;font-size:16px;color:var(--green);font-weight:700;line-height:1}
+.btn-add-voce:hover{background:#f0fdf4;border-color:var(--green)}
 .main{flex:1;overflow:hidden;display:flex;flex-direction:column;padding:10px 14px 6px;gap:8px}
 .title-row{display:flex;align-items:center;gap:10px;flex-shrink:0}
 .btn-back{width:32px;height:32px;border-radius:8px;border:1px solid var(--border);background:#fff;font-size:16px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;text-decoration:none;color:var(--text)}
@@ -193,10 +198,10 @@ thead th .f-inp-range span{font-size:10px;color:var(--text3);align-self:center;f
         <div class="rott-field"><label>Peso netto (da ricambi)</label>
           <div class="rott-kg"><span>Kg</span><input type="number" id="f-peso-netto" readonly style="color:var(--orange);font-weight:700" autocomplete="off"></div></div>
         <div class="rott-field"><label>Modalita' Radiazione</label>
-          <select id="f-modalita" autocomplete="off"><option value="">&#8212; seleziona &#8212;</option>
-            <option>Rottamazione</option><option>Demolizione</option>
-            <option>Esportazione</option><option>Furto</option><option>Altro</option>
-          </select></div>
+          <div class="sel-wrap">
+            <select id="f-modalita" autocomplete="off"><option value="">&#8212; seleziona &#8212;</option></select>
+            <button class="btn-add-voce" onclick="aggiungiVoce('modalita','f-modalita')" title="Aggiungi voce">＋</button>
+          </div></div>
       </div>
       <button class="btn-action btn-sottrai" onclick="apreSottrai()">Sottrai ricambi</button>
     </div>
@@ -262,16 +267,10 @@ thead th .f-inp-range span{font-size:10px;color:var(--text3);align-self:center;f
         <div class="field"><label>Targa</label><input type="text" id="v-targa" autocomplete="off"></div>
         <div class="field"><label>Telaio</label><input type="text" id="v-telaio" autocomplete="off"></div>
         <div class="field"><label>Classe</label>
-          <select id="v-classe" autocomplete="off"><option value="">&#8212; seleziona &#8212;</option>
-            <option>Autoveicolo</option><option>Motoveicolo</option><option>Ciclomotore</option>
-            <option>Rimorchio</option><option>Motociclo</option><option>Autocarro</option>
-            <option>Motocarro</option><option>Autovettura</option><option>Quadriciclo</option>
-            <option>Autoveicolo promiscuo</option><option>Autobus</option>
-            <option>Trattore stradale</option><option>Macchina semovente</option>
-            <option>Trattore</option><option>Trattore per semirimorchio</option>
-            <option>Macchina</option><option>Carrello elevatore</option>
-            <option>Autoveicolo speciale</option><option>Semirimorchio</option>
-          </select>
+          <div class="sel-wrap">
+            <select id="v-classe" autocomplete="off"><option value="">&#8212; seleziona &#8212;</option></select>
+            <button class="btn-add-voce" onclick="aggiungiVoce('classe','v-classe')" title="Aggiungi classe">＋</button>
+          </div>
         </div>
       </div>
       <div class="mg mg4" style="margin-bottom:10px">
@@ -410,6 +409,7 @@ thead th .f-inp-range span{font-size:10px;color:var(--text3);align-self:center;f
 
 <script>
 io().on('reload', function(){ setTimeout(function(){ window.location.reload(); }, 500); });
+caricaTutteLeVoci();
 
 var _tutti=[], _anagrafiche=[], _veicoli=[], _ricambi=[];
 var _selezionate={};  // {id: demolizione_obj}
