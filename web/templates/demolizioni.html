@@ -246,7 +246,7 @@ thead th .f-inp-range span{font-size:10px;color:var(--text3);align-self:center;f
     <th><input class="f-inp" id="tf-det" placeholder="nome..." oninput="filtraTabella()" autocomplete="off"></th>
     <th></th><th></th>
     <th><input class="f-inp" id="tf-modalita" placeholder="..." oninput="filtraTabella()" autocomplete="off"></th>
-    <th></th><th></th><th></th>
+    <th style="text-align:center"><label style="font-size:11px;font-weight:600;color:var(--text2);display:flex;align-items:center;justify-content:center;gap:4px;cursor:pointer"><input type="checkbox" id="tf-primo" onchange="filtraTabella()" style="width:14px;height:14px;cursor:pointer"><span>1°</span></label></th><th></th><th></th>
   </tr>
 </thead>
       <tbody id="tbody"></tbody>
@@ -850,6 +850,7 @@ function filtraTabella() {
   var tprop   = _v('tf-prop').toLowerCase();
   var tdet    = _v('tf-det').toLowerCase();
   var tmod    = _v('tf-modalita').toLowerCase();
+  var tprimo = document.getElementById('tf-primo') && document.getElementById('tf-primo').checked;
 
   var filtered = _tutti.filter(function(d) {
     if(tid    && !String(d.id).includes(tid)) return false;
@@ -871,6 +872,7 @@ function filtraTabella() {
     if(tprop && !(d.proprietario_str||'').toLowerCase().includes(tprop)) return false;
     if(tdet  && !(d.detentore_str||'').toLowerCase().includes(tdet)) return false;
     if(tmod  && !(d.modalita_radiazione||'').toLowerCase().includes(tmod)) return false;
+    if(tprimo && !d.primo_trattamento) return false;
     return true;
   });
   renderTabella(filtered);
