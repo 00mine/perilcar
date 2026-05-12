@@ -183,7 +183,7 @@ thead th .f-inp-range span{font-size:10px;color:var(--text3);align-self:center;f
       </div>
       <div class="f-row" style="grid-template-columns:100px 1fr auto">
         <div class="field"><label>Ufficio Prov.</label><input type="text" id="f-ufficio" placeholder="es. VI" oninput="filtra()" autocomplete="off"></div>
-        <div class="field"><label>Concessionaria</label><input type="text" id="f-conc" oninput="filtra()" autocomplete="off"></div>
+        <div class="field"><label>Concessionaria</label><select id="f-conc" onchange="filtra();onSelectConc(this);" autocomplete="off"><option value="">— seleziona —</option></select></div>
         <div style="display:flex;gap:10px;align-items:flex-end;padding-bottom:2px">
           <div class="check-pill"><input type="checkbox" id="f-targhe"><label for="f-targhe">Targhe</label></div>
           <div class="check-pill"><input type="checkbox" id="f-carta"><label for="f-carta">Carta circ.</label></div>
@@ -198,9 +198,7 @@ thead th .f-inp-range span{font-size:10px;color:var(--text3);align-self:center;f
         <div class="rott-field"><label>Peso netto (da ricambi)</label>
           <div class="rott-kg"><span>Kg</span><input type="number" id="f-peso-netto" readonly style="color:var(--orange);font-weight:700" autocomplete="off"></div></div>
         <div class="rott-field"><label>Modalita' Radiazione</label>
-          <div class="sel-wrap">
-            <select id="f-modalita" autocomplete="off"><option value="">&#8212; seleziona &#8212;</option></select>
-            <button class="btn-add-voce" onclick="aggiungiVoce('modalita','f-modalita')" title="Aggiungi voce">＋</button>
+          <select id="f-modalita" autocomplete="off" onchange="onSelectChange(this,'modalita')"><option value="">&#8212; seleziona &#8212;</option></select>
           </div></div>
       </div>
       <button class="btn-action btn-sottrai" onclick="apreSottrai()">Sottrai ricambi</button>
@@ -267,10 +265,7 @@ thead th .f-inp-range span{font-size:10px;color:var(--text3);align-self:center;f
         <div class="field"><label>Targa</label><input type="text" id="v-targa" autocomplete="off"></div>
         <div class="field"><label>Telaio</label><input type="text" id="v-telaio" autocomplete="off"></div>
         <div class="field"><label>Classe</label>
-          <div class="sel-wrap">
-            <select id="v-classe" autocomplete="off"><option value="">&#8212; seleziona &#8212;</option></select>
-            <button class="btn-add-voce" onclick="aggiungiVoce('classe','v-classe')" title="Aggiungi classe">＋</button>
-          </div>
+          <select id="v-classe" autocomplete="off" onchange="onSelectChange(this,'classe')"><option value="">&#8212; seleziona &#8212;</option></select>
         </div>
       </div>
       <div class="mg mg4" style="margin-bottom:10px">
@@ -409,6 +404,48 @@ thead th .f-inp-range span{font-size:10px;color:var(--text3);align-self:center;f
 
 <script>
 io().on('reload', function(){ setTimeout(function(){ window.location.reload(); }, 500); });
+// ══ VOCI TENDINE ═══════════════════════════════════════════════════
+async function caricaVoci(categoria, selectId){
+  try{
+    var rows = await (await fetch('/api/voci-tendine/'+categoria)).json();
+    var sel = document.getElementById(selectId);
+    if(!sel) return;
+    var cur = sel.value;
+    sel.innerHTML = '<option value="">— seleziona —</option>' +
+      rows.map(function(r){
+        return '<option value="'+r.valore+'"'+(r.valore===cur?' selected':'')+'>'+r.valore+'</option>';
+      }).join('') +
+      '<option value="__NUOVO__" style="color:#16a34a;font-weight:700">&#10133; Aggiungi nuovo...</option>';
+  }catch(e){ console.warn('caricaVoci:',e); }
+}
+
+async function onSelectChange(sel, categoria){
+  if(sel.value !== '__NUOVO__') return;
+  var label = {modalita:'Modalita radiazione',classe:'Classe veicolo',concessionaria:'Concessionaria'}[categoria]||categoria;
+  var nuova = prompt('Nuova voce per "'+label+'":');
+  sel.value = '';
+  if(!nuova||!nuova.trim()){ await caricaVoci(categoria,sel.id); return; }
+  nuova = nuova.trim();
+  try{
+    var res = await fetch('/api/voci-tendine/'+categoria,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({valore:nuova})});
+    var r = await res.json();
+    await caricaVoci(categoria, sel.id);
+    if(r.ok){ sel.value = nuova; }
+    else{ alert('Errore: '+(r.msg||'')); }
+  }catch(e){ alert('Errore: '+e.message); }
+}
+
+async function onSelectConc(sel){
+  if(sel.value==='__NUOVO__') await onSelectChange(sel,'concessionaria');
+  else filtra();
+}
+
+function caricaTutteLeVoci(){
+  caricaVoci('modalita','f-modalita');
+  caricaVoci('classe','v-classe');
+  caricaVoci('concessionaria','f-conc');
+}
+
 caricaTutteLeVoci();
 
 var _tutti=[], _anagrafiche=[], _veicoli=[], _ricambi=[];
