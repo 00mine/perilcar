@@ -296,7 +296,7 @@ async function init() {
       {codice:'160118', descrizione:'Metalli non ferrosi'}
     ];
     defaults.forEach(function(d){
-      _righe.push({id:_nextId++, codice:d.codice, descrizione:d.descrizione, percentuale:'', qtaSmaltire:'', destinazione:'', pericolosita:'', albatros:'', locked:true});
+      _righe.push({id:_nextId++, codice:d.codice, descrizione:d.descrizione, percentuale:'', qtaSmaltire:'', destinazione:'', pericolosita:_leggiPericolosita(d.codice), albatros:'', locked:true});
     });
   }
   renderTabella();
@@ -351,11 +351,11 @@ function renderTabella() {
         +'<span>%</span></div></td>'
       +'<td class="ta-right" id="calc-'+r.id+'" style="font-family:var(--mono);color:var(--text2)">'
         +(qtaCalc>0 ? fmt(qtaCalc) : '&mdash;')+'</td>'
-      +'<td><input type="number" value="'+(r.qtaSmaltire||'')+'" placeholder="0.00" step="0.01" min="0"'
+      +'<td><input type="number" value="'+(r.qtaSmaltire!==''&&r.qtaSmaltire!==undefined ? r.qtaSmaltire : (qtaCalc>0?fmt(qtaCalc):''))+'" placeholder="0.00" step="0.01" min="0"'
         +' oninput="aggiornaCampo('+r.id+',\'qtaSmaltire\',this.value); aggiornaTotale()"></td>'
       
-      +'<td><input type="text" value="'+esc(r.pericolosita||'')+'" placeholder="es. HP14"'
-        +' onchange="aggiornaCampo('+r.id+',\'pericolosita\',this.value)"></td>'
+      +'<td><input type="text" value="'+esc(r.pericolosita||_leggiPericolosita(r.codice))+'" placeholder="es. HP14"'
+        +' onchange="aggiornaCampo('+r.id+',\'pericolosita\',this.value); _salvaPericolosita('+r.id+')"></td>'
       +'<td class="ta-center"><input type="text" value="'+esc(r.albatros||'')+'" placeholder="es. 547"'
         +' style="text-align:center;font-family:var(--mono)" onchange="aggiornaCampo('+r.id+',\'albatros\',this.value)"></td>'
       +'<td class="ta-center"><div style="display:flex;gap:4px;justify-content:center">'
@@ -374,7 +374,36 @@ function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,
 
 function aggiornaCampo(id, campo, val) {
   for(var i=0;i<_righe.length;i++){
-    if(_righe[i].id===id){ _righe[i][campo]=val; break; }
+    if(_righe[i].id===id){
+      _righe[i][campo]=val;
+      // Se è pericolosita, salvala per questo codice
+      if(campo==='pericolosita' && _righe[i].codice && val){
+        _salvaPericByRiga(_righe[i]);
+      }
+      break;
+    }
+  }
+}
+
+// ── Persistenza classe pericolosità per codice EER ────────────────────
+var PERIC_KEY = 'demolisci_pericolosita';
+function _pericolosita_map(){
+  try{ return JSON.parse(localStorage.getItem(PERIC_KEY)||'{}'); }
+  catch(e){ return {}; }
+}
+function _leggiPericolosita(codice){
+  if(!codice) return '';
+  return _pericolosita_map()[codice]||'';
+}
+function _salvaPericByRiga(riga){
+  if(!riga.codice||!riga.pericolosita) return;
+  var m = _pericolosita_map();
+  m[riga.codice] = riga.pericolosita;
+  try{ localStorage.setItem(PERIC_KEY, JSON.stringify(m)); }catch(e){}
+}
+function _salvaPericolosita(id){
+  for(var i=0;i<_righe.length;i++){
+    if(_righe[i].id===id){ _salvaPericByRiga(_righe[i]); break; }
   }
 }
 
