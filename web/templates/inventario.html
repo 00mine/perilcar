@@ -158,25 +158,10 @@ tbody td{padding:6px 10px;font-size:12px}
   <div class="panel-left">
     <div class="panel-hdr">
       <h2>📋 Sessioni Inventario</h2>
+      <span style="font-size:11px;color:var(--text3)">Avvia dal Magazzino → 📋 Inventario</span>
     </div>
 
-    <!-- Form nuova sessione -->
-    <div class="nuova-form">
-      <div class="field">
-        <label>Categoria</label>
-        <select id="sel-cat">
-          <option value="">— seleziona categoria —</option>
-        </select>
-      </div>
-      <div class="field mt6">
-        <label>Nome sessione (opzionale)</label>
-        <input type="text" id="inp-nome" placeholder="es. Inventario alternatori maggio">
-      </div>
-      <div class="err" id="err-nuova"></div>
-      <button class="btn btn-primary" style="width:100%;margin-top:8px;justify-content:center" onclick="nuovaSessione()">
-        ＋ Avvia nuova sessione
-      </button>
-    </div>
+
 
     <!-- Lista sessioni -->
     <div class="sessioni-list" id="sessioni-list">
@@ -218,16 +203,7 @@ function toast(msg,ok=true){
 }
 async function logout(){ await apiFetch('/api/logout',{method:'POST'}); window.location.href='/login'; }
 
-// ── Categorie ─────────────────────────────────────────────────────────
-async function caricaCategorie(){
-  const cats = await apiFetch('/api/inventario/categorie');
-  const sel  = document.getElementById('sel-cat');
-  cats.forEach(c=>{
-    const opt=document.createElement('option');
-    opt.value=c.categoria; opt.textContent=`${c.categoria} (${c.n} pezzi)`;
-    sel.appendChild(opt);
-  });
-}
+
 
 // ── Sessioni ──────────────────────────────────────────────────────────
 async function caricaSessioni(){
@@ -264,22 +240,7 @@ async function caricaSessioni(){
   }).join('');
 }
 
-async function nuovaSessione(){
-  const cat  = document.getElementById('sel-cat').value;
-  const nome = document.getElementById('inp-nome').value.trim();
-  const err  = document.getElementById('err-nuova');
-  err.textContent='';
-  if(!cat){ err.textContent='Seleziona una categoria'; return; }
-  const res = await apiFetch('/api/inventario/sessioni',{method:'POST',body:JSON.stringify({categoria:cat,nome:nome||cat})});
-  if(res.ok){
-    toast(`✅ ${res.msg}`);
-    document.getElementById('inp-nome').value='';
-    await caricaSessioni();
-    selSessione(res.id);
-  } else {
-    err.textContent=res.msg;
-  }
-}
+
 
 async function selSessione(id){
   _sessId=id;
@@ -454,7 +415,6 @@ _sock.on('inventario_aggiornamento', async function(data){
 });
 
 // ── Init ──────────────────────────────────────────────────────────────
-caricaCategorie();
 caricaSessioni();
 </script>
 </body>
