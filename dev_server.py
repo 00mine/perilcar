@@ -2427,7 +2427,7 @@ def service_worker():
 # ── Configurazione repo ──────────────────────────────────────────────
 # Cambia GITHUB_REPO con il nome del repo di PRODUZIONE quando creato
 # es: "00mine/perilcar-prod"
-GITHUB_REPO        = "00mine/perilcar"          # <-- aggiornare con repo prod
+GITHUB_REPO        = "00mine/perilcar-prod"     # repo produzione privato
 GITHUB_BRANCH      = "main"
 GITHUB_VERSION_URL = f"https://raw.githubusercontent.com/{GITHUB_REPO}/{GITHUB_BRANCH}/version.json"
 _update_cache = None          # {versione, changelog, obbligatorio} o None

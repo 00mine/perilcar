@@ -46,7 +46,6 @@ def git_push(nuova_ver: str, changelog: list[str]):
     subprocess.run(["git", "add", "-A"],               check=True, cwd=ROOT)
     subprocess.run(["git", "commit", "-m", msg],        check=True, cwd=ROOT)
     subprocess.run(["git", "push", "origin", "main"],   check=True, cwd=ROOT)
-    print(f"✓ Push su GitHub completato")
 
 
 def main():
