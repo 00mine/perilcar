@@ -264,6 +264,33 @@
   </div>
 </div>
 
+<!-- Popup aggiornamento -->
+<div id="update-popup" style="display:none;position:fixed;bottom:24px;right:24px;z-index:9999;background:#fff;border-radius:16px;box-shadow:0 8px 40px rgba(0,0,0,.18);border:1px solid var(--border);width:380px;padding:20px 22px;animation:slideUp .4s cubic-bezier(.16,1,.3,1)">
+  <style>
+    @keyframes slideUp{from{transform:translateY(30px);opacity:0}to{transform:translateY(0);opacity:1}}
+    #update-popup.visible{display:block!important}
+    .upd-changelog{background:#f9fafb;border-radius:10px;padding:10px 12px;margin-bottom:14px;max-height:120px;overflow-y:auto;list-style:none}
+    .upd-changelog li{font-size:12px;color:var(--text2);margin-bottom:4px;padding-left:14px;position:relative}
+    .upd-changelog li::before{content:"•";position:absolute;left:0;color:var(--orange)}
+  </style>
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+    <div style="font-size:28px">🚀</div>
+    <div style="flex:1">
+      <div style="font-size:13px;font-weight:800;color:var(--text);line-height:1.3">Ing. Carmine Perillo ha rilasciato<br>un nuovo aggiornamento</div>
+      <div style="font-size:11px;color:var(--text3);margin-top:2px">PerilCar ERP <span id="upd-ver-corrente"></span> → <b id="upd-ver-nuova"></b></div>
+    </div>
+    <div id="upd-badge" style="background:var(--orange);color:#fff;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;flex-shrink:0">NUOVO</div>
+  </div>
+  <ul class="upd-changelog" id="upd-changelog"></ul>
+  <div style="display:flex;gap:8px">
+    <button id="upd-btn-install" onclick="installaAggiornamento()" style="flex:1;padding:10px;background:var(--orange);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:var(--font)">⬇️ Installa aggiornamento</button>
+    <button id="upd-btn-later"  onclick="chiudiPopupUpdate()"    style="padding:10px 16px;background:transparent;color:var(--text3);border:1px solid var(--border);border-radius:10px;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font)">Dopo</button>
+  </div>
+  <div id="upd-progress" style="display:none;height:4px;background:#fee2e2;border-radius:2px;margin-top:12px">
+    <div id="upd-progress-bar" style="height:100%;background:var(--orange);border-radius:2px;width:0%;transition:width .3s"></div>
+  </div>
+</div>
+
 <footer class="footer">Ing. Carmine Perillo · PerilCar ERP v2.9.0</footer>
 <div id="reload-badge">🔄 Hot reload</div>
 
@@ -292,6 +319,93 @@ async function logout() {
     document.getElementById('s-mov').textContent    = (s.ultimo_movimento||'—').slice(0,16);
   } catch(e) {}
 })();
+
+// ── Stato sistema ─────────────────────────────────────────────────
+async function caricaSystemStatus() {
+  try {
+    const r = await fetch('/api/system-status', {credentials: 'include'});
+    if (!r.ok) return;
+    const s = await r.json();
+    document.getElementById('sys-ip').textContent = s.ip || 'localhost';
+    const dot = document.getElementById('sys-dot');
+    if(dot) dot.classList.toggle('gray', !s.online);
+    const u = s.utenti_online || [];
+    const usersEl = document.getElementById('sys-users');
+    const detailEl = document.getElementById('sys-users-detail');
+    if(usersEl) usersEl.textContent = u.length + (u.length === 1 ? ' utente' : ' utenti');
+    if(detailEl) detailEl.textContent = u.map(x => x.username).join(', ') || '—';
+    const bkEl = document.getElementById('sys-backup');
+    if(bkEl) bkEl.textContent = s.ultimo_backup || 'Mai eseguito';
+    const vEl = document.getElementById('sys-version');
+    if(vEl) vEl.textContent = 'v' + (s.versione || '?');
+  } catch(e) {}
+}
+caricaSystemStatus();
+setInterval(caricaSystemStatus, 15000);
+
+// ── Aggiornamenti ─────────────────────────────────────────────────
+function chiudiPopupUpdate() {
+  document.getElementById('update-popup').classList.remove('visible');
+  sessionStorage.setItem('upd-dismissed', Date.now());
+}
+
+async function installaAggiornamento() {
+  const btn  = document.getElementById('upd-btn-install');
+  const prog = document.getElementById('upd-progress');
+  const bar  = document.getElementById('upd-progress-bar');
+  btn.disabled = true;
+  btn.textContent = '⏳ Installazione in corso...';
+  prog.style.display = 'block';
+  let p = 0;
+  const iv = setInterval(() => { p = Math.min(p+3, 85); bar.style.width = p+'%'; }, 200);
+  try {
+    const r = await fetch('/api/installa-aggiornamento', {
+      method:'POST', credentials:'include',
+      headers:{'Content-Type':'application/json'}
+    });
+    const d = await r.json();
+    clearInterval(iv);
+    if(d.ok) {
+      bar.style.width = '100%';
+      btn.textContent = '✅ Installato! Riavvio...';
+      setTimeout(() => window.location.reload(), 3500);
+    } else {
+      btn.disabled = false;
+      btn.textContent = '⬇️ Installa aggiornamento';
+      prog.style.display = 'none';
+      alert('Errore: ' + d.msg);
+    }
+  } catch(e) {
+    clearInterval(iv);
+    btn.disabled = false;
+    btn.textContent = '⬇️ Installa aggiornamento';
+    prog.style.display = 'none';
+    alert('Errore: ' + e.message);
+  }
+}
+
+async function checkAggiornamenti() {
+  const dismissed = sessionStorage.getItem('upd-dismissed');
+  if(dismissed && Date.now() - parseInt(dismissed) < 86400000) return;
+  try {
+    const r = await fetch('/api/check-update', {credentials:'include'});
+    if(!r.ok) return;
+    const d = await r.json();
+    if(!d.disponibile) return;
+    document.getElementById('upd-ver-corrente').textContent = 'v' + d.corrente;
+    document.getElementById('upd-ver-nuova').textContent    = 'v' + d.versione;
+    if(d.obbligatorio) {
+      document.getElementById('upd-badge').textContent = '⚠️ OBBLIGATORIO';
+      document.getElementById('upd-badge').style.background = '#dc2626';
+      document.getElementById('upd-btn-later').style.display = 'none';
+    }
+    const ul = document.getElementById('upd-changelog');
+    ul.innerHTML = (d.changelog||[]).map(c=>`<li>${c}</li>`).join('');
+    document.getElementById('update-popup').classList.add('visible');
+  } catch(e) {}
+}
+setTimeout(checkAggiornamenti, 3000);
+
 </script>
 </body>
 </html>

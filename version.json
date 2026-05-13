@@ -1,0 +1,17 @@
+{
+  "versione": "3.6.0",
+  "data": "2026-05-13",
+  "obbligatorio": false,
+  "changelog": [
+    "🆕 App desktop nativa (PyWebView) — niente più browser",
+    "🆕 Pannello stato sistema in Home (IP, utenti, backup, versione)",
+    "🆕 Sistema aggiornamenti automatici",
+    "✅ Audit completo magazzino: 11 fix",
+    "✅ Audit completo demolizioni: 11 fix",
+    "✅ Inventario mobile offline-first con sync manuale",
+    "✅ Export Excel con foto embedded",
+    "✅ Tendine demolizioni con + Aggiungi nuovo",
+    "✅ Classe pericolosità persistente per codice EER",
+    "✅ Gestione utenti corretta (login, cambio password)"
+  ]
+}

@@ -2423,6 +2423,93 @@ def service_worker():
     resp.headers["Cache-Control"] = "no-cache"
     return resp
 
+# ══ AGGIORNAMENTI ════════════════════════════════════════════════════
+GITHUB_VERSION_URL = "https://raw.githubusercontent.com/00mine/perilcar/main/version.json"
+_update_cache = None          # {versione, changelog, obbligatorio} o None
+_update_checked_at = 0.0
+
+def _controlla_aggiornamenti():
+    """Controlla GitHub per nuova versione. Silenzioso, eseguito in background."""
+    global _update_cache, _update_checked_at
+    import urllib.request, json as _json
+    try:
+        req = urllib.request.Request(GITHUB_VERSION_URL,
+              headers={"User-Agent": "PerilCar-ERP/" + VERSIONE_APP})
+        with urllib.request.urlopen(req, timeout=5) as r:
+            data = _json.loads(r.read().decode())
+        remota = data.get("versione", "0.0.0")
+        locale = VERSIONE_APP
+        # Confronto versioni
+        rv = tuple(int(x) for x in remota.split("."))
+        lv = tuple(int(x) for x in locale.split("."))
+        if rv > lv:
+            _update_cache = data
+            log.info(f"Aggiornamento disponibile: v{remota}")
+        else:
+            _update_cache = None
+        _update_checked_at = time.time()
+    except Exception as e:
+        log.debug(f"Check aggiornamenti fallito: {e}")
+
+def _avvia_check_aggiornamenti():
+    """Controlla subito e poi ogni 6 ore."""
+    def _loop():
+        while True:
+            _controlla_aggiornamenti()
+            time.sleep(6 * 3600)
+    t = threading.Thread(target=_loop, daemon=True)
+    t.start()
+
+# Avvia check al caricamento del modulo
+_avvia_check_aggiornamenti()
+
+@app.route("/api/check-update")
+@require_login
+def api_check_update():
+    """Ritorna info aggiornamento disponibile o null."""
+    if _update_cache:
+        return jsonify({
+            "disponibile": True,
+            "versione":    _update_cache.get("versione"),
+            "changelog":   _update_cache.get("changelog", []),
+            "obbligatorio": _update_cache.get("obbligatorio", False),
+            "data":        _update_cache.get("data", ""),
+            "corrente":    VERSIONE_APP,
+        })
+    return jsonify({"disponibile": False, "corrente": VERSIONE_APP})
+
+@app.route("/api/installa-aggiornamento", methods=["POST"])
+@require_login
+def api_installa_aggiornamento():
+    """Scarica e applica aggiornamento dal repo GitHub."""
+    import subprocess, shutil
+    try:
+        # Solo codice — mai DB o uploads
+        result = subprocess.run(
+            ["git", "fetch", "origin"],
+            cwd=str(ROOT), capture_output=True, text=True, timeout=30
+        )
+        if result.returncode != 0:
+            return jsonify({"ok": False, "msg": "Fetch fallito: " + result.stderr}), 500
+
+        result2 = subprocess.run(
+            ["git", "reset", "--hard", "origin/main"],
+            cwd=str(ROOT), capture_output=True, text=True, timeout=30
+        )
+        if result2.returncode != 0:
+            return jsonify({"ok": False, "msg": "Reset fallito: " + result2.stderr}), 500
+
+        log.info(f"Aggiornamento installato: {result2.stdout.strip()}")
+        # Riavvia il server dopo 2 secondi
+        def _riavvia():
+            time.sleep(2)
+            import os
+            os.execv(sys.executable, [sys.executable] + sys.argv)
+        threading.Thread(target=_riavvia, daemon=True).start()
+        return jsonify({"ok": True, "msg": "Aggiornamento installato. Riavvio in corso..."})
+    except Exception as e:
+        return jsonify({"ok": False, "msg": str(e)}), 500
+
 # ══ STATO SISTEMA ════════════════════════════════════════════════════
 VERSIONE_APP = "3.6.0"
 
