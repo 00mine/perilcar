@@ -1,9 +1,31 @@
-db/perilcar.db
+# Database aziendali — MAI su GitHub
 db/*.db
-backup/*.db
-logs/*.log
-__pycache__/
-*.pyc
+db/*.db-wal
+db/*.db-shm
+
+# Foto e uploads — dati privati
 web/static/uploads/*
 !web/static/uploads/.gitkeep
+
+# Backup locali
+backup/
+backup_pre_reset/
+
+# Log
+logs/
+*.log
+
+# Build artifacts
+dist/
+build/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Configurazione locale
 config/settings.json
+.env
+
+# Solo sviluppo (non va in produzione)
+FIX_BUILD.md
