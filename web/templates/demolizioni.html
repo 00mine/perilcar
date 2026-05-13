@@ -61,7 +61,7 @@ textarea{resize:vertical;min-height:60px}
 .rott-kg{display:flex;align-items:center;gap:6px}
 .rott-kg span{font-size:11px;color:var(--text3);font-weight:600;flex-shrink:0}
 .rott-kg input{font-family:var(--mono);font-weight:700}
-.btn-action{width:100%;padding:11px;border-radius:10px;border:none;font-size:13px;font-weight:700;font-family:var(--font);cursor:pointer;margin-bottom:6px}
+.btn-action{width:auto;padding:8px 16px;border-radius:8px;border:none;font-size:12px;font-weight:700;font-family:var(--font);cursor:pointer}
 .btn-sottrai{background:var(--green);color:#fff}
 .toolbar{display:flex;gap:6px;align-items:center;flex-shrink:0}
 .btn{display:inline-flex;align-items:center;gap:4px;padding:6px 12px;border-radius:var(--radius);font-size:12px;font-weight:600;cursor:pointer;border:none;font-family:var(--font);white-space:nowrap}
@@ -201,10 +201,10 @@ thead th .f-inp-range span{font-size:10px;color:var(--text3);align-self:center;f
           <select id="f-modalita" autocomplete="off" onchange="onSelectChange(this,'modalita')"><option value="">&#8212; seleziona &#8212;</option></select>
           </div></div>
       </div>
-      <button class="btn-action btn-sottrai" onclick="apreSottrai()">Sottrai ricambi</button>
     </div>
   </div>
   <div class="toolbar">
+    <button class="btn-action btn-sottrai" onclick="apreSottrai()" style="margin-right:8px">🔧 Sottrai ricambi</button>
     <button class="btn btn-green" id="btn-inserisci" onclick="inserisci()" style="display:none">Inserisci demolizione</button>
     <button class="btn btn-ghost" id="btn-salva" onclick="salva()">Aggiorna</button>
     <button class="btn btn-danger" onclick="elimina()">Elimina</button>
