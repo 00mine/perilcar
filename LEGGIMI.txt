@@ -1,0 +1,26 @@
+# PerilCar ERP — Pacchetto Installazione
+
+## Installazione su un nuovo PC
+
+1. Copia questa cartella sul Desktop del PC
+2. Fai doppio click su **INSTALLA.bat**
+3. Segui le istruzioni a schermo (circa 2-3 minuti)
+4. Al termine trovi l'icona **PerilCar ERP** sul Desktop
+
+## Primo avvio
+
+- Username: **admin**
+- Password: **admin123**
+- ⚠️ Cambia la password al primo accesso da Gestione Utenti
+
+## Aggiornamenti
+
+Quando l'Ing. Carmine Perillo rilascia un aggiornamento,
+all'apertura del programma comparirà un popup di notifica.
+Clicca **"Installa aggiornamento"** e il programma si aggiorna
+automaticamente mantenendo tutti i tuoi dati.
+
+## Supporto
+
+In caso di problemi controlla il file **logs\perilcar.log**
+e contattare l'Ing. Carmine Perillo.
