@@ -569,9 +569,7 @@ function exportCSV() {
       return '"'+String(v).replace(/"/g,'""')+'"';
     }).join(';')
   );
-  const csv  = '﻿' + header + '
-' + rows.join('
-'); // BOM per Excel italiano
+  const csv  = '\uFEFF' + header + '\n' + rows.join('\n'); // BOM per Excel
   const blob = new Blob([csv], {type:'text/csv;charset=utf-8'});
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');

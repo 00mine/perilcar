@@ -254,6 +254,7 @@ def cu():
 # ══════════════════════════════════════════════════════════════════════════════
 
 @app.route("/")
+@require_login
 def index():
     if session.get("user"):
         return redirect("/dashboard")
@@ -2412,8 +2413,10 @@ def on_leave_inventario(data):
 
 @app.route("/api/ping")
 def api_ping():
-    """Endpoint leggero per verificare connessione al server."""
-    return jsonify({"ok": True, "ts": __import__("time").time()})
+    """Endpoint pubblico leggero per verificare connessione al server.
+    Non espone dati sensibili — solo conferma che il server è raggiungibile.
+    """
+    return jsonify({"ok": True})
 
 @app.route("/sw.js")
 def service_worker():
