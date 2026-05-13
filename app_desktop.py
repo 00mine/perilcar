@@ -1,12 +1,10 @@
 """
 PerilCar ERP — Launcher Desktop
-Avvia Flask + apre Edge/Chrome in modalità app (nessuna toolbar visibile).
-Funziona su qualsiasi Windows senza dipendenze aggiuntive.
+Avvia Flask + Edge in modalità app (nessuna toolbar).
 """
 import sys, os, threading, time, socket, logging, subprocess
 from pathlib import Path
 
-# ── Percorsi ─────────────────────────────────────────────────────────
 if getattr(sys, "frozen", False):
     ROOT = Path(sys.executable).parent
 else:
@@ -15,14 +13,12 @@ else:
 os.chdir(ROOT)
 sys.path.insert(0, str(ROOT))
 
-# ── Logging ───────────────────────────────────────────────────────────
 LOG_DIR = ROOT / "logs"
 LOG_DIR.mkdir(exist_ok=True)
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s  %(levelname)s  %(message)s",
-    handlers=[logging.FileHandler(LOG_DIR / "perilcar.log",
-                                   encoding="utf-8", mode="a")]
+    handlers=[logging.FileHandler(LOG_DIR / "perilcar.log", encoding="utf-8", mode="a")]
 )
 log = logging.getLogger("perilcar")
 
@@ -48,15 +44,16 @@ def avvia_server(porta):
         log.exception(f"Server error: {e}")
 
 
-def server_pronto(porta, timeout=30):
+def server_pronto(porta, timeout=60):
+    """Aspetta fino a 60 secondi che il server risponda."""
     import urllib.request
     fine = time.time() + timeout
     while time.time() < fine:
         try:
-            urllib.request.urlopen(f"http://127.0.0.1:{porta}/login", timeout=1)
+            urllib.request.urlopen(f"http://127.0.0.1:{porta}/login", timeout=2)
             return True
         except Exception:
-            time.sleep(0.4)
+            time.sleep(0.5)
     return False
 
 
@@ -68,58 +65,21 @@ def mostra_errore(msg):
         pass
 
 
-def apri_app_browser(url):
-    """
-    Apre Edge (o Chrome) in modalità --app: nessuna toolbar, nessun URL visibile.
-    Sembra una finestra desktop nativa all'utente.
-    """
-    # Percorsi Edge su Windows
+def trova_browser():
     edge_paths = [
         r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
         r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
         os.path.expandvars(r"%LOCALAPPDATA%\Microsoft\Edge\Application\msedge.exe"),
     ]
-    # Percorsi Chrome come fallback
     chrome_paths = [
         r"C:\Program Files\Google\Chrome\Application\chrome.exe",
         r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
         os.path.expandvars(r"%LOCALAPPDATA%\Google\Chrome\Application\chrome.exe"),
     ]
-
-    browser = None
     for p in edge_paths + chrome_paths:
         if os.path.exists(p):
-            browser = p
-            log.info(f"Browser trovato: {p}")
-            break
-
-    if not browser:
-        # Fallback: apri nel browser predefinito
-        import webbrowser
-        log.warning("Edge/Chrome non trovato, apro browser predefinito")
-        webbrowser.open(url)
-        return None
-
-    # Profilo dedicato PerilCar (separato dal profilo personale)
-    profile_dir = ROOT / "browser_profile"
-    profile_dir.mkdir(exist_ok=True)
-
-    cmd = [
-        browser,
-        f"--app={url}",                          # modalità app: niente toolbar
-        f"--user-data-dir={profile_dir}",         # profilo separato
-        "--window-size=1400,900",
-        "--window-position=60,40",
-        "--no-first-run",
-        "--no-default-browser-check",
-        "--disable-extensions",
-        "--disable-translate",
-        "--disable-sync",
-    ]
-
-    proc = subprocess.Popen(cmd)
-    log.info(f"Browser avviato (PID {proc.pid})")
-    return proc
+            return p
+    return None
 
 
 def main():
@@ -133,32 +93,49 @@ def main():
     t = threading.Thread(target=avvia_server, args=(porta,), daemon=True)
     t.start()
 
-    # Aspetta che il server risponda
-    if not server_pronto(porta):
-        log.error("Server non risponde")
+    # ── Aspetta server pronto PRIMA di aprire il browser ─────────────
+    log.info("Attendo server...")
+    if not server_pronto(porta, timeout=60):
+        log.error("Server non risponde dopo 60 secondi")
         mostra_errore(
             "Impossibile avviare PerilCar ERP.\n\n"
             "Controlla logs\\perilcar.log per dettagli."
         )
         return 1
 
-    log.info("Server pronto")
-
+    log.info("Server pronto — apro browser")
     url = f"http://127.0.0.1:{porta}/"
-    proc = apri_app_browser(url)
 
-    if proc:
-        # Aspetta che il browser si chiuda
+    browser = trova_browser()
+    if browser:
+        profile_dir = ROOT / "browser_profile"
+        profile_dir.mkdir(exist_ok=True)
+        cmd = [
+            browser,
+            f"--app={url}",
+            f"--user-data-dir={str(profile_dir)}",
+            "--window-size=1400,900",
+            "--window-position=60,40",
+            "--no-first-run",
+            "--no-default-browser-check",
+            "--disable-extensions",
+            "--disable-translate",
+            "--disable-sync",
+        ]
+        proc = subprocess.Popen(cmd)
+        log.info(f"Browser avviato (PID {proc.pid})")
         proc.wait()
-        log.info("Browser chiuso, esco")
     else:
-        # Fallback browser: tieni il server vivo
+        import webbrowser
+        log.warning("Edge/Chrome non trovato, apro browser predefinito")
+        webbrowser.open(url)
         try:
             while t.is_alive():
                 time.sleep(1)
         except KeyboardInterrupt:
             pass
 
+    log.info("Chiusura")
     return 0
 
 
