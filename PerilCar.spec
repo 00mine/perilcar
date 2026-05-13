@@ -1,7 +1,4 @@
 # PyInstaller spec — PerilCar ERP Desktop
-# Build: pyinstaller PerilCar.spec --clean --noconfirm
-# Output: dist/PerilCar/PerilCar.exe
-
 block_cipher = None
 
 a = Analysis(
@@ -10,20 +7,22 @@ a = Analysis(
     binaries=[],
     datas=[
         ('web', 'web'),
-        ('core', 'core'),
-        ('modules', 'modules'),
     ],
     hiddenimports=[
-        'flask', 'flask_socketio', 'engineio.async_drivers.threading',
-        'webview', 'webview.platforms.edgechromium', 'webview.platforms.winforms',
-        'PIL', 'openpyxl', 'xlsxwriter', 'sqlite3', 'hashlib',
-        'dev_server', 'core.config', 'core.database',
+        'flask', 'flask_socketio',
+        'engineio.async_drivers.threading',
+        'PIL', 'PIL.Image', 'PIL.ImageDraw',
+        'openpyxl', 'xlsxwriter',
+        'sqlite3', 'hashlib',
+        'dev_server',
     ],
     hookspath=[],
     runtime_hooks=[],
-    excludes=['tkinter.test', 'unittest', 'pytest', 'PyQt5', 'PyQt6', 'PySide2', 'PySide6'],
-    win_no_prefer_redirects=False,
-    win_private_assemblies=False,
+    excludes=[
+        'webview', 'pywebview', 'pythonnet',
+        'tkinter', 'PyQt5', 'PyQt6', 'PySide2', 'PySide6',
+        'unittest', 'pytest',
+    ],
     cipher=block_cipher,
     noarchive=False,
 )
@@ -40,11 +39,7 @@ exe = EXE(
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
-    console=False,                # NESSUN TERMINALE
-    disable_windowed_traceback=False,
-    target_arch=None,
-    codesign_identity=None,
-    entitlements_file=None,
+    console=False,
     icon='icon.ico',
 )
 

@@ -1,9 +1,9 @@
 """
-PerilCar ERP — Launcher silenzioso
-Avvia server Flask + finestra PyWebView senza mostrare terminale.
-Fallback automatico su browser se PyWebView non disponibile.
+PerilCar ERP — Launcher Desktop
+Avvia Flask + apre Edge/Chrome in modalità app (nessuna toolbar visibile).
+Funziona su qualsiasi Windows senza dipendenze aggiuntive.
 """
-import sys, os, threading, time, socket, logging
+import sys, os, threading, time, socket, logging, subprocess
 from pathlib import Path
 
 # ── Percorsi ─────────────────────────────────────────────────────────
@@ -15,7 +15,7 @@ else:
 os.chdir(ROOT)
 sys.path.insert(0, str(ROOT))
 
-# ── Logging su file (niente terminale) ───────────────────────────────
+# ── Logging ───────────────────────────────────────────────────────────
 LOG_DIR = ROOT / "logs"
 LOG_DIR.mkdir(exist_ok=True)
 logging.basicConfig(
@@ -68,6 +68,60 @@ def mostra_errore(msg):
         pass
 
 
+def apri_app_browser(url):
+    """
+    Apre Edge (o Chrome) in modalità --app: nessuna toolbar, nessun URL visibile.
+    Sembra una finestra desktop nativa all'utente.
+    """
+    # Percorsi Edge su Windows
+    edge_paths = [
+        r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+        r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
+        os.path.expandvars(r"%LOCALAPPDATA%\Microsoft\Edge\Application\msedge.exe"),
+    ]
+    # Percorsi Chrome come fallback
+    chrome_paths = [
+        r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+        r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+        os.path.expandvars(r"%LOCALAPPDATA%\Google\Chrome\Application\chrome.exe"),
+    ]
+
+    browser = None
+    for p in edge_paths + chrome_paths:
+        if os.path.exists(p):
+            browser = p
+            log.info(f"Browser trovato: {p}")
+            break
+
+    if not browser:
+        # Fallback: apri nel browser predefinito
+        import webbrowser
+        log.warning("Edge/Chrome non trovato, apro browser predefinito")
+        webbrowser.open(url)
+        return None
+
+    # Profilo dedicato PerilCar (separato dal profilo personale)
+    profile_dir = ROOT / "browser_profile"
+    profile_dir.mkdir(exist_ok=True)
+
+    cmd = [
+        browser,
+        f"--app={url}",                          # modalità app: niente toolbar
+        f"--user-data-dir={profile_dir}",         # profilo separato
+        "--window-size=1400,900",
+        "--window-position=60,40",
+        "--no-first-run",
+        "--no-default-browser-check",
+        "--disable-extensions",
+        "--disable-translate",
+        "--disable-sync",
+    ]
+
+    proc = subprocess.Popen(cmd)
+    log.info(f"Browser avviato (PID {proc.pid})")
+    return proc
+
+
 def main():
     log.info("=" * 50)
     log.info("PerilCar ERP — Avvio")
@@ -75,9 +129,11 @@ def main():
     porta = trova_porta(5000)
     log.info(f"Porta: {porta}")
 
+    # Avvia server Flask in background
     t = threading.Thread(target=avvia_server, args=(porta,), daemon=True)
     t.start()
 
+    # Aspetta che il server risponda
     if not server_pronto(porta):
         log.error("Server non risponde")
         mostra_errore(
@@ -88,25 +144,15 @@ def main():
 
     log.info("Server pronto")
 
-    # Prova PyWebView (finestra nativa)
-    try:
-        import webview
-        window = webview.create_window(
-            title="PerilCar ERP",
-            url=f"http://127.0.0.1:{porta}/",
-            width=1400, height=900,
-            min_size=(1024, 700),
-            resizable=True,
-        )
-        webview.start(debug=False)
-        log.info("Chiusura finestra desktop")
+    url = f"http://127.0.0.1:{porta}/"
+    proc = apri_app_browser(url)
 
-    except ImportError:
-        # Fallback: apri nel browser di sistema (funziona sempre)
-        log.warning("PyWebView non disponibile, apertura browser")
-        import webbrowser
-        webbrowser.open(f"http://127.0.0.1:{porta}/")
-        # Mantieni server attivo
+    if proc:
+        # Aspetta che il browser si chiuda
+        proc.wait()
+        log.info("Browser chiuso, esco")
+    else:
+        # Fallback browser: tieni il server vivo
         try:
             while t.is_alive():
                 time.sleep(1)
