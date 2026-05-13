@@ -106,6 +106,45 @@
     }
 
     /* Shop card (wide) */
+    .system-status {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      max-width: 1000px;
+      margin: 0 auto 28px;
+      padding: 14px 18px;
+      background: linear-gradient(135deg, #fff8f5 0%, #fff 100%);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+    }
+    .sys-item {
+      display: flex; flex-direction: column; gap: 4px;
+      padding: 8px 12px; border-right: 1px solid var(--border);
+    }
+    .sys-item:last-child { border-right: none; }
+    .sys-label {
+      font-size: 10px; font-weight: 700; color: var(--text3);
+      text-transform: uppercase; letter-spacing: .8px;
+    }
+    .sys-value {
+      font-size: 13px; font-weight: 700; color: var(--text);
+      display: flex; align-items: center; gap: 6px;
+    }
+    .sys-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: #16a34a; box-shadow: 0 0 0 3px rgba(22,163,74,.15);
+      animation: pulse 2s infinite;
+    }
+    .sys-dot.gray { background: #9ca3af; box-shadow: 0 0 0 3px rgba(156,163,175,.15); animation: none; }
+    @keyframes pulse {
+      0%, 100% { box-shadow: 0 0 0 3px rgba(22,163,74,.15); }
+      50%      { box-shadow: 0 0 0 6px rgba(22,163,74,.05); }
+    }
+    .sys-users-detail {
+      font-size: 10px; color: var(--text3); font-weight: 500;
+      margin-top: 2px; max-height: 14px; overflow: hidden;
+      white-space: nowrap; text-overflow: ellipsis;
+    }
     .module-card.wide {
       flex-direction: row; min-height: 80px; padding: 20px 32px;
       justify-content: flex-start; gap: 20px;
@@ -164,6 +203,27 @@
     <div class="stat-card">
       <span class="stat-num small" id="s-mov">—</span>
       <span class="stat-lbl">Ultimo movimento</span>
+    </div>
+  </div>
+
+  <!-- Stato sistema -->
+  <div class="system-status">
+    <div class="sys-item">
+      <span class="sys-label">Server</span>
+      <span class="sys-value"><span class="sys-dot" id="sys-dot"></span><span id="sys-ip">—</span></span>
+    </div>
+    <div class="sys-item">
+      <span class="sys-label">Utenti collegati</span>
+      <span class="sys-value" id="sys-users">—</span>
+      <span class="sys-users-detail" id="sys-users-detail"></span>
+    </div>
+    <div class="sys-item">
+      <span class="sys-label">Ultimo backup</span>
+      <span class="sys-value" id="sys-backup">—</span>
+    </div>
+    <div class="sys-item">
+      <span class="sys-label">Versione</span>
+      <span class="sys-value" id="sys-version">—</span>
     </div>
   </div>
 

@@ -2,7 +2,7 @@
 PerilCar ERP — Dev Server v1.1
 Flask + SocketIO con hot reload automatico.
 """
-import sys, os, time, threading, logging, io
+import sys, os, time, threading, logging, io, socket
 from pathlib import Path
 
 ROOT = Path(__file__).parent
@@ -2422,6 +2422,83 @@ def service_worker():
     resp.headers["Service-Worker-Allowed"] = "/"
     resp.headers["Cache-Control"] = "no-cache"
     return resp
+
+# ══ STATO SISTEMA ════════════════════════════════════════════════════
+VERSIONE_APP = "3.6.0"
+
+# Tracking utenti connessi (sid -> username)
+_utenti_online_lock = threading.Lock()
+_utenti_online = {}
+
+@socketio.on("connect")
+def _on_connect():
+    try:
+        from flask import request as _req
+        u = session.get("user") or {}
+        if u.get("username"):
+            with _utenti_online_lock:
+                _utenti_online[_req.sid] = {
+                    "username": u.get("username"),
+                    "nome":     u.get("nome", ""),
+                    "from":     time.time(),
+                }
+    except Exception:
+        pass
+
+@socketio.on("disconnect")
+def _on_disconnect():
+    try:
+        from flask import request as _req
+        with _utenti_online_lock:
+            _utenti_online.pop(_req.sid, None)
+    except Exception:
+        pass
+
+def _get_server_ip():
+    """Ritorna l'IP LAN del server."""
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        return "127.0.0.1"
+
+def _get_ultimo_backup():
+    """Cerca l'ultimo file di backup nella cartella."""
+    bdir = ROOT / "backup"
+    if not bdir.exists():
+        return None
+    files = sorted(bdir.glob("*.db"), key=lambda p: p.stat().st_mtime, reverse=True)
+    if not files:
+        return None
+    from datetime import datetime
+    ts = datetime.fromtimestamp(files[0].stat().st_mtime)
+    return ts.strftime("%d/%m/%Y %H:%M")
+
+@app.route("/api/system-status")
+@require_login
+def api_system_status():
+    import socket as _sock
+    with _utenti_online_lock:
+        utenti = [{"username": v["username"], "nome": v.get("nome", "")}
+                  for v in _utenti_online.values()]
+    # Deduplica per username (uno stesso utente può avere più tab)
+    seen = set()
+    utenti_unique = []
+    for u in utenti:
+        if u["username"] not in seen:
+            seen.add(u["username"])
+            utenti_unique.append(u)
+    return jsonify({
+        "online":         True,
+        "ip":             _get_server_ip(),
+        "porta":          request.host.split(":")[-1] if ":" in request.host else "80",
+        "versione":       VERSIONE_APP,
+        "utenti_online":  utenti_unique,
+        "ultimo_backup":  _get_ultimo_backup(),
+    })
 
 # ══ VOCI TENDINE — voci personalizzabili nelle dropdown ═════════════════════
 @app.route("/api/voci-tendine/<categoria>")
