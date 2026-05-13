@@ -573,7 +573,7 @@ function stampa() {
     +'<div class="tot">TOTALE AUTO = '+(_payload ? _payload.demolizioni.length : 0)+'</div>'
     +'<div class="tot" style="color:#c8a000">PESO TOTALE = '+fmt(_payload ? _payload.pesoEffTot : 0)+' KG</div>'
     +'<div class="tot" style="color:#16a34a">PESO TOTALE CARICATO = KG '+fmt(_payload ? _payload.pesoNettoTot : 0)+'</div>'
-    +'<div style="margin-top:30px;padding-top:10px;border-top:1px solid #e5e7eb;text-align:center;font-size:9px;color:#9ca3af;font-style:italic">'    +'Documento generato dal gestionale PerilCar ERP &mdash; Progettato dall&apos;Ing. Carmine Perillo'    +'</div>'    +'</body></html>';
+    +'<div style="text-align:right;font-size:8px;color:#9ca3af;font-style:italic;margin-top:40px;padding-top:6px;border-top:1px solid #e5e7eb">'    +'PerilCar ERP &copy; Dott. Ing. Carmine Perillo &mdash; Documento generato automaticamente'    +'</div>'    +'</body></html>';
 
   // Riepilogo trattamenti completi e 1° trattamenti
   var demsC  = _payload.demolizioniComplete     || [];
