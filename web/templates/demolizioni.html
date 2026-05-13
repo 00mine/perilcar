@@ -193,6 +193,7 @@ thead th .f-inp-range span{font-size:10px;color:var(--text3);align-self:center;f
     <div style="display:flex;flex-direction:column;gap:8px">
       <div class="card">
         <div class="card-title">Dati rottamazione</div>
+        <button class="btn-action btn-sottrai" onclick="apreSottrai()" style="width:100%;margin-bottom:10px;padding:9px 0;font-size:12px">🔧 Sottrai ricambi</button>
         <div class="rott-field"><label>Peso Effettivo</label>
           <div class="rott-kg"><span>Kg</span><input type="number" id="f-peso-eff" placeholder="0.00" step="0.01" oninput="aggNetto()" autocomplete="off"></div></div>
         <div class="rott-field"><label>Peso netto (da ricambi)</label>
@@ -204,7 +205,6 @@ thead th .f-inp-range span{font-size:10px;color:var(--text3);align-self:center;f
     </div>
   </div>
   <div class="toolbar">
-    <button class="btn-action btn-sottrai" onclick="apreSottrai()" style="margin-right:8px">🔧 Sottrai ricambi</button>
     <button class="btn btn-green" id="btn-inserisci" onclick="inserisci()" style="display:none">Inserisci demolizione</button>
     <button class="btn btn-ghost" id="btn-salva" onclick="salva()">Aggiorna</button>
     <button class="btn btn-danger" onclick="elimina()">Elimina</button>
