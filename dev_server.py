@@ -98,6 +98,66 @@ cfg = ConfigManager()
 db  = DatabaseManager(cfg.get("db_path"))
 log.info(f"DB magazzino: {cfg.get('db_path')}")
 
+# ── Auto-fix view all'avvio ───────────────────────────────────────────
+def _auto_fix_view():
+    """Ricrea v_giacenza con le colonne reali del DB — chiamata ad ogni avvio."""
+    try:
+        conn = db.get_connection()
+        cols = [r[1] for r in conn.execute("PRAGMA table_info(componenti)").fetchall()]
+        if not cols:
+            conn.close(); return
+
+        col_cmp  = "cmp"      if "cmp"      in cols else "codice"
+        col_art  = "articolo" if "articolo" in cols else ("nome" if "nome" in cols else "descrizione")
+        col_nota = "nota"     if "nota"     in cols else ("note" if "note"  in cols else "''")
+        col_scor = "scorta"   if "scorta"   in cols else ("scorta_minima" if "scorta_minima" in cols else "0")
+        col_files = "files_path" if "files_path" in cols else "''"
+        col_img   = "immagine_path" if "immagine_path" in cols else "''"
+        col_elim  = "eliminato" if "eliminato" in cols else "0"
+
+        # Lista colonne extra opzionali
+        def opt(c, alias=None):
+            a = alias or c
+            return f"c.{c} AS {a}" if c in cols else f"'' AS {a}"
+
+        conn.execute("DROP VIEW IF EXISTS v_giacenza")
+        conn.execute(f"""
+            CREATE VIEW v_giacenza AS
+            SELECT
+                c.id AS componente_id,
+                c.{col_cmp} AS cmp,
+                c.{col_art} AS articolo,
+                {opt('tipologia')}, {opt('categoria')}, {opt('sottocategoria')},
+                {opt('cod_udm')}, {opt('cod_iva')},
+                {opt('listino1')}, {opt('listino2')}, {opt('listino3')},
+                c.{col_nota} AS nota,
+                {opt('cod_barre')}, {opt('marca')}, {opt('modello')},
+                {opt('extra1')}, {opt('extra2')}, {opt('extra3')}, {opt('extra4')},
+                {opt('cod_fornitore')}, {opt('fornitore')},
+                {opt('prezzo_forn')},
+                c.{col_scor} AS scorta,
+                {opt('ubicazione')}, {opt('stato_magazzino')},
+                {opt('colore')}, {opt('cilindrata')}, {opt('carburante')},
+                {opt('versione')}, {opt('anno_da')}, {opt('anno_a')},
+                c.{col_img} AS immagine_path,
+                c.{col_files} AS files_path,
+                c.{col_elim} AS eliminato,
+                COALESCE((
+                    SELECT SUM(CASE WHEN m.tipo='carico'  THEN m.quantita
+                                    WHEN m.tipo='scarico' THEN -m.quantita
+                                    ELSE 0 END)
+                    FROM movimenti m WHERE m.componente_id=c.id
+                ), 0) AS esistenza
+            FROM componenti c WHERE c.{col_elim}=0
+        """)
+        conn.commit()
+        conn.close()
+        log.info(f"v_giacenza ricreata: cmp={col_cmp}, articolo={col_art}")
+    except Exception as e:
+        log.warning(f"Auto-fix view fallito: {e}")
+
+_auto_fix_view()
+
 # DB separato per demolizioni
 import os as _os
 # Percorso demolizioni.db (NAS o locale, coerente con perilcar.db)
