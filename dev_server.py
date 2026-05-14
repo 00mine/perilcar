@@ -2576,7 +2576,7 @@ def api_installa_aggiornamento():
         return jsonify({"ok": False, "msg": str(e)}), 500
 
 # ══ STATO SISTEMA ════════════════════════════════════════════════════
-VERSIONE_APP = "3.6.0"
+VERSIONE_APP = "3.6.1"
 
 # Tracking utenti connessi (sid -> username)
 _utenti_online_lock = threading.Lock()
