@@ -1545,31 +1545,70 @@ async function importExcel(inp) {
   const msg  = document.getElementById('import-msg');
   const fill = document.getElementById('import-fill');
   const file = inp.files[0];
-  bar.style.display='block';
-  msg.textContent=`⏳ Caricamento ${file.name} (${Math.round(file.size/1024)}KB)...`;
-  fill.style.width='5%';
+  bar.style.display = 'block';
+  msg.textContent = `⏳ Caricamento ${file.name} (${Math.round(file.size/1024/1024*10)/10} MB)...`;
+  fill.style.width = '5%';
 
-  _sock.on('import_progress', d=>{
-    const pct=Math.min(90,Math.round((d.processed||0)/230));
-    fill.style.width=pct+'%';
-    msg.textContent=`⏳ ${d.importati||0} nuovi, ${d.aggiornati||0} aggiornati... (riga ${d.processed||0})`;
+  // Listener progress via SocketIO
+  _sock.off('import_progress');
+  _sock.off('import_done');
+  _sock.on('import_progress', d => {
+    const pct = Math.min(85, Math.round((d.processed||0) / 300));
+    fill.style.width = pct + '%';
+    msg.textContent = `⏳ ${d.importati||0} nuovi, ${d.aggiornati||0} aggiornati... (riga ${d.processed||0})`;
+  });
+  _sock.on('import_done', async d => {
+    fill.style.width = '100%';
+    msg.textContent = d.ok ? d.msg : '❌ ' + d.msg;
+    toast(d.msg, d.ok);
+    if(d.ok) await caricaDati();
+    setTimeout(() => { bar.style.display='none'; fill.style.width='0%'; }, 6000);
+    inp.value = '';
   });
 
-  const fd = new FormData(); fd.append('file', file);
+  // Avvia import in background
+  const fd = new FormData();
+  fd.append('file', file);
   try {
-    fill.style.width='15%';
-    const r   = await fetch('/api/magazzino/import-excel-stream',{method:'POST',body:fd});
+    fill.style.width = '10%';
+    const r = await fetch('/api/magazzino/import-excel-bg', {method:'POST', body:fd});
     const res = await r.json();
-    fill.style.width='100%';
-    msg.textContent = res.ok ? res.msg : '❌ '+res.msg;
-    toast(res.msg, res.ok);
-    if(res.ok) await caricaDati();
-    setTimeout(()=>{ bar.style.display='none'; fill.style.width='0%'; }, 4000);
+    if(!res.ok) {
+      bar.style.display = 'none';
+      toast('❌ ' + res.msg, false);
+      inp.value = '';
+      return;
+    }
+    msg.textContent = '⏳ Import in corso... potrebbe richiedere alcuni minuti per file grandi.';
+    fill.style.width = '15%';
+    // Polling di sicurezza ogni 5s
+    const poller = setInterval(async () => {
+      try {
+        const s = await (await fetch('/api/magazzino/import-stato')).json();
+        if(!s.running) {
+          clearInterval(poller);
+          if(s.ok === null) return;
+          if(s.ok) {
+            fill.style.width = '100%';
+            msg.textContent = s.msg;
+            toast(s.msg, true);
+            await caricaDati();
+          } else {
+            msg.textContent = s.msg;
+            toast(s.msg, false);
+          }
+          setTimeout(() => { bar.style.display='none'; fill.style.width='0%'; }, 6000);
+        } else {
+          fill.style.width = Math.min(85, Math.round((s.processed||0)/300)) + '%';
+          msg.textContent = `⏳ ${s.importati||0} nuovi, ${s.aggiornati||0} aggiornati... (riga ${s.processed||0})`;
+        }
+      } catch(e) {}
+    }, 5000);
   } catch(e) {
-    bar.style.display='none';
-    toast('Errore import: usa import_excel.bat per file grandi',false);
+    bar.style.display = 'none';
+    toast('Errore di connessione durante import', false);
+    inp.value = '';
   }
-  inp.value='';
 }
 
 // ── EXPORT EXCEL ──────────────────────────────────────────────────────

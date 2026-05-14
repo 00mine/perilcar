@@ -2495,6 +2495,189 @@ def service_worker():
     resp.headers["Cache-Control"] = "no-cache"
     return resp
 
+# ══ IMPORT EXCEL BACKGROUND ══════════════════════════════════════════
+_import_stato = {"running": False, "importati": 0, "aggiornati": 0,
+                  "saltati": 0, "totale": 0, "processed": 0, "msg": "", "ok": None}
+
+def _processa_import_bg(tmp_path, utente_id, utente_username):
+    """Processa import Excel in background thread."""
+    global _import_stato
+    import openpyxl, os as _os
+
+    _import_stato.update({"running": True, "importati": 0, "aggiornati": 0,
+                           "saltati": 0, "totale": 0, "processed": 0,
+                           "msg": "Avvio importazione...", "ok": None})
+    try:
+        wb = openpyxl.load_workbook(tmp_path, data_only=True, read_only=True)
+        ws = wb.active
+
+        header_row = next(ws.iter_rows(min_row=1, max_row=1, values_only=True))
+        header = [str(h or "").strip().lower() for h in header_row]
+        col_map = {}
+        for i, h in enumerate(header):
+            field = DANEA_MAP.get(h, h.replace(" ","_").replace(".","").replace("'",""))
+            col_map[field] = i
+
+        log.info(f"Import BG: colonne trovate: {list(col_map.keys())}")
+
+        def get(row, field, default=None):
+            idx = col_map.get(field)
+            if idx is None or idx >= len(row): return default
+            v = row[idx]
+            if v is None: return default
+            import datetime
+            if isinstance(v, (datetime.datetime, datetime.date)):
+                return str(v.year)
+            s = str(v).strip()
+            return s if s not in ("None","nan","") else default
+
+        def toint(row, field):
+            try: v = get(row, field, "0"); return int(float(v)) if v else 0
+            except: return 0
+
+        importati = 0; aggiornati = 0; saltati = 0; row_n = 0
+        BATCH = 500
+
+        with db._write_lock:
+            conn = db.get_connection()
+            try:
+                for row in ws.iter_rows(min_row=2, values_only=True):
+                    row_n += 1
+                    codice = get(row, "codice") or get(row, "cmp")
+                    nome   = get(row, "nome") or get(row, "articolo") or get(row, "descrizione")
+
+                    if not codice and not nome:
+                        saltati += 1; continue
+                    if not codice: codice = "IMP-" + str(row_n).zfill(5)
+                    if not nome:   nome   = codice
+
+                    campi = {
+                        "nome": nome, "tipologia": get(row,"tipologia"),
+                        "categoria": get(row,"categoria"),
+                        "sottocategoria": get(row,"sottocategoria"),
+                        "cod_udm": get(row,"cod_udm") or "PZ",
+                        "cod_iva": get(row,"cod_iva"),
+                        "listino1": get(row,"listino1"),
+                        "listino2": get(row,"listino2"),
+                        "listino3": get(row,"listino3"),
+                        "nota": get(row,"nota") or get(row,"note"),
+                        "cod_barre": get(row,"cod_barre"),
+                        "marca": get(row,"marca") or get(row,"produttore"),
+                        "modello": get(row,"modello"),
+                        "cod_fornitore": get(row,"cod_fornitore"),
+                        "fornitore": get(row,"fornitore"),
+                        "prezzo_forn": get(row,"prezzo_forn"),
+                        "scorta": toint(row,"scorta_minima") or toint(row,"scorta"),
+                        "ubicazione": get(row,"ubicazione"),
+                        "stato_magazzino": get(row,"stato_magazzino"),
+                        "colore": get(row,"colore"),
+                        "modello": get(row,"modello"),
+                        "anno_da": get(row,"anno_da"),
+                        "anno_a": get(row,"anno_a"),
+                    }
+                    campi = {k: v for k, v in campi.items() if v is not None}
+                    esistenza = toint(row, "esistenza") or toint(row, "quantita") or toint(row, "giacenza")
+
+                    existing = conn.execute(
+                        "SELECT id FROM componenti WHERE cmp=? AND eliminato=0", (codice,)
+                    ).fetchone()
+
+                    if existing:
+                        comp_id = existing[0]
+                        sets = ", ".join(f"{k}=?" for k in campi)
+                        if sets:
+                            conn.execute(
+                                f"UPDATE componenti SET {sets}, aggiornato_il=datetime('now') WHERE id=?",
+                                list(campi.values()) + [comp_id])
+                        aggiornati += 1
+                    else:
+                        campi["cmp"] = codice
+                        campi["eliminato"] = 0
+                        cols_str = ", ".join(campi.keys())
+                        phs = ", ".join(["?"] * len(campi))
+                        cur = conn.execute(
+                            f"INSERT INTO componenti ({cols_str}) VALUES ({phs})",
+                            list(campi.values()))
+                        comp_id = cur.lastrowid
+                        importati += 1
+
+                    if esistenza > 0:
+                        already = conn.execute(
+                            "SELECT id FROM movimenti WHERE componente_id=? AND riferimento='Import Excel' LIMIT 1",
+                            (comp_id,)).fetchone()
+                        if not already:
+                            conn.execute(
+                                "INSERT INTO movimenti (componente_id,tipo,quantita,quantita_prima,quantita_dopo,riferimento,username) VALUES(?,?,?,?,?,?,?)",
+                                (comp_id,"carico",esistenza,0,esistenza,"Import Excel",utente_username))
+
+                    if row_n % BATCH == 0:
+                        conn.commit()
+                        _import_stato.update({
+                            "importati": importati, "aggiornati": aggiornati,
+                            "saltati": saltati, "processed": row_n,
+                            "msg": f"⏳ {importati} nuovi, {aggiornati} aggiornati, riga {row_n}..."
+                        })
+                        socketio.emit("import_progress", {
+                            "importati": importati, "aggiornati": aggiornati,
+                            "processed": row_n, "saltati": saltati
+                        })
+
+                conn.commit()
+            finally:
+                conn.close()
+
+        try: _os.unlink(tmp_path)
+        except: pass
+
+        msg = f"✅ Import completato: {importati} nuovi, {aggiornati} aggiornati, {saltati} saltati su {row_n} righe"
+        log.info(msg)
+        _import_stato.update({"running": False, "importati": importati, "aggiornati": aggiornati,
+                               "saltati": saltati, "processed": row_n, "msg": msg, "ok": True})
+        socketio.emit("import_done", {"ok": True, "msg": msg,
+                                       "importati": importati, "aggiornati": aggiornati, "saltati": saltati})
+
+    except Exception as e:
+        log.exception(f"Import BG errore: {e}")
+        msg = f"❌ Errore: {e}"
+        _import_stato.update({"running": False, "msg": msg, "ok": False})
+        socketio.emit("import_done", {"ok": False, "msg": msg})
+        try: _os.unlink(tmp_path)
+        except: pass
+
+
+@app.route("/api/magazzino/import-excel-bg", methods=["POST"])
+@require_login
+def api_import_excel_bg():
+    """Avvia import Excel in background — ritorna subito, progresso via SocketIO."""
+    global _import_stato
+    if _import_stato.get("running"):
+        return jsonify({"ok": False, "msg": "Import già in corso"}), 400
+
+    if "file" not in request.files:
+        return jsonify({"ok": False, "msg": "Nessun file"}), 400
+    f = request.files["file"]
+    if not f.filename.lower().endswith((".xlsx",".xls")):
+        return jsonify({"ok": False, "msg": "Solo .xlsx o .xls"}), 400
+
+    import os as _os
+    u = cu()
+    tmp_path = str(ROOT / "logs" / "_import_tmp.xlsx")
+    f.save(tmp_path)
+    log.info(f"Import BG: file salvato {_os.path.getsize(tmp_path)//1024}KB")
+
+    t = threading.Thread(target=_processa_import_bg,
+                         args=(tmp_path, u.get("id"), u.get("username")),
+                         daemon=True)
+    t.start()
+    return jsonify({"ok": True, "msg": "Import avviato in background"})
+
+
+@app.route("/api/magazzino/import-stato")
+@require_login
+def api_import_stato():
+    return jsonify(_import_stato)
+
+
 # ══ AGGIORNAMENTI ════════════════════════════════════════════════════
 # ── Configurazione repo ──────────────────────────────────────────────
 # Cambia GITHUB_REPO con il nome del repo di PRODUZIONE quando creato
