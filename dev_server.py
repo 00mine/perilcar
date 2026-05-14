@@ -2658,7 +2658,7 @@ def _processa_import_bg(tmp_path, utente_id, utente_username):
                     if not nome:   nome   = codice
 
                     campi = {
-                        "articolo": nome,
+                        _DB_COLS.get("articolo","nome"): nome,
                         "tipologia": get(row,"tipologia"),
                         "categoria": get(row,"categoria"),
                         "sottocategoria": get(row,"sottocategoria"),
@@ -2667,14 +2667,14 @@ def _processa_import_bg(tmp_path, utente_id, utente_username):
                         "listino1": get(row,"listino1"),
                         "listino2": get(row,"listino2"),
                         "listino3": get(row,"listino3"),
-                        "nota": get(row,"nota") or get(row,"note"),
+                        _DB_COLS.get("nota","nota"): get(row,"nota") or get(row,"note"),
                         "cod_barre": get(row,"cod_barre"),
                         "marca": get(row,"marca") or get(row,"produttore"),
                         "modello": get(row,"modello"),
                         "cod_fornitore": get(row,"cod_fornitore"),
                         "fornitore": get(row,"fornitore"),
                         "prezzo_forn": get(row,"prezzo_forn"),
-                        "scorta": toint(row,"scorta_minima") or toint(row,"scorta"),
+                        _DB_COLS.get("scorta","scorta"): toint(row,"scorta_minima") or toint(row,"scorta"),
                         "ubicazione": get(row,"ubicazione"),
                         "stato_magazzino": get(row,"stato_magazzino"),
                         "colore": get(row,"colore"),
@@ -2685,7 +2685,7 @@ def _processa_import_bg(tmp_path, utente_id, utente_username):
                     esistenza = toint(row, "esistenza") or toint(row, "quantita") or toint(row, "giacenza")
 
                     existing = conn.execute(
-                        "SELECT id FROM componenti WHERE cmp=? AND eliminato=0", (codice,)
+                        f"SELECT id FROM componenti WHERE {_DB_COLS.get('cmp','codice')}=? AND {_DB_COLS.get('eliminato','eliminato')}=0", (codice,)
                     ).fetchone()
 
                     if existing:
@@ -2694,12 +2694,12 @@ def _processa_import_bg(tmp_path, utente_id, utente_username):
                         if campi_update:
                             sets = ", ".join(f"{k}=?" for k in campi_update)
                             conn.execute(
-                                f"UPDATE componenti SET {sets}, aggiornato_il=datetime('now') WHERE id=?",
+                                f"UPDATE componenti SET {sets}, {_DB_COLS.get('aggiornato_il','aggiornato_il')}=datetime('now') WHERE id=?",
                                 list(campi_update.values()) + [comp_id])
                         aggiornati += 1
                     else:
                         campi_ins = {k:v for k,v in campi.items() if v is not None and v != ""}
-                        campi_ins["cmp"]      = codice
+                        campi_ins[_DB_COLS.get("cmp","codice")]      = codice
                         campi_ins["eliminato"] = 0
                         cols_str = ", ".join(campi_ins.keys())
                         phs = ", ".join(["?"] * len(campi_ins))
