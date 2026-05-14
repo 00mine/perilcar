@@ -98,67 +98,91 @@ cfg = ConfigManager()
 db  = DatabaseManager(cfg.get("db_path"))
 log.info(f"DB magazzino: {cfg.get('db_path')}")
 
-# ── Auto-fix view all'avvio ───────────────────────────────────────────
+# ── Auto-fix view e mapping colonne all'avvio ────────────────────────
+_DB_COLS = {
+    "cmp": "codice", "articolo": "nome", "nota": "nota",
+    "scorta": "scorta_minima", "eliminato": "eliminato",
+    "aggiornato_il": "aggiornato_il", "all_cols": [],
+    "tabella_movimenti": "movimenti_magazzino"
+}
+
 def _auto_fix_view():
-    """Ricrea v_giacenza con le colonne reali del DB — chiamata ad ogni avvio."""
+    """Rileva colonne reali del DB e ricrea v_giacenza."""
+    global _DB_COLS
+    import sqlite3 as _sq3
     try:
-        conn = db.get_connection()
-        cols = [r[1] for r in conn.execute("PRAGMA table_info(componenti)").fetchall()]
+        # Connessione diretta per evitare problemi con il connection pool
+        _raw = _sq3.connect(cfg.get("db_path"), timeout=10)
+        _raw.row_factory = _sq3.Row
+        cols = [r[1] for r in _raw.execute("PRAGMA table_info(componenti)").fetchall()]
         if not cols:
-            conn.close(); return
+            _raw.close(); return
 
-        col_cmp  = "cmp"      if "cmp"      in cols else "codice"
-        col_art  = "articolo" if "articolo" in cols else ("nome" if "nome" in cols else "descrizione")
-        col_nota = "nota"     if "nota"     in cols else ("note" if "note"  in cols else "''")
-        col_scor = "scorta"   if "scorta"   in cols else ("scorta_minima" if "scorta_minima" in cols else "0")
-        col_files = "files_path" if "files_path" in cols else "''"
-        col_img   = "immagine_path" if "immagine_path" in cols else "''"
-        col_elim  = "eliminato" if "eliminato" in cols else "0"
+        # Rileva nomi colonne
+        cmp_col   = "cmp"      if "cmp"      in cols else "codice"
+        art_col   = "articolo" if "articolo" in cols else ("nome" if "nome" in cols else "descrizione")
+        nota_col  = "nota"     if "nota"     in cols else ("note" if "note" in cols else None)
+        scor_col  = "scorta"   if "scorta"   in cols else ("scorta_minima" if "scorta_minima" in cols else None)
+        elim_col  = "eliminato" if "eliminato" in cols else None
+        files_col = "files_path" if "files_path" in cols else None
+        img_col   = "immagine_path" if "immagine_path" in cols else None
+        aggi_col  = "aggiornato_il" if "aggiornato_il" in cols else ("modificato_il" if "modificato_il" in cols else "creato_il")
 
-        # Lista colonne extra opzionali
+        # Rileva tabella movimenti
+        tables = [r[0] for r in _raw.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()]
+        tab_mov = "movimenti_magazzino" if "movimenti_magazzino" in tables else "movimenti"
+
+        # Aggiorna mapping globale
+        _DB_COLS = {
+            "cmp": cmp_col, "articolo": art_col,
+            "nota": nota_col or "nota",
+            "scorta": scor_col or "scorta",
+            "eliminato": elim_col or "eliminato",
+            "aggiornato_il": aggi_col,
+            "all_cols": cols,
+            "tabella_movimenti": tab_mov,
+        }
+        log.info(f"DB schema: cmp={cmp_col}, art={art_col}, mov={tab_mov}")
+
         def opt(c, alias=None):
             a = alias or c
             return f"c.{c} AS {a}" if c in cols else f"'' AS {a}"
 
-        conn.execute("DROP VIEW IF EXISTS v_giacenza")
-        conn.execute(f"""
+        _raw.execute("DROP VIEW IF EXISTS v_giacenza")
+        _raw.execute(f"""
             CREATE VIEW v_giacenza AS
             SELECT
                 c.id AS componente_id,
-                c.{col_cmp} AS cmp,
-                c.{col_art} AS articolo,
+                c.{cmp_col} AS cmp,
+                c.{art_col} AS articolo,
                 {opt('tipologia')}, {opt('categoria')}, {opt('sottocategoria')},
                 {opt('cod_udm')}, {opt('cod_iva')},
                 {opt('listino1')}, {opt('listino2')}, {opt('listino3')},
-                c.{col_nota} AS nota,
+                c.{nota_col or 'rowid'} AS nota,
                 {opt('cod_barre')}, {opt('marca')}, {opt('modello')},
                 {opt('extra1')}, {opt('extra2')}, {opt('extra3')}, {opt('extra4')},
                 {opt('cod_fornitore')}, {opt('fornitore')},
                 {opt('prezzo_forn')},
-                c.{col_scor} AS scorta,
+                c.{scor_col or '0'} AS scorta,
                 {opt('ubicazione')}, {opt('stato_magazzino')},
                 {opt('colore')}, {opt('cilindrata')}, {opt('carburante')},
                 {opt('versione')}, {opt('anno_da')}, {opt('anno_a')},
-                c.{col_img} AS immagine_path,
-                c.{col_files} AS files_path,
-                c.{col_elim} AS eliminato,
+                {'c.'+img_col if img_col else "''"} AS immagine_path,
+                {'c.'+files_col if files_col else "''"} AS files_path,
+                {'c.'+elim_col if elim_col else '0'} AS eliminato,
                 COALESCE((
                     SELECT SUM(CASE WHEN m.tipo='carico'  THEN m.quantita
                                     WHEN m.tipo='scarico' THEN -m.quantita
                                     ELSE 0 END)
-                    FROM '+_DB_COLS.get("tabella_movimenti","movimenti")+' m WHERE m.componente_id=c.id
+                    FROM {tab_mov} m WHERE m.componente_id=c.id
                 ), 0) AS esistenza
-            FROM componenti c WHERE c.{col_elim}=0
+            FROM componenti c WHERE {'c.'+elim_col+'=0' if elim_col else '1=1'}
         """)
-        conn.commit()
-        conn.close()
-        log.info(f"v_giacenza ricreata: cmp={col_cmp}, articolo={col_art}")
-        # Rileva nome tabella movimenti
-        tables = [r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()]
-        _DB_COLS["tabella_movimenti"] = "movimenti_magazzino" if "movimenti_magazzino" in tables else "movimenti"
-        log.info(f"Tabella movimenti: {_DB_COLS['tabella_movimenti']}")
+        _raw.commit()
+        _raw.close()
+        log.info(f"v_giacenza OK")
     except Exception as e:
-        log.warning(f"Auto-fix view fallito: {e}")
+        log.warning(f"Auto-fix view: {e}")
 
 _auto_fix_view()
 
