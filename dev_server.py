@@ -2909,6 +2909,68 @@ def api_voci_del(vid):
     dem.run("DELETE FROM voci_tendine WHERE id=?", (vid,))
     return jsonify({"ok": True})
 
+@app.route("/api/magazzino/fix-view")
+@require_login  
+def api_fix_view():
+    """Ricrea v_giacenza con le colonne reali del DB."""
+    try:
+        with db._write_lock:
+            conn = db.get_connection()
+            # Leggi colonne reali della tabella componenti
+            cols = [r[1] for r in conn.execute("PRAGMA table_info(componenti)").fetchall()]
+            log.info(f"Colonne componenti reali: {cols}")
+            
+            # Determina nome colonne chiave
+            col_cmp  = "cmp"      if "cmp"      in cols else "codice"
+            col_art  = "articolo" if "articolo" in cols else ("nome" if "nome" in cols else "descrizione")
+            col_nota = "nota"     if "nota"     in cols else ("note" if "note" in cols else "''")
+            col_pub  = "pubblicato" if "pubblicato" in cols else "0"
+            col_scor = "scorta"   if "scorta"   in cols else ("scorta_minima" if "scorta_minima" in cols else "0")
+            
+            # Ricrea view con nomi corretti
+            conn.execute("DROP VIEW IF EXISTS v_giacenza")
+            conn.execute(f"""
+                CREATE VIEW v_giacenza AS
+                SELECT
+                    c.id              AS componente_id,
+                    c.{col_cmp}       AS cmp,
+                    c.{col_art}       AS articolo,
+                    c.tipologia, c.categoria, c.sottocategoria,
+                    c.cod_udm, c.cod_iva,
+                    c.listino1, c.listino2, c.listino3,
+                    c.{col_nota}      AS nota,
+                    c.cod_barre, c.marca,
+                    COALESCE(c.extra1,'') AS extra1,
+                    COALESCE(c.extra2,'') AS extra2,
+                    COALESCE(c.extra3,'') AS extra3,
+                    COALESCE(c.extra4,'') AS extra4,
+                    c.cod_fornitore, c.fornitore,
+                    c.prezzo_forn, c.{col_scor} AS scorta,
+                    c.ubicazione,
+                    COALESCE(c.stato_magazzino,'attivo') AS stato_magazzino,
+                    c.modello, c.colore,
+                    COALESCE(c.cilindrata,'') AS cilindrata,
+                    COALESCE(c.carburante,'') AS carburante,
+                    COALESCE(c.versione,'') AS versione,
+                    c.anno_da, c.anno_a,
+                    c.immagine_path, c.files_path,
+                    c.eliminato,
+                    COALESCE((
+                        SELECT SUM(CASE WHEN m.tipo='carico' THEN m.quantita
+                                        WHEN m.tipo='scarico' THEN -m.quantita
+                                        ELSE 0 END)
+                        FROM movimenti m WHERE m.componente_id=c.id
+                    ), 0) AS esistenza
+                FROM componenti c WHERE c.eliminato=0
+            """)
+            conn.commit()
+            conn.close()
+            log.info("v_giacenza ricreata con colonne corrette")
+            return jsonify({"ok": True, "msg": f"View ricreata. Colonne: cmp={col_cmp}, articolo={col_art}"})
+    except Exception as e:
+        log.exception(f"Fix view error: {e}")
+        return jsonify({"ok": False, "msg": str(e)}), 500
+
 # HOT RELOAD
 # ══════════════════════════════════════════════════════════════════════════════
 
