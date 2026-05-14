@@ -1,0 +1,6 @@
+2026/05/14-11:10:51.103 2330 Reusing MANIFEST C:\Users\Utente\Desktop\perilcar\browser_profile\Default\EdgeCoupons/coupons_data.db/MANIFEST-000001
+2026/05/14-11:10:51.106 2330 Recovering log #23
+2026/05/14-11:10:51.106 2330 Reusing old log C:\Users\Utente\Desktop\perilcar\browser_profile\Default\EdgeCoupons/coupons_data.db/000023.log 
+2026/05/14-11:10:51.190 2964 Level-0 table #27: started
+2026/05/14-11:10:51.197 2964 Level-0 table #27: 682628 bytes OK
+2026/05/14-11:10:51.201 2964 Delete type=0 #23

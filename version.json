@@ -1,9 +1,10 @@
 {
-  "versione": "3.6.2",
+  "versione": "3.6.3",
   "data": "2026-05-14",
   "obbligatorio": false,
   "changelog": [
-    "Sistema aggiornamenti migliorato",
-    "Non richiede git sul PC"
+    "Magazzino veloce",
+    "Fix compatibilita DB",
+    "Aggiornamenti remoti riparati"
   ]
 }
