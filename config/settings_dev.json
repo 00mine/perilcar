@@ -1,0 +1,9 @@
+{
+  "db_path": "db/perilcar.db",
+  "backup_dir": "backup",
+  "log_dir": "logs",
+  "backup_auto": false,
+  "nas": {
+    "abilitato": false
+  }
+}

@@ -27,6 +27,18 @@ _nas = _cfg.get("nas", {})
 if _nas.get("abilitato") and _nas.get("percorso_db"):
     _db_dir = Path(_nas["percorso_db"])
     try:
+        # Verifica NAS raggiungibile in max 2 secondi
+        import socket as _sock
+        _nas_ip = _nas.get("ip", "")
+        if _nas_ip:
+            _s = _sock.socket(_sock.AF_INET, _sock.SOCK_STREAM)
+            _s.settimeout(2)
+            _reachable = _s.connect_ex((_nas_ip, 445)) == 0
+            _s.close()
+        else:
+            _reachable = True
+        if not _reachable:
+            raise Exception(f"NAS {_nas_ip} non raggiungibile")
         _db_dir.mkdir(parents=True, exist_ok=True)
         _perilcar_db_path = _db_dir / "perilcar.db"
         _dem_db_path      = _db_dir / "demolizioni.db"
