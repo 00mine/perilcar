@@ -2552,7 +2552,8 @@ def _processa_import_bg(tmp_path, utente_id, utente_username):
                     if not nome:   nome   = codice
 
                     campi = {
-                        "nome": nome, "tipologia": get(row,"tipologia"),
+                        "articolo": nome,
+                        "tipologia": get(row,"tipologia"),
                         "categoria": get(row,"categoria"),
                         "sottocategoria": get(row,"sottocategoria"),
                         "cod_udm": get(row,"cod_udm") or "PZ",
@@ -2571,7 +2572,6 @@ def _processa_import_bg(tmp_path, utente_id, utente_username):
                         "ubicazione": get(row,"ubicazione"),
                         "stato_magazzino": get(row,"stato_magazzino"),
                         "colore": get(row,"colore"),
-                        "modello": get(row,"modello"),
                         "anno_da": get(row,"anno_da"),
                         "anno_a": get(row,"anno_a"),
                     }
@@ -2584,20 +2584,22 @@ def _processa_import_bg(tmp_path, utente_id, utente_username):
 
                     if existing:
                         comp_id = existing[0]
-                        sets = ", ".join(f"{k}=?" for k in campi)
-                        if sets:
+                        campi_update = {k:v for k,v in campi.items() if v is not None and v != ""}
+                        if campi_update:
+                            sets = ", ".join(f"{k}=?" for k in campi_update)
                             conn.execute(
                                 f"UPDATE componenti SET {sets}, aggiornato_il=datetime('now') WHERE id=?",
-                                list(campi.values()) + [comp_id])
+                                list(campi_update.values()) + [comp_id])
                         aggiornati += 1
                     else:
-                        campi["cmp"] = codice
-                        campi["eliminato"] = 0
-                        cols_str = ", ".join(campi.keys())
-                        phs = ", ".join(["?"] * len(campi))
+                        campi_ins = {k:v for k,v in campi.items() if v is not None and v != ""}
+                        campi_ins["cmp"]      = codice
+                        campi_ins["eliminato"] = 0
+                        cols_str = ", ".join(campi_ins.keys())
+                        phs = ", ".join(["?"] * len(campi_ins))
                         cur = conn.execute(
                             f"INSERT INTO componenti ({cols_str}) VALUES ({phs})",
-                            list(campi.values()))
+                            list(campi_ins.values()))
                         comp_id = cur.lastrowid
                         importati += 1
 
