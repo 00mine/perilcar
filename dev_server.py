@@ -1161,7 +1161,7 @@ def api_import_excel():
                     esistenza = toint(row, "esistenza")
 
                     campi = {
-                        "nome":           nome,
+                        _DB_COLS.get("articolo","articolo"): nome,
                         "tipologia":      get(row, "tipologia"),
                         "categoria":      get(row, "categoria"),
                         "sottocategoria": get(row, "sottocategoria"),
@@ -1203,7 +1203,7 @@ def api_import_excel():
                             vals)
                         aggiornati += 1
                     else:
-                        campi["codice"] = codice
+                        campi[_DB_COLS.get("cmp","cmp")] = codice
                         campi["pubblicato"] = 0
                         campi["creato_da"]  = u.get("id")
                         cols_str = ", ".join(campi.keys())
@@ -2673,13 +2673,23 @@ def _processa_import_bg(tmp_path, utente_id, utente_username):
                         importati += 1
 
                     if esistenza > 0:
-                        already = conn.execute(
-                            "SELECT id FROM movimenti WHERE componente_id=? AND riferimento='Import Excel' LIMIT 1",
-                            (comp_id,)).fetchone()
-                        if not already:
-                            conn.execute(
-                                "INSERT INTO movimenti (componente_id,tipo,quantita,quantita_prima,quantita_dopo,riferimento,username) VALUES(?,?,?,?,?,?,?)",
-                                (comp_id,"carico",esistenza,0,esistenza,"Import Excel",utente_username))
+                        # Prova tabella movimenti con schema flessibile
+                        try:
+                            already = conn.execute(
+                                "SELECT id FROM movimenti WHERE componente_id=? AND riferimento='Import Excel' LIMIT 1",
+                                (comp_id,)).fetchone()
+                            if not already:
+                                mov_cols = [r[1] for r in conn.execute("PRAGMA table_info(movimenti)").fetchall()]
+                                if "username" in mov_cols:
+                                    conn.execute(
+                                        "INSERT INTO movimenti (componente_id,tipo,quantita,quantita_prima,quantita_dopo,riferimento,username) VALUES(?,?,?,?,?,?,?)",
+                                        (comp_id,"carico",esistenza,0,esistenza,"Import Excel",utente_username))
+                                else:
+                                    conn.execute(
+                                        "INSERT INTO movimenti (componente_id,tipo,quantita,quantita_prima,quantita_dopo,riferimento) VALUES(?,?,?,?,?,?)",
+                                        (comp_id,"carico",esistenza,0,esistenza,"Import Excel"))
+                        except Exception as _me:
+                            log.warning(f"Mov insert skip: {_me}")
 
                     if row_n % BATCH == 0:
                         conn.commit()
