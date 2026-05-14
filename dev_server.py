@@ -2546,26 +2546,58 @@ def api_check_update():
 @app.route("/api/installa-aggiornamento", methods=["POST"])
 @require_login
 def api_installa_aggiornamento():
-    """Scarica e applica aggiornamento dal repo GitHub."""
-    import subprocess, shutil
+    """Scarica e applica aggiornamento tramite ZIP da GitHub."""
+    import urllib.request, zipfile, shutil, tempfile
     try:
-        # Solo codice — mai DB o uploads
-        result = subprocess.run(
-            ["git", "fetch", "origin"],
-            cwd=str(ROOT), capture_output=True, text=True, timeout=30
-        )
-        if result.returncode != 0:
-            return jsonify({"ok": False, "msg": "Fetch fallito: " + result.stderr}), 500
+        # Scarica zip del repo produzione
+        zip_url = f"https://github.com/{GITHUB_REPO}/archive/refs/heads/{GITHUB_BRANCH}.zip"
+        log.info(f"Download aggiornamento da: {zip_url}")
 
-        result2 = subprocess.run(
-            ["git", "reset", "--hard", "origin/main"],
-            cwd=str(ROOT), capture_output=True, text=True, timeout=30
-        )
-        if result2.returncode != 0:
-            return jsonify({"ok": False, "msg": "Reset fallito: " + result2.stderr}), 500
+        tmp_zip = ROOT / "logs" / "_update.zip"
+        req = urllib.request.Request(zip_url,
+              headers={"User-Agent": "PerilCar-ERP/" + VERSIONE_APP})
+        with urllib.request.urlopen(req, timeout=60) as r:
+            with open(tmp_zip, "wb") as f:
+                f.write(r.read())
 
-        log.info(f"Aggiornamento installato: {result2.stdout.strip()}")
-        # Riavvia il server dopo 2 secondi
+        log.info(f"ZIP scaricato: {tmp_zip.stat().st_size} bytes")
+
+        # Estrai e aggiorna solo i file di codice (non DB, non uploads, non config)
+        SKIP = {"db", "backup", "logs", "web/static/uploads", "config/settings.json"}
+        SKIP_EXT = {".db", ".db-wal", ".db-shm", ".log"}
+
+        with zipfile.ZipFile(tmp_zip) as zf:
+            # Il repo zip ha una cartella radice es. "perilcar-main/"
+            names = zf.namelist()
+            prefix = names[0].split("/")[0] + "/"  # es. "perilcar-main/"
+
+            for member in names:
+                if member == prefix: continue
+                # Percorso relativo senza la cartella radice
+                rel = member[len(prefix):]
+                if not rel: continue
+
+                # Salta file protetti
+                skip = False
+                for s in SKIP:
+                    if rel.startswith(s) or rel == s.rstrip("/"):
+                        skip = True; break
+                if skip: continue
+                ext = "." + rel.rsplit(".", 1)[-1] if "." in rel else ""
+                if ext in SKIP_EXT: continue
+
+                dest = ROOT / rel
+                if member.endswith("/"):
+                    dest.mkdir(parents=True, exist_ok=True)
+                else:
+                    dest.parent.mkdir(parents=True, exist_ok=True)
+                    with zf.open(member) as src_f, open(dest, "wb") as dst_f:
+                        dst_f.write(src_f.read())
+
+        tmp_zip.unlink()
+        log.info("Aggiornamento installato via ZIP")
+
+        # Riavvia dopo 2 secondi
         def _riavvia():
             time.sleep(2)
             import os
@@ -2573,6 +2605,7 @@ def api_installa_aggiornamento():
         threading.Thread(target=_riavvia, daemon=True).start()
         return jsonify({"ok": True, "msg": "Aggiornamento installato. Riavvio in corso..."})
     except Exception as e:
+        log.exception(f"Errore aggiornamento: {e}")
         return jsonify({"ok": False, "msg": str(e)}), 500
 
 # ══ STATO SISTEMA ════════════════════════════════════════════════════
