@@ -1076,8 +1076,14 @@ def api_import_excel():
                     row_n += 1
                     codice = get(row, "codice")
                     nome   = get(row, "nome")
-                    if not codice or not nome:
+                    if not codice:
+                        codice = get(row,"cmp") or get(row,"ref") or get(row,"riferimento")
+                    if not nome:
+                        nome = get(row,"descrizione") or get(row,"prodotto") or get(row,"articolo")
+                    if not codice and not nome:
                         saltati += 1; continue
+                    if not codice: codice = "IMP-" + str(row_n).zfill(4)
+                    if not nome:   nome   = codice
 
                     scorta    = toint(row, "scorta_minima")
                     esistenza = toint(row, "esistenza")
@@ -1225,8 +1231,14 @@ def api_import_excel_stream():
                     row_n += 1
                     codice = get(row, "codice")
                     nome   = get(row, "nome")
-                    if not codice or not nome:
+                    if not codice:
+                        codice = get(row,"cmp") or get(row,"ref") or get(row,"riferimento")
+                    if not nome:
+                        nome = get(row,"descrizione") or get(row,"prodotto") or get(row,"articolo")
+                    if not codice and not nome:
                         saltati += 1; continue
+                    if not codice: codice = "IMP-" + str(row_n).zfill(4)
+                    if not nome:   nome   = codice
 
                     scorta    = toint(row, "scorta_minima")
                     esistenza = toint(row, "esistenza")
@@ -1321,6 +1333,7 @@ def api_import_excel_stream():
     tot = importati + aggiornati
     socketio.emit("import_done", {"importati": importati, "aggiornati": aggiornati, "saltati": saltati})
     log.info(f"Import completato: {importati} nuovi, {aggiornati} aggiornati, {saltati} saltati")
+    log.info(f"Colonne trovate: {list(col_map.keys())}")
     return jsonify({"ok": True,
         "msg": f"✅ Import OK: {importati} nuovi, {aggiornati} aggiornati, {saltati} saltati su {tot} totali",
         "importati": importati, "aggiornati": aggiornati, "saltati": saltati})

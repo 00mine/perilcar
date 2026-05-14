@@ -2,28 +2,12 @@
 setlocal enabledelayedexpansion
 cd /d "%~dp0"
 
-REM Cerca Python compatibile
 set PYTHON=
-for %%v in (312 311 310 39) do (
-    if "!PYTHON!"=="" (
-        for %%p in (
-            "%LOCALAPPDATA%\Programs\Python\Python%%v\python.exe"
-            "C:\Python%%v\python.exe"
-            "C:\Program Files\Python%%v\python.exe"
-        ) do (
-            if "!PYTHON!"=="" if exist %%~p set PYTHON=%%~p
-        )
-    )
-)
+if exist "%LOCALAPPDATA%\Programs\Python\Python312\python.exe" set PYTHON=%LOCALAPPDATA%\Programs\Python\Python312\python.exe
+if "!PYTHON!"=="" if exist "%LOCALAPPDATA%\Programs\Python\Python311\python.exe" set PYTHON=%LOCALAPPDATA%\Programs\Python\Python311\python.exe
+if "!PYTHON!"=="" if exist "%LOCALAPPDATA%\Programs\Python\Python310\python.exe" set PYTHON=%LOCALAPPDATA%\Programs\Python\Python310\python.exe
+if "!PYTHON!"=="" set PYTHON=python
 
-if "!PYTHON!"=="" (
-    python --version >nul 2>&1
-    if not errorlevel 1 set PYTHON=python
-)
-
-if "!PYTHON!"=="" (
-    echo Python non trovato. Esegui prima INSTALLA.bat
-    pause & exit /b 1
-)
-
-start "" /b "!PYTHON!" app_desktop.py
+REM Avvia senza finestra terminale visibile
+start "" /b pythonw "%~dp0app_desktop.py" >nul 2>&1
+if errorlevel 1 start "" /b "!PYTHON!" "%~dp0app_desktop.py"
