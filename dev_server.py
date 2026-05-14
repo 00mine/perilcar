@@ -8,8 +8,50 @@ from pathlib import Path
 ROOT = Path(__file__).parent
 sys.path.insert(0, str(ROOT))
 
-UPLOAD_FOLDER = ROOT / "web" / "static" / "uploads"
-UPLOAD_FOLDER.mkdir(parents=True, exist_ok=True)
+# ── Configurazione percorsi (locale o NAS) ────────────────────────────
+def _carica_config():
+    """Legge config/settings.json se esiste, altrimenti usa percorsi locali."""
+    cfg_path = ROOT / "config" / "settings.json"
+    if cfg_path.exists():
+        try:
+            import json as _json
+            return _json.loads(cfg_path.read_text(encoding="utf-8"))
+        except Exception as e:
+            print(f"[WARN] Errore lettura settings.json: {e}")
+    return {}
+
+_cfg = _carica_config()
+_nas = _cfg.get("nas", {})
+
+# Percorso DB magazzino
+if _nas.get("abilitato") and _nas.get("percorso_db"):
+    _db_dir = Path(_nas["percorso_db"])
+    try:
+        _db_dir.mkdir(parents=True, exist_ok=True)
+        _perilcar_db_path = _db_dir / "perilcar.db"
+        _dem_db_path      = _db_dir / "demolizioni.db"
+        print(f"[NAS] DB su: {_db_dir}")
+    except Exception as e:
+        print(f"[WARN] NAS non raggiungibile ({e}), uso DB locale")
+        _perilcar_db_path = ROOT / "db" / "perilcar.db"
+        _dem_db_path      = ROOT / "db" / "demolizioni.db"
+else:
+    _perilcar_db_path = ROOT / "db" / "perilcar.db"
+    _dem_db_path      = ROOT / "db" / "demolizioni.db"
+
+# Percorso uploads (foto)
+if _nas.get("abilitato") and _nas.get("percorso_uploads"):
+    UPLOAD_FOLDER = Path(_nas["percorso_uploads"])
+    try:
+        UPLOAD_FOLDER.mkdir(parents=True, exist_ok=True)
+        print(f"[NAS] Uploads su: {UPLOAD_FOLDER}")
+    except Exception as e:
+        print(f"[WARN] NAS uploads non raggiungibile ({e}), uso locale")
+        UPLOAD_FOLDER = ROOT / "web" / "static" / "uploads"
+        UPLOAD_FOLDER.mkdir(parents=True, exist_ok=True)
+else:
+    UPLOAD_FOLDER = ROOT / "web" / "static" / "uploads"
+    UPLOAD_FOLDER.mkdir(parents=True, exist_ok=True)
 
 logging.basicConfig(level=logging.INFO,
     format="%(asctime)s  %(name)-20s  %(levelname)s  %(message)s")
@@ -46,7 +88,9 @@ log.info(f"DB magazzino: {cfg.get('db_path')}")
 
 # DB separato per demolizioni
 import os as _os
-_dem_path = _os.path.join(_os.path.dirname(cfg.get("db_path")), "demolizioni.db")
+# Percorso demolizioni.db (NAS o locale, coerente con perilcar.db)
+_dem_path = str(_dem_db_path) if '_dem_db_path' in dir() else \
+            _os.path.join(_os.path.dirname(cfg.get("db_path")), "demolizioni.db")
 
 class _DemDB:
     """Connessione SQLite semplice per DB demolizioni."""
