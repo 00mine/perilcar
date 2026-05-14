@@ -416,7 +416,7 @@ def api_crea_componente():
         return jsonify({"ok": False, "msg": "Codice obbligatorio"}), 400
     if not dati.get("nome"):
         return jsonify({"ok": False, "msg": "Nome obbligatorio"}), 400
-    if db.fetchone("SELECT id FROM componenti WHERE codice=? AND eliminato=0", (dati["codice"],)):
+    if db.fetchone("SELECT id FROM componenti WHERE cmp=? AND eliminato=0", (dati["codice"],)):
         return jsonify({"ok": False, "msg": f"Codice '{dati['codice']}' già esistente"}), 400
 
     u = cu()
@@ -1131,7 +1131,7 @@ def api_import_excel():
                     }
 
                     existing = conn.execute(
-                        "SELECT id FROM componenti WHERE codice=? AND eliminato=0",
+                        "SELECT id FROM componenti WHERE cmp=? AND eliminato=0",
                         (codice,)).fetchone()
 
                     if existing:
@@ -1139,7 +1139,7 @@ def api_import_excel():
                         sets    = ", ".join(f"{k}=?" for k in campi)
                         vals    = list(campi.values()) + [comp_id]
                         conn.execute(
-                            f"UPDATE componenti SET {sets}, modificato_il=datetime('now') WHERE id=?",
+                            f"UPDATE componenti SET {sets}, aggiornato_il=datetime('now') WHERE id=?",
                             vals)
                         aggiornati += 1
                     else:
@@ -1256,7 +1256,7 @@ def api_import_excel_stream():
                     esistenza = toint(row, "esistenza")
 
                     campi = {
-                        "nome":           nome,
+                        "articolo":       nome,
                         "tipologia":      get(row,"tipologia"),
                         "categoria":      get(row,"categoria"),
                         "sottocategoria": get(row,"sottocategoria"),
@@ -1286,20 +1286,19 @@ def api_import_excel_stream():
                     }
 
                     existing = conn.execute(
-                        "SELECT id FROM componenti WHERE codice=? AND eliminato=0",
+                        "SELECT id FROM componenti WHERE cmp=? AND eliminato=0",
                         (codice,)).fetchone()
 
                     if existing:
                         comp_id = existing[0]
                         sets = ", ".join(f"{k}=?" for k in campi)
                         conn.execute(
-                            f"UPDATE componenti SET {sets}, modificato_il=datetime('now') WHERE id=?",
+                            f"UPDATE componenti SET {sets}, aggiornato_il=datetime('now') WHERE id=?",
                             list(campi.values()) + [comp_id])
                         aggiornati += 1
                     else:
-                        campi["codice"]     = codice
-                        campi["pubblicato"] = 0
-                        campi["creato_da"]  = u.get("id")
+                        campi["cmp"]      = codice
+                        campi["eliminato"] = 0
                         cols_str     = ", ".join(campi.keys())
                         placeholders = ", ".join(["?"] * len(campi))
                         cur = conn.execute(
