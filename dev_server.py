@@ -453,8 +453,11 @@ def api_componenti():
     params = []
     if p.get("q"):
         t = f"%{p['q']}%"
-        sql += " AND (cmp LIKE ? OR articolo LIKE ? OR descrizione LIKE ? OR marca LIKE ? OR modello LIKE ? OR colore LIKE ?)"
-        params += [t,t,t,t,t,t]
+        # Cerca solo nelle colonne che esistono nella view
+        search_cols = ["cmp", "articolo", "marca"]
+        search_sql = " AND (" + " OR ".join(f"{c} LIKE ?" for c in search_cols) + ")"
+        sql += search_sql
+        params += [t] * len(search_cols)
     if p.get("es_min","").isdigit():
         sql += " AND esistenza >= ?"; params.append(int(p["es_min"]))
     if p.get("es_max","").isdigit():
@@ -466,7 +469,13 @@ def api_componenti():
     if p.get("modello"):
         sql += " AND modello LIKE ?"; params.append(f"%{p['modello']}%")
     sql += " ORDER BY articolo"
-    return jsonify(db.fetchall(sql, params))
+    try:
+        return jsonify(db.fetchall(sql, params))
+    except Exception as e:
+        log.warning(f"api_componenti fallback: {e}")
+        # Ricrea view e riprova
+        _auto_fix_view()
+        return jsonify(db.fetchall(sql, params))
 
 @app.route("/api/magazzino/componenti", methods=["POST"])
 @require_login
