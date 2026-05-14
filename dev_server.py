@@ -2808,7 +2808,7 @@ def api_import_stato():
 # es: "00mine/perilcar-prod"
 GITHUB_REPO        = "00mine/perilcar-prod"     # repo produzione privato
 GITHUB_BRANCH      = "main"
-GITHUB_VERSION_URL = f"https://raw.githubusercontent.com/{GITHUB_REPO}/{GITHUB_BRANCH}/version.json"
+GITHUB_VERSION_URL = "https://raw.githubusercontent.com/00mine/perilcar/main/version.json"
 _update_cache = None          # {versione, changelog, obbligatorio} o None
 _update_checked_at = 0.0
 
