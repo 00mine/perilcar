@@ -146,13 +146,17 @@ def _auto_fix_view():
                     SELECT SUM(CASE WHEN m.tipo='carico'  THEN m.quantita
                                     WHEN m.tipo='scarico' THEN -m.quantita
                                     ELSE 0 END)
-                    FROM movimenti m WHERE m.componente_id=c.id
+                    FROM '+_DB_COLS.get("tabella_movimenti","movimenti")+' m WHERE m.componente_id=c.id
                 ), 0) AS esistenza
             FROM componenti c WHERE c.{col_elim}=0
         """)
         conn.commit()
         conn.close()
         log.info(f"v_giacenza ricreata: cmp={col_cmp}, articolo={col_art}")
+        # Rileva nome tabella movimenti
+        tables = [r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()]
+        _DB_COLS["tabella_movimenti"] = "movimenti_magazzino" if "movimenti_magazzino" in tables else "movimenti"
+        log.info(f"Tabella movimenti: {_DB_COLS['tabella_movimenti']}")
     except Exception as e:
         log.warning(f"Auto-fix view fallito: {e}")
 
@@ -2685,17 +2689,17 @@ def _processa_import_bg(tmp_path, utente_id, utente_username):
                         # Prova tabella movimenti con schema flessibile
                         try:
                             already = conn.execute(
-                                "SELECT id FROM movimenti WHERE componente_id=? AND riferimento='Import Excel' LIMIT 1",
+                                f"SELECT id FROM {_DB_COLS.get('tabella_movimenti','movimenti')} WHERE componente_id=? AND riferimento='Import Excel' LIMIT 1",
                                 (comp_id,)).fetchone()
                             if not already:
                                 mov_cols = [r[1] for r in conn.execute("PRAGMA table_info(movimenti)").fetchall()]
                                 if "username" in mov_cols:
                                     conn.execute(
-                                        "INSERT INTO movimenti (componente_id,tipo,quantita,quantita_prima,quantita_dopo,riferimento,username) VALUES(?,?,?,?,?,?,?)",
+                                        f"INSERT INTO {_DB_COLS.get('tabella_movimenti','movimenti')} (componente_id,tipo,quantita,quantita_prima,quantita_dopo,riferimento,username) VALUES(?,?,?,?,?,?,?)",
                                         (comp_id,"carico",esistenza,0,esistenza,"Import Excel",utente_username))
                                 else:
                                     conn.execute(
-                                        "INSERT INTO movimenti (componente_id,tipo,quantita,quantita_prima,quantita_dopo,riferimento) VALUES(?,?,?,?,?,?)",
+                                        f"INSERT INTO {_DB_COLS.get('tabella_movimenti','movimenti')} (componente_id,tipo,quantita,quantita_prima,quantita_dopo,riferimento) VALUES(?,?,?,?,?,?)",
                                         (comp_id,"carico",esistenza,0,esistenza,"Import Excel"))
                         except Exception as _me:
                             log.warning(f"Mov insert skip: {_me}")
@@ -3047,7 +3051,7 @@ def api_fix_view():
                         SELECT SUM(CASE WHEN m.tipo='carico' THEN m.quantita
                                         WHEN m.tipo='scarico' THEN -m.quantita
                                         ELSE 0 END)
-                        FROM movimenti m WHERE m.componente_id=c.id
+                        FROM '+_DB_COLS.get("tabella_movimenti","movimenti")+' m WHERE m.componente_id=c.id
                     ), 0) AS esistenza
                 FROM componenti c WHERE c.eliminato=0
             """)
