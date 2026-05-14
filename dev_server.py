@@ -186,6 +186,25 @@ def _auto_fix_view():
 
 _auto_fix_view()
 
+# Aggiungi indici per velocizzare le query
+def _crea_indici():
+    try:
+        import sqlite3 as _sq3
+        _raw = _sq3.connect(cfg.get("db_path"), timeout=10)
+        tab_mov = _DB_COLS.get("tabella_movimenti", "movimenti_magazzino")
+        col_cmp = _DB_COLS.get("cmp", "codice")
+        # Indice sui movimenti per componente_id (critico per la view)
+        _raw.execute(f"CREATE INDEX IF NOT EXISTS idx_mov_comp ON {tab_mov}(componente_id)")
+        # Indice su componenti per ordinamento
+        _raw.execute(f"CREATE INDEX IF NOT EXISTS idx_comp_art ON componenti({col_cmp})")
+        _raw.commit()
+        _raw.close()
+        log.info("Indici DB creati OK")
+    except Exception as e:
+        log.warning(f"Indici: {e}")
+
+_crea_indici()
+
 # DB separato per demolizioni
 import os as _os
 # Percorso demolizioni.db (NAS o locale, coerente con perilcar.db)
@@ -473,10 +492,21 @@ def api_logout():
 # COMPONENTI
 # ══════════════════════════════════════════════════════════════════════════════
 
+# Cache componenti
+_comp_cache = {"ts": 0, "data": None}
+_COMP_CACHE_TTL = 30
+
 @app.route("/api/magazzino/componenti")
 @require_login
+# Cache componenti per velocizzare caricamenti ripetuti
+
 def api_componenti():
+    global _comp_cache
     p = request.args
+    ha_filtri = any(p.get(k) for k in ["q","es_min","es_max","sotto_scorta","marca","modello"])
+    limit  = min(int(p.get("limit",  500)), 2000)
+    offset = max(int(p.get("offset", 0)),   0)
+
     sql = "SELECT * FROM v_giacenza WHERE 1=1"
     params = []
     if p.get("q"):
@@ -495,20 +525,31 @@ def api_componenti():
     if p.get("modello"):
         sql += " AND modello LIKE ?"; params.append(f"%{p['modello']}%")
     sql += " ORDER BY articolo"
-    # Paginazione — carica 500 righe alla volta
-    limit  = min(int(p.get("limit",  500)), 2000)
-    offset = max(int(p.get("offset", 0)),   0)
-    sql_page = sql + f" LIMIT {limit} OFFSET {offset}"
+
     try:
-        rows = db.fetchall(sql_page, params)
-        # Conta totale per il frontend
+        # Usa cache per la prima pagina senza filtri (caso più comune)
+        if not ha_filtri and offset == 0 and (time.time() - _comp_cache["ts"]) < _COMP_CACHE_TTL and _comp_cache["data"]:
+            cached = _comp_cache["data"]
+            return jsonify({"rows": cached[:limit], "total": len(cached), "offset": 0, "limit": limit, "cached": True})
+
         count_sql = "SELECT COUNT(*) AS n FROM v_giacenza WHERE 1=1" + sql[sql.find("WHERE 1=1")+9:]
-        total = db.fetchone(count_sql, params)
-        return jsonify({"rows": rows, "total": total["n"] if total else 0,
-                        "offset": offset, "limit": limit})
+        total_row = db.fetchone(count_sql, params)
+        total = total_row["n"] if total_row else 0
+
+        rows = db.fetchall(sql + f" LIMIT {limit} OFFSET {offset}", params)
+
+        # Aggiorna cache se prima pagina senza filtri
+        if not ha_filtri and offset == 0:
+            _comp_cache = {"ts": time.time(), "data": None}  # invalida per ora
+        return jsonify({"rows": rows, "total": total, "offset": offset, "limit": limit})
     except Exception as e:
-        log.warning(f"api_componenti fallback: {e}")
+        log.warning(f"api_componenti errore: {e}")
         _auto_fix_view()
+        try:
+            rows = db.fetchall(sql + f" LIMIT {limit} OFFSET {offset}", params)
+            return jsonify({"rows": rows, "total": limit, "offset": offset, "limit": limit})
+        except Exception as e2:
+            return jsonify({"ok": False, "msg": str(e2)}), 500
         return jsonify(db.fetchall(sql, params))
 
 @app.route("/api/magazzino/componenti", methods=["POST"])
