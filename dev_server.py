@@ -481,10 +481,8 @@ def api_componenti():
     params = []
     if p.get("q"):
         t = f"%{p['q']}%"
-        # Cerca solo nelle colonne che esistono nella view
         search_cols = ["cmp", "articolo", "marca"]
-        search_sql = " AND (" + " OR ".join(f"{c} LIKE ?" for c in search_cols) + ")"
-        sql += search_sql
+        sql += " AND (" + " OR ".join(f"{c} LIKE ?" for c in search_cols) + ")"
         params += [t] * len(search_cols)
     if p.get("es_min","").isdigit():
         sql += " AND esistenza >= ?"; params.append(int(p["es_min"]))
@@ -497,11 +495,19 @@ def api_componenti():
     if p.get("modello"):
         sql += " AND modello LIKE ?"; params.append(f"%{p['modello']}%")
     sql += " ORDER BY articolo"
+    # Paginazione — carica 500 righe alla volta
+    limit  = min(int(p.get("limit",  500)), 2000)
+    offset = max(int(p.get("offset", 0)),   0)
+    sql_page = sql + f" LIMIT {limit} OFFSET {offset}"
     try:
-        return jsonify(db.fetchall(sql, params))
+        rows = db.fetchall(sql_page, params)
+        # Conta totale per il frontend
+        count_sql = "SELECT COUNT(*) AS n FROM v_giacenza WHERE 1=1" + sql[sql.find("WHERE 1=1")+9:]
+        total = db.fetchone(count_sql, params)
+        return jsonify({"rows": rows, "total": total["n"] if total else 0,
+                        "offset": offset, "limit": limit})
     except Exception as e:
         log.warning(f"api_componenti fallback: {e}")
-        # Ricrea view e riprova
         _auto_fix_view()
         return jsonify(db.fetchall(sql, params))
 

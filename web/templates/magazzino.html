@@ -1072,8 +1072,26 @@ async function caricaDati() {
     '<tr><td colspan="99" style="text-align:center;padding:40px;color:var(--text3)">' +
     '⏳ Caricamento dati in corso...</td></tr>';
   try {
-    _tutti = await apiFetch('/api/magazzino/componenti');
+    // Carica primo blocco subito
+    const r1 = await apiFetch('/api/magazzino/componenti?limit=500&offset=0');
+    const totale = r1.total || 0;
+    _tutti = r1.rows || r1;  // compatibilità con risposta vecchia
     applicaFiltri();
+    document.getElementById('s-tot').textContent = `${_tutti.length} / ${totale}`;
+
+    // Carica il resto in background se ci sono altri dati
+    if(totale > 500) {
+      let offset = 500;
+      while(offset < totale) {
+        const rx = await apiFetch(`/api/magazzino/componenti?limit=500&offset=${offset}`);
+        const nuovi = rx.rows || [];
+        _tutti = _tutti.concat(nuovi);
+        offset += 500;
+        document.getElementById('s-tot').textContent = `${_tutti.length} / ${totale} ⏳`;
+      }
+      applicaFiltri();
+      document.getElementById('s-tot').textContent = totale;
+    }
   } finally {
     _caricando = false;
   }
