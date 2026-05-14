@@ -1,11 +1,9 @@
 {
-  "versione": "3.6.1",
+  "versione": "3.6.2",
   "data": "2026-05-14",
   "obbligatorio": false,
   "changelog": [
-    "Terminale nascosto all'avvio",
-    "Import Excel: nessun limite righe, più formati supportati",
-    "Fix NAS: configurazione automatica",
-    "Installer migliorato: trova Python autonomamente"
+    "Sistema aggiornamenti migliorato",
+    "Non richiede git sul PC"
   ]
 }
