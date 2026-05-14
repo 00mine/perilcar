@@ -1315,59 +1315,69 @@ def api_import_excel_stream():
                     scorta    = toint(row, "scorta_minima")
                     esistenza = toint(row, "esistenza")
 
-                    campi = {
-                        "articolo":       nome,
+                    # Usa nomi colonne reali rilevati da _DB_COLS
+                    col_art_n  = _DB_COLS.get("articolo", "articolo")
+                    col_nota_n = _DB_COLS.get("nota", "nota")
+                    col_scor_n = _DB_COLS.get("scorta", "scorta")
+                    all_cols_n = _DB_COLS.get("all_cols", [])
+                    campi_raw = {
+                        col_art_n:        nome,
                         "tipologia":      get(row,"tipologia"),
                         "categoria":      get(row,"categoria"),
                         "sottocategoria": get(row,"sottocategoria"),
-                        "cod_udm":        get(row,"cod_udm"),
+                        "cod_udm":        get(row,"cod_udm") or "PZ",
                         "cod_iva":        get(row,"cod_iva"),
-                        "listino1":       tofloat(row,"listino1"),
-                        "listino2":       tofloat(row,"listino2"),
-                        "listino3":       tofloat(row,"listino3"),
-                        "note":           get(row,"nota"),
+                        "listino1":       get(row,"listino1"),
+                        "listino2":       get(row,"listino2"),
+                        "listino3":       get(row,"listino3"),
+                        col_nota_n:       get(row,"nota") or get(row,"note"),
                         "cod_barre":      get(row,"cod_barre"),
-                        "internet":       get(row,"internet"),
-                        "marca":          get(row,"marca"),
-                        "extra1":         get(row,"extra1"),
-                        "extra2":         get(row,"extra2"),
-                        "extra3":         get(row,"extra3"),
-                        "extra4":         get(row,"extra4"),
+                        "marca":          get(row,"marca") or get(row,"produttore"),
+                        "modello":        get(row,"modello"),
                         "cod_fornitore":  get(row,"cod_fornitore"),
                         "fornitore":      get(row,"fornitore"),
-                        "cod_prod_forn":  get(row,"cod_prod_forn"),
-                        "prezzo_forn":    tofloat(row,"prezzo_forn"),
-                        "note_fornitura": get(row,"note_fornitura"),
-                        "ord_multipli":   toint(row,"ord_multipli"),
-                        "gg_ordine":      toint(row,"gg_ordine"),
-                        "scorta_minima":  scorta,
+                        "prezzo_forn":    get(row,"prezzo_forn"),
+                        col_scor_n:       toint(row,"scorta_minima") or toint(row,"scorta"),
                         "ubicazione":     get(row,"ubicazione"),
                         "stato_magazzino":get(row,"stato_magazzino"),
+                        "colore":         get(row,"colore"),
+                        "anno_da":        get(row,"anno_da"),
+                        "anno_a":         get(row,"anno_a"),
                     }
+                    # Filtra solo colonne esistenti nel DB
+                    campi = {k:v for k,v in campi_raw.items()
+                             if v is not None and v != "" and (not all_cols_n or k in all_cols_n)}
+
+                    col_cmp_r  = _DB_COLS.get("cmp","cmp")
+                    col_elim_r = _DB_COLS.get("eliminato","eliminato")
+                    col_aggi_r = _DB_COLS.get("aggiornato_il","aggiornato_il")
+                    all_cols_r = _DB_COLS.get("all_cols",[])
 
                     existing = conn.execute(
-                        "SELECT id FROM componenti WHERE cmp=? AND eliminato=0",
-                        (codice,)).fetchone()
+                        f"SELECT id FROM componenti WHERE {col_cmp_r}=?"
+                        + (f" AND {col_elim_r}=0" if col_elim_r else ""),
+                        (codice,)
+                    ).fetchone()
 
                     if existing:
                         comp_id = existing[0]
-                        sets = ", ".join(f"{k}=?" for k in campi)
-                        conn.execute(
-                            f"UPDATE componenti SET {sets}, aggiornato_il=datetime('now') WHERE id=?",
-                            list(campi.values()) + [comp_id])
+                        if campi:
+                            sets = ", ".join(f"{k}=?" for k in campi)
+                            conn.execute(
+                                f"UPDATE componenti SET {sets}, {col_aggi_r}=datetime('now') WHERE id=?",
+                                list(campi.values()) + [comp_id])
                         aggiornati += 1
                     else:
-                        campi["cmp"]      = codice
-                        campi["eliminato"] = 0
-                        cols_str     = ", ".join(campi.keys())
-                        placeholders = ", ".join(["?"] * len(campi))
+                        campi_ins = dict(campi)
+                        campi_ins[col_cmp_r] = codice
+                        if col_elim_r and (not all_cols_r or col_elim_r in all_cols_r):
+                            campi_ins[col_elim_r] = 0
+                        cols_str = ", ".join(campi_ins.keys())
+                        phs = ", ".join(["?"] * len(campi_ins))
                         cur = conn.execute(
-                            f"INSERT INTO componenti ({cols_str}) VALUES ({placeholders})",
-                            list(campi.values()))
+                            f"INSERT INTO componenti ({cols_str}) VALUES ({phs})",
+                            list(campi_ins.values()))
                         comp_id = cur.lastrowid
-                        conn.execute(
-                            "INSERT OR IGNORE INTO magazzino(componente_id,scorta_minima) VALUES(?,?)",
-                            (comp_id, scorta))
                         importati += 1
 
                     if esistenza > 0:
