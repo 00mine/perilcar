@@ -3028,6 +3028,17 @@ def api_inv_chiudi(sid):
                             "UPDATE componenti SET immagine=?, aggiornato_il=datetime('now') WHERE id=?",
                             (prima_foto, r["componente_id"])
                         )
+                # Sincronizza note inventario → componenti (sostituzione)
+                note_rows = conn.execute(
+                    """SELECT componente_id, note FROM inventario_righe
+                       WHERE sessione_id=? AND note IS NOT NULL AND note != ''""",
+                    (sid,)
+                ).fetchall()
+                for r in note_rows:
+                    conn.execute(
+                        "UPDATE componenti SET note=?, aggiornato_il=datetime('now') WHERE id=?",
+                        (r["note"].strip(), r["componente_id"])
+                    )
                 conn.execute(
                     "UPDATE sessioni_inventario SET stato='chiusa', chiuso_il=datetime('now') WHERE id=?",
                     (sid,)
