@@ -102,7 +102,7 @@ select:focus,input:focus{border-color:var(--blue)}
 .righe-wrap{flex:1;overflow:hidden;background:#fff;border:1px solid var(--border);border-radius:12px;display:flex;flex-direction:column}
 .righe-hdr{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--border);flex-shrink:0}
 .righe-hdr span{font-size:11px;font-weight:700;color:var(--text2)}
-.righe-scroll{flex:1;overflow-y:auto}
+.righe-scroll{flex:1;overflow-y:auto;overflow-x:auto}
 table{width:100%;border-collapse:collapse}
 thead th{position:sticky;top:0;background:var(--bg);font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text3);padding:6px 10px;text-align:left;border-bottom:1px solid var(--border)}
 tbody tr{border-bottom:1px solid #f3f4f6}
@@ -316,8 +316,14 @@ async function caricaDettaglio(id){
       <div class="righe-scroll">
         <table>
           <thead><tr>
-            <th>Foto</th><th>Cod.</th><th>Descrizione</th><th>Marca</th>
+            <th>Foto</th><th>Cod.</th><th>Descrizione</th>
+            <th>Marca</th><th>Modello</th><th>Anno da</th><th>Carburante</th><th>Cilindrata</th><th>Colore</th><th>Versione</th><th>Intervallo</th>
+            <th>Tipologia</th><th>Categoria</th><th>Sottocategoria</th>
             <th>Ubicazione</th><th>Note</th>
+            <th>Cod. UDM</th><th>Cod. IVA</th><th>Listino 1</th><th>Listino 2</th><th>Listino 3</th>
+            <th>Scorta min.</th><th>Stato mag.</th>
+            <th>Cod. a barre</th><th>Fornitore</th><th>Cod. fornitore</th><th>Cod. prod. forn.</th>
+            <th>Extra 1</th><th>Extra 2</th><th>Extra 3</th><th>Extra 4</th>
             <th style="text-align:center">Attesa</th><th style="text-align:center">Trovata</th>
             <th>Stato</th>
           </tr></thead>
@@ -354,13 +360,41 @@ function renderRighe(righe){
       rimandato: '<span class="stato-badge sb-rimandato">⏳ Rimandato</span>',
       sospeso:   '<span class="stato-badge sb-sospeso">○ Sospeso</span>',
     }[r.stato]||r.stato;
+    const noteVal=(()=>{const n=r.note||r.nota||'';return esc(n.length>40?n.slice(0,40)+'...':n)||'—';})();
+    const noteFull=esc(r.note||r.nota||'');
+    const c=(v)=>esc(v||'—');
     return `<tr>
       <td>${img}</td>
       <td style="font-family:var(--mono);font-size:10px;color:var(--orange)">${esc(r.cmp||'')}</td>
       <td title="${esc(r.articolo||'')}">${esc((r.articolo||'').slice(0,30))}</td>
-      <td>${esc(r.marca||'—')}</td>
-      <td>${esc(r.ubicazione||'—')}</td>
-      <td title="${esc(r.note||r.nota||'')}">${(()=>{const n=r.note||r.nota||'';return esc(n.length>40?n.slice(0,40)+'...':n)||'—';})()}</td>
+      <td>${c(r.marca)}</td>
+      <td>${c(r.modello)}</td>
+      <td>${r.anno_da??'—'}</td>
+      <td>${c(r.carburante)}</td>
+      <td>${r.cilindrata??'—'}</td>
+      <td>${c(r.colore)}</td>
+      <td>${c(r.versione)}</td>
+      <td>${c(r.intervallo)}</td>
+      <td>${c(r.tipologia)}</td>
+      <td>${c(r.categoria)}</td>
+      <td>${c(r.sottocategoria)}</td>
+      <td>${c(r.ubicazione)}</td>
+      <td title="${noteFull}">${noteVal}</td>
+      <td>${c(r.cod_udm)}</td>
+      <td>${c(r.cod_iva)}</td>
+      <td>${r.listino1??'—'}</td>
+      <td>${r.listino2??'—'}</td>
+      <td>${r.listino3??'—'}</td>
+      <td>${r.scorta_minima??'—'}</td>
+      <td>${c(r.stato_magazzino)}</td>
+      <td style="font-family:var(--mono);font-size:10px">${c(r.cod_barre)}</td>
+      <td>${c(r.fornitore)}</td>
+      <td>${c(r.cod_fornitore)}</td>
+      <td>${c(r.cod_prod_forn)}</td>
+      <td>${c(r.extra1)}</td>
+      <td>${c(r.extra2)}</td>
+      <td>${c(r.extra3)}</td>
+      <td>${c(r.extra4)}</td>
       <td style="text-align:center;font-family:var(--mono)">${r.qty_attesa??'—'}</td>
       <td style="text-align:center;font-family:var(--mono);font-weight:700;color:${r.qty_trovata!==null&&r.qty_trovata!==undefined?(r.qty_trovata==r.qty_attesa?'var(--green)':'var(--red)'):'inherit'}">${r.qty_trovata??'—'}</td>
       <td>${badge}</td>
