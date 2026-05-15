@@ -1,27 +1,36 @@
-<!-- VERSIONE 15-05-2026 18:50 -->
+<!-- BUILD 2026-05-15-v4 -->
 <!DOCTYPE html>
 <html lang="it">
 <head>
-<link rel="icon" type="image/x-icon" href="/static/favicon.ico">
-  <meta charset="UTF-8">
+<meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>Inventario — PerilCar</title>
+<link rel="icon" href="/static/favicon.ico">
 <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-:root{--orange:#e94c00;--green:#16a34a;--yellow:#d97706;--text:#111827;--text2:#4b5563;--text3:#9ca3af;--border:#dde1e8;--bg:#f7f8fa;--radius:14px;--font:'DM Sans',system-ui,sans-serif}
-html,body{height:100%;background:var(--bg);font-family:var(--font);color:var(--text);overflow:hidden}
+:root{
+  --or:#e94c00;--gr:#16a34a;--ye:#d97706;--re:#dc2626;
+  --t1:#111827;--t2:#4b5563;--t3:#9ca3af;
+  --bd:#dde1e8;--bg:#f7f8fa;--wh:#fff;
+  --r:14px;--fn:'DM Sans',system-ui,sans-serif
+}
+html,body{height:100%;background:var(--bg);font-family:var(--fn);color:var(--t1);overflow:hidden}
 body{display:flex;flex-direction:column}
-.hdr{background:var(--orange);color:#fff;padding:max(env(safe-area-inset-top),12px) 16px 12px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
-.hdr-logo{font-weight:800;font-size:17px}.hdr-logo span{opacity:.75}
-.hdr-right{text-align:right}
-.hdr-sess{font-size:11px;opacity:.85;max-width:180px;line-height:1.3}
-.hdr-prog{font-size:13px;font-weight:700;opacity:.9}
+
+/* HEADER */
+.hdr{background:var(--or);color:#fff;padding:max(env(safe-area-inset-top),12px) 16px 12px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;gap:10px}
+.hdr-logo{font-weight:800;font-size:17px;flex-shrink:0}.hdr-logo span{opacity:.7}
+.hdr-center{flex:1;min-width:0;text-align:center}
+.hdr-sess{font-size:11px;opacity:.85;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hdr-prog{font-size:13px;font-weight:700}
+.hdr-btn{background:rgba(255,255,255,.2);border:1.5px solid rgba(255,255,255,.35);color:#fff;border-radius:10px;padding:7px 10px;font-size:17px;cursor:pointer;flex-shrink:0;-webkit-tap-highlight-color:transparent}
+
+/* PROGRESS + STATS */
 .prog-bar{height:4px;background:rgba(255,255,255,.3);flex-shrink:0}
 .prog-fill{height:100%;background:#fff;transition:width .4s;border-radius:0 2px 2px 0}
 .stats{display:flex;background:rgba(200,50,0,.9);flex-shrink:0}
@@ -29,119 +38,113 @@ body{display:flex;flex-direction:column}
 .stat:last-child{border:none}
 .stat-n{font-size:16px;font-weight:800;color:#fff;line-height:1}
 .stat-l{font-size:9px;color:rgba(255,255,255,.8);text-transform:uppercase;letter-spacing:.4px}
+
+/* NET BAR */
+.net-bar{flex-shrink:0;padding:6px 14px;display:flex;align-items:center;justify-content:space-between;font-size:12px;font-weight:700;display:none}
+.net-bar.online{background:var(--gr);color:#fff}
+.net-bar.offline{background:var(--re);color:#fff}
+.net-bar.pending{background:var(--ye);color:#fff}
+.nb-q{background:rgba(255,255,255,.3);padding:2px 8px;border-radius:20px;font-size:11px;display:none}
+.nb-sync{padding:5px 12px;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;background:#fff;color:var(--ye);display:none}
+
+/* SCROLL */
 .scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:14px 14px 8px}
-.card{background:#fff;border-radius:var(--radius);box-shadow:0 2px 12px rgba(0,0,0,.07);margin-bottom:12px;overflow:hidden}
+
+/* CARDS */
+.card{background:#fff;border-radius:var(--r);box-shadow:0 2px 12px rgba(0,0,0,.07);margin-bottom:12px;overflow:hidden}
 .card-sec{padding:14px 16px;border-bottom:1px solid #f3f4f6}
 .card-sec:last-child{border:none}
-.pezzo-cod{font-size:11px;font-weight:700;color:var(--orange);font-family:monospace;margin-bottom:3px}
+.card-lbl{font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
+
+/* PEZZO */
+.pezzo-cod{font-size:11px;font-weight:700;color:var(--or);font-family:monospace;margin-bottom:3px}
 .pezzo-nome{font-size:19px;font-weight:800;line-height:1.2;margin-bottom:10px}
 .info-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
 .info-item{background:var(--bg);border-radius:8px;padding:8px 10px}
-.info-lbl{font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px}
+.info-lbl{font-size:9px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px}
 .info-val{font-size:13px;font-weight:600}
+
+/* FOTO */
 .foto-ex-row{display:flex;gap:8px;overflow-x:auto;padding:4px 0}
-.foto-ex{width:72px;height:72px;object-fit:cover;border-radius:8px;flex-shrink:0;border:2px solid var(--border)}
-.no-foto{font-size:12px;color:var(--text3);padding:4px 0}
+.foto-ex{width:72px;height:72px;object-fit:cover;border-radius:8px;flex-shrink:0;border:2px solid var(--bd);cursor:pointer}
+.no-foto{font-size:12px;color:var(--t3);padding:4px 0}
+.foto-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.foto-grid{display:flex;flex-wrap:wrap;gap:8px}
+.foto-tw{position:relative}
+.foto-th{width:80px;height:80px;object-fit:cover;border-radius:10px;border:2px solid var(--bd)}
+.foto-del{position:absolute;top:-7px;right:-7px;background:var(--re);color:#fff;border-radius:50%;width:20px;height:20px;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.foto-hint{font-size:11px;color:var(--t3);margin-top:8px}
+
+/* INPUTS */
+.inp-text{width:100%;padding:10px 12px;border:1.5px solid var(--bd);border-radius:10px;font-size:14px;font-family:var(--fn);outline:none}
+.inp-text:focus{border-color:var(--or)}
+textarea.inp-text{resize:none}
+
+/* QTY */
 .qty-row{display:flex;align-items:center;gap:12px}
-.qty-lbl{font-size:13px;font-weight:700;color:var(--text2);flex:1}
+.qty-lbl{font-size:13px;font-weight:700;color:var(--t2);flex:1}
 .qty-ctrl{display:flex;align-items:center;gap:8px}
 .qbtn{width:40px;height:40px;border-radius:50%;border:none;font-size:22px;font-weight:700;cursor:pointer;-webkit-tap-highlight-color:transparent}
-.qbtn.m{background:#fee2e2;color:#dc2626}
-.qbtn.p{background:#f0fdf4;color:var(--green)}
-.qinput{width:64px;text-align:center;font-size:22px;font-weight:800;border:2px solid var(--border);border-radius:10px;padding:6px 4px;font-family:monospace;outline:none}
-.qinput:focus{border-color:var(--orange)}
-.qty-hint{font-size:11px;color:var(--text3);text-align:center;margin-top:5px}
-.foto-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
-.foto-hdr span{font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px}
-.foto-grid{display:flex;flex-wrap:wrap;gap:8px}
-.foto-thumb-wrap{position:relative}
-.foto-thumb{width:80px;height:80px;object-fit:cover;border-radius:10px;border:2px solid var(--border)}
-.foto-del{position:absolute;top:-7px;right:-7px;background:#dc2626;color:#fff;border-radius:50%;width:20px;height:20px;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;cursor:pointer}
-.foto-add{width:80px;height:80px;border-radius:10px;border:2px dashed var(--border);background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;-webkit-tap-highlight-color:transparent}
-.foto-add:active{background:#f0fdf4;border-color:var(--green)}
-.foto-add .ico{font-size:26px;margin-bottom:2px}
-.foto-add .lbl{font-size:10px;color:var(--text3);font-weight:600}
-.foto-hint{font-size:11px;color:var(--text3);margin-top:8px}
-textarea{width:100%;border:1.5px solid var(--border);border-radius:10px;padding:10px 12px;font-family:var(--font);font-size:14px;color:var(--text);resize:none;outline:none}
-textarea:focus{border-color:var(--orange)}
-.azioni{flex-shrink:0;padding:10px 14px max(env(safe-area-inset-bottom),10px);background:#fff;border-top:2px solid var(--border);display:flex;flex-direction:column;gap:8px}
-.btn-conf{width:100%;padding:18px;border:none;border-radius:var(--radius);font-size:17px;font-weight:800;font-family:var(--font);cursor:pointer;background:var(--green);color:#fff;display:flex;align-items:center;justify-content:center;gap:8px;-webkit-tap-highlight-color:transparent}
+.qbtn.m{background:#fee2e2;color:var(--re)}
+.qbtn.p{background:#f0fdf4;color:var(--gr)}
+.qinput{width:64px;text-align:center;font-size:22px;font-weight:800;border:2px solid var(--bd);border-radius:10px;padding:6px 4px;font-family:monospace;outline:none}
+.qinput:focus{border-color:var(--or)}
+.qty-hint{font-size:11px;color:var(--t3);text-align:center;margin-top:5px}
+
+/* AZIONI */
+.azioni{flex-shrink:0;padding:10px 14px max(env(safe-area-inset-bottom),10px);background:#fff;border-top:2px solid var(--bd);display:flex;flex-direction:column;gap:8px}
+.btn-conf{width:100%;padding:18px;border:none;border-radius:var(--r);font-size:17px;font-weight:800;font-family:var(--fn);cursor:pointer;background:var(--gr);color:#fff;display:flex;align-items:center;justify-content:center;gap:8px;-webkit-tap-highlight-color:transparent}
 .btn-conf:active{background:#15803d;transform:scale(.97)}
-.btn-conf.busy{background:#9ca3af;pointer-events:none}
-.btn-rim{width:100%;padding:13px;border:2px solid #fde68a;border-radius:var(--radius);font-size:15px;font-weight:700;font-family:var(--font);cursor:pointer;background:#fffbeb;color:var(--yellow);-webkit-tap-highlight-color:transparent}
-.btn-rim:active{background:#fef3c7}
+.btn-conf.busy{background:var(--t3);pointer-events:none}
+.btn-rim{width:100%;padding:13px;border:2px solid #fde68a;border-radius:var(--r);font-size:15px;font-weight:700;font-family:var(--fn);cursor:pointer;background:#fffbeb;color:var(--ye);-webkit-tap-highlight-color:transparent}
+
+/* SCHERMATA */
 .schermata{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:32px 20px;gap:14px;min-height:60vh}
-.s-ico{font-size:60px}
-.s-titolo{font-size:21px;font-weight:800}
-.s-sub{font-size:14px;color:var(--text2);line-height:1.5;max-width:280px}
-.sess-card{background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;border:2px solid var(--border);cursor:pointer;-webkit-tap-highlight-color:transparent}
-.sess-card:active{background:#fff8f5;border-color:var(--orange)}
-#net-bar.online{background:#16a34a;color:#fff}
-#net-bar.offline{background:#dc2626;color:#fff}
-#net-bar.pending{background:#d97706;color:#fff}
-.spinner{width:36px;height:36px;border:4px solid var(--border);border-top-color:var(--orange);border-radius:50%;animation:spin .7s linear infinite}
-@keyframes spin{to{transform:rotate(360deg)}}
-.toast{position:fixed;top:80px;left:50%;transform:translateX(-50%);z-index:999;padding:10px 20px;border-radius:30px;font-weight:700;white-space:nowrap;box-shadow:0 4px 20px rgba(0,0,0,.2);font-size:14px;pointer-events:none}
-.t-ok{background:var(--green);color:#fff}.t-err{background:#dc2626;color:#fff}.t-warn{background:var(--yellow);color:#fff}
-.cam-ov{position:fixed;inset:0;z-index:500;background:#000;display:flex;flex-direction:column}
-.cam-ov.hidden{display:none}
-.cam-ov video{flex:1;object-fit:cover;width:100%}
-.cam-btns{padding:16px;display:flex;gap:10px;justify-content:center;background:#000;padding-bottom:max(env(safe-area-inset-bottom),16px)}
-.cam-btn{padding:14px 28px;border-radius:12px;border:none;font-size:16px;font-weight:700;font-family:var(--font);cursor:pointer}
-canvas{display:none}
-input[type=file]{display:none}
+.s-ico{font-size:60px}.s-titolo{font-size:21px;font-weight:800}
+.s-sub{font-size:14px;color:var(--t2);line-height:1.5;max-width:280px}
 
-/* Barra cerca */
-.cerca-bar{flex-shrink:0;padding:8px 12px;background:#fff;border-bottom:1px solid var(--border);display:flex;gap:8px;align-items:center}
-.cerca-inp{flex:1;padding:9px 12px;border:1.5px solid var(--border);border-radius:10px;font-size:14px;font-family:var(--font);outline:none;background:var(--bg)}
-.cerca-inp:focus{border-color:var(--orange)}
-.cerca-btn{width:40px;height:40px;border-radius:10px;border:1.5px solid var(--border);background:var(--bg);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-.cerca-btn.active{background:var(--orange);border-color:var(--orange)}
+/* SESSIONI LIST */
+.sess-card{background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;border:2px solid var(--bd);cursor:pointer;-webkit-tap-highlight-color:transparent}
+.sess-card:active{background:#fff8f5;border-color:var(--or)}
 
-/* Lista risultati cerca */
-.cerca-results{position:fixed;inset:0;z-index:300;background:#fff;display:flex;flex-direction:column}
-.cerca-results.hidden{display:none}
-.cerca-results-hdr{padding:12px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;flex-shrink:0;background:#fff}
-.cerca-results-hdr input{flex:1;padding:9px 12px;border:1.5px solid var(--orange);border-radius:10px;font-size:14px;font-family:var(--font);outline:none}
+/* CERCA */
+.cerca-ov{position:fixed;inset:0;z-index:400;background:#fff;display:flex;flex-direction:column}
+.cerca-ov.hidden{display:none}
+.cerca-hdr{padding:12px 14px;border-bottom:1px solid var(--bd);display:flex;align-items:center;gap:10px;flex-shrink:0}
+.cerca-hdr input{flex:1;padding:9px 12px;border:1.5px solid var(--or);border-radius:10px;font-size:14px;font-family:var(--fn);outline:none}
 .cerca-list{flex:1;overflow-y:auto}
 .cerca-item{padding:12px 16px;border-bottom:1px solid #f3f4f6;cursor:pointer;-webkit-tap-highlight-color:transparent}
 .cerca-item:active{background:#fff8f5}
 .cerca-item-nome{font-size:14px;font-weight:700;margin-bottom:2px}
-.cerca-item-sub{font-size:11px;color:var(--text3);display:flex;gap:8px}
-.cerca-item-qty{font-size:12px;font-weight:700;padding:2px 8px;border-radius:20px;margin-left:auto}
-.qty-ok{background:#f0fdf4;color:var(--green)}
-.qty-zero{background:#f9fafb;color:var(--text3)}
-.cerca-empty{text-align:center;padding:40px 20px;color:var(--text3);font-size:14px}
+.cerca-item-sub{font-size:11px;color:var(--t3);display:flex;gap:8px}
+.cerca-empty{text-align:center;padding:40px 20px;color:var(--t3);font-size:14px}
 
-/* Pannello impostazioni */
-.settings-ov{position:fixed;inset:0;z-index:600;background:rgba(0,0,0,.5);display:flex;align-items:flex-end}
-.settings-ov.hidden{display:none}
-.settings-panel{background:#fff;width:100%;border-radius:20px 20px 0 0;padding:20px;padding-bottom:max(env(safe-area-inset-bottom),20px);max-height:80vh;overflow-y:auto}
-.settings-titolo{font-size:17px;font-weight:800;margin-bottom:4px}
-.settings-sub{font-size:12px;color:var(--text3);margin-bottom:16px}
-.campo-row{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid #f3f4f6}
-.campo-row:last-child{border:none}
-.campo-nome{font-size:14px;font-weight:600}
-.campo-desc{font-size:11px;color:var(--text3);margin-top:1px}
-.toggle{position:relative;width:44px;height:26px;flex-shrink:0}
-.toggle input{opacity:0;width:0;height:0}
-.toggle-slider{position:absolute;inset:0;background:#dde1e8;border-radius:26px;cursor:pointer;transition:.2s}
-.toggle-slider:before{content:'';position:absolute;width:20px;height:20px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:.2s}
-input:checked+.toggle-slider{background:var(--orange)}
-input:checked+.toggle-slider:before{transform:translateX(18px)}
-.fase-warn{background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:8px 12px;font-size:12px;color:var(--yellow);font-weight:600;margin-bottom:10px}
+/* CAMERA */
+.cam-ov{position:fixed;inset:0;z-index:500;background:#000;display:flex;flex-direction:column}
+.cam-ov.hidden{display:none}
+.cam-ov video{flex:1;object-fit:cover;width:100%}
+.cam-btns{padding:16px;display:flex;gap:10px;justify-content:center;background:#000;padding-bottom:max(env(safe-area-inset-bottom),16px)}
+.cam-btn{padding:14px 28px;border-radius:12px;border:none;font-size:16px;font-weight:700;font-family:var(--fn);cursor:pointer}
+canvas{display:none}
+input[type=file]{display:none}
+
+/* MISC */
+.fase-warn{background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:8px 12px;font-size:12px;color:var(--ye);font-weight:600;margin-bottom:10px}
+.spinner{width:36px;height:36px;border:4px solid var(--bd);border-top-color:var(--or);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.toast{position:fixed;top:80px;left:50%;transform:translateX(-50%);z-index:999;padding:10px 20px;border-radius:30px;font-weight:700;white-space:nowrap;box-shadow:0 4px 20px rgba(0,0,0,.2);font-size:14px;pointer-events:none}
+.t-ok{background:var(--gr);color:#fff}.t-err{background:var(--re);color:#fff}.t-warn{background:var(--ye);color:#fff}
 </style>
 </head>
 <body>
+
 <div class="hdr">
   <div class="hdr-logo">Peril<span>Car</span> 📋</div>
-  <div class="hdr-right" style="display:flex;align-items:center;gap:10px">
-    <div>
-      <div class="hdr-sess" id="hdr-sess">Inventario</div>
-      <div class="hdr-prog" id="hdr-prog"></div>
-    </div>
-    <button onclick="apriCerca()" style="background:rgba(255,255,255,.2);border:1.5px solid rgba(255,255,255,.4);color:#fff;border-radius:10px;padding:7px 10px;font-size:17px;cursor:pointer;-webkit-tap-highlight-color:transparent">🔍</button>
+  <div class="hdr-center">
+    <div class="hdr-sess" id="hdr-sess">Inventario</div>
+    <div class="hdr-prog" id="hdr-prog"></div>
   </div>
+  <button class="hdr-btn" onclick="apriCerca()">🔍</button>
 </div>
 <div class="prog-bar"><div class="prog-fill" id="prog-fill" style="width:0%"></div></div>
 <div class="stats">
@@ -149,430 +152,579 @@ input:checked+.toggle-slider:before{transform:translateX(18px)}
   <div class="stat"><div class="stat-n" id="s-risc">0</div><div class="stat-l">⏳ Risc.</div></div>
   <div class="stat"><div class="stat-n" id="s-tot">0</div><div class="stat-l">📦 Tot.</div></div>
 </div>
-
-<!-- BARRA CERCA -->
-<div class="cerca-bar" id="cerca-bar" style="display:none">
-  <input class="cerca-inp" id="cerca-inp" placeholder="Cerca per nome o codice..." 
-    oninput="cercaFiltра(this.value)" autocomplete="off" autocorrect="off" spellcheck="false">
-  <button class="cerca-btn active" onclick="chiudiCerca()">✕</button>
-</div>
-
-<!-- LISTA RISULTATI CERCA -->
-<div class="cerca-results hidden" id="cerca-results">
-  <div class="cerca-results-hdr">
-    <input id="cerca-inp2" placeholder="Cerca per nome o codice..." 
-      oninput="cercaFiltра(this.value)" autocomplete="off" autocorrect="off" autofocus>
-    <button onclick="chiudiCerca()" style="padding:8px 14px;border:none;border-radius:10px;background:#fee2e2;color:#dc2626;font-weight:700;cursor:pointer;font-size:14px">✕ Chiudi</button>
-  </div>
-  <div class="cerca-list" id="cerca-list"></div>
-</div>
-
-<!-- BARRA STATO RETE -->
-<div id="net-bar" style="display:none;padding:8px 14px;display:flex;align-items:center;justify-content:space-between;font-size:12px;font-weight:700;flex-shrink:0">
-  <span id="net-label">🟢 Online</span>
+<div class="net-bar" id="net-bar">
+  <span id="nb-label">🟢 Online</span>
   <div style="display:flex;align-items:center;gap:8px">
-    <span id="net-queue" style="display:none;background:rgba(255,255,255,.3);padding:2px 8px;border-radius:20px;font-size:11px"></span>
-    <button id="btn-sync" onclick="sincronizzaOra()" style="display:none;padding:5px 12px;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;background:#fff;color:#d97706">↑ Sincronizza ora</button>
+    <span class="nb-q" id="nb-q"></span>
+    <button class="nb-sync" id="nb-sync" onclick="sincronizzaOra()">↑ Sincronizza</button>
   </div>
 </div>
 
 <div class="scroll" id="scroll-area">
   <div class="schermata"><div class="spinner"></div></div>
 </div>
+
 <div class="azioni" id="azioni" style="display:none">
   <button class="btn-conf" id="btn-conf" onclick="azioneConferma()">
     <span>✅</span><span id="btn-conf-lbl">Conferma</span>
   </button>
   <button class="btn-rim" onclick="azioneRimanda()">⏳ Rimanda — rivedi alla fine</button>
 </div>
+
+<!-- CERCA -->
+<div class="cerca-ov hidden" id="cerca-ov">
+  <div class="cerca-hdr">
+    <input id="cerca-inp" placeholder="Cerca per nome, codice, marca..." oninput="cercaFiltra(this.value)" autocomplete="off" autocorrect="off" autofocus>
+    <button onclick="chiudiCerca()" style="padding:8px 14px;border:none;border-radius:10px;background:#fee2e2;color:var(--re);font-weight:700;cursor:pointer;font-size:14px">✕</button>
+  </div>
+  <div class="cerca-list" id="cerca-list"></div>
+</div>
+
+<!-- CAMERA -->
 <div class="cam-ov hidden" id="cam-ov">
   <video id="cam-video" autoplay playsinline muted></video>
   <canvas id="cam-canvas"></canvas>
   <div class="cam-btns">
-    <button class="cam-btn" style="background:var(--orange);color:#fff;flex:1" onclick="scattaFoto()">📸 Scatta</button>
+    <button class="cam-btn" style="background:var(--or);color:#fff;flex:1" onclick="scattaFoto()">📸 Scatta</button>
     <button class="cam-btn" style="background:#333;color:#fff" onclick="chiudiCamera()">✕</button>
   </div>
 </div>
+
 <input type="file" id="inp-file" accept="image/*" multiple onchange="fotoGalleria(this)">
 <input type="file" id="inp-camera" accept="image/*" capture="environment" onchange="fotoCameraCapture(this)">
 
-
 <script>
-const _sock=io();
-const _p=new URLSearchParams(window.location.search);
-const _sessId=parseInt(_p.get('sessione'))||null;
-var _riga=null,_qty=0,_fotoNuove=[],_camStream=null,_stats={},_fase='principale';
+// ═══════════════════════════════════════════════════════════
+// SETUP
+// ═══════════════════════════════════════════════════════════
+const _sock = io();
+const _p    = new URLSearchParams(window.location.search);
+const _sessId = parseInt(_p.get('sessione')) || null;
 
-// ── CACHE PEZZI LOCALE ────────────────────────────────────────────────
-var PEZZI_KEY = 'inv_pezzi_'+(_sessId||'x');
-var IDX_KEY   = 'inv_idx_'  +(_sessId||'x');
+var _riga=null, _qty=0, _fotoNuove=[], _camStream=null, _stats={}, _fase='principale';
+var _pezziLocali=null, _idxCorrente=0;
+var _isOnline=false, _pingInterval=null, _syncInCorso=false;
 
-var _CACHE_V = 3;
-function pezziSalva(lista){ try{ localStorage.setItem(PEZZI_KEY, JSON.stringify({v:_CACHE_V,d:lista})); }catch(e){} }
-function pezziLeggi(){ try{ var p=JSON.parse(localStorage.getItem(PEZZI_KEY)||'null'); return (p&&p.v===_CACHE_V)?p.d:null; }catch(e){ return null; } }
-function idxSalva(i){ try{ localStorage.setItem(IDX_KEY, String(i)); }catch(e){} }
-function idxLeggi(){ try{ return parseInt(localStorage.getItem(IDX_KEY)||'0')||0; }catch(e){ return 0; } }
+// Cache localStorage con versione — v4 invalida tutto il vecchio
+var _CV = 4;
+var PEZZI_KEY = 'inv_p4_'+(_sessId||'x');
+var IDX_KEY   = 'inv_i4_'+(_sessId||'x');
+var CODA_KEY  = 'inv_c4_'+(_sessId||'x');
 
-var _pezziLocali = null;   // tutti i pezzi scaricati
-var _idxCorrente = 0;      // indice corrente
+function pezziSalva(l){ try{localStorage.setItem(PEZZI_KEY,JSON.stringify({v:_CV,d:l}));}catch(e){} }
+function pezziLeggi(){ try{var p=JSON.parse(localStorage.getItem(PEZZI_KEY)||'null');return(p&&p.v===_CV)?p.d:null;}catch(e){return null;} }
+function idxSalva(i){ try{localStorage.setItem(IDX_KEY,String(i));}catch(e){} }
+function idxLeggi(){ try{return parseInt(localStorage.getItem(IDX_KEY)||'0')||0;}catch(e){return 0;} }
+function codaLeggi(){ try{return JSON.parse(localStorage.getItem(CODA_KEY)||'[]');}catch(e){return[];} }
+function codaScrivi(c){ try{localStorage.setItem(CODA_KEY,JSON.stringify(c));}catch(e){} }
+function codaAggiungi(op){ var c=codaLeggi();c.push({...op,ts:Date.now()});codaScrivi(c);aggNetBar(); }
+function codaRimuovi(ts){ codaScrivi(codaLeggi().filter(o=>o.ts!==ts));aggNetBar(); }
 
+// ═══════════════════════════════════════════════════════════
+// UTILS
+// ═══════════════════════════════════════════════════════════
 function esc(s){return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 function toast(msg,tipo){
   document.querySelectorAll('.toast').forEach(e=>e.remove());
-  const d=document.createElement('div');d.className='toast t-'+(tipo||'ok');d.textContent=msg;
-  document.body.appendChild(d);setTimeout(()=>d.remove(),2500);
+  var d=document.createElement('div');d.className='toast t-'+(tipo||'ok');d.textContent=msg;
+  document.body.appendChild(d);setTimeout(()=>d.remove(),2800);
 }
 async function api(url,opts){
   opts=opts||{};opts.headers={'Content-Type':'application/json',...(opts.headers||{})};
   return (await fetch(url,opts)).json();
 }
+function fmtLbl(key){ return key.replace(/_/g,' ').replace(/^\w/,c=>c.toUpperCase()); }
+function ordinaPezzi(a,b){ if(a.stato!==b.stato) return a.stato==='sospeso'?-1:1; return 0; }
 
-// Ordinamento: sospesi > rimandati, qty>0 > qty=0, poi ordine
-function ordinaPezzi(a,b){
-  if(a.stato!==b.stato) return a.stato==='sospeso'?-1:1;
-  var qa=a.qty_attesa||0, qb=b.qty_attesa||0;
-  if(qa>0 && qb===0) return -1;
-}
-
+// ═══════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════
 async function init(){
-  avviaPing(); // ping ogni 5s per rilevare connessione al server
-  await new Promise(function(r){setTimeout(r,700);}); // aspetta primo ping
-  aggiornaNetBar();
-  if(!_sessId){ await mostraListaSessioni(); return; }
+  avviaPing();
+  await new Promise(r=>setTimeout(r,700));
+  aggNetBar();
+  if(!_sessId){ mostraListaSessioni(); return; }
 
-  // Prova a caricare pezzi dalla cache locale
   _pezziLocali = pezziLeggi();
   _idxCorrente = idxLeggi();
 
   if(_isOnline){
-    // Online: scarica TUTTI i pezzi della sessione e li salva in locale
-    mostraCaricamento('📥 Caricamento pezzi in corso...');
+    mostraCaricamento('📥 Caricamento pezzi...');
     try{
       var data = await api('/api/inventario/sessioni/'+_sessId);
       if(!data.ok){ mostraScherm('⚠️','Sessione non trovata','Controlla il link.'); return; }
       if(data.sessione.stato==='chiusa'){ mostraScherm('🔒','Sessione chiusa','Il responsabile ha chiuso questa sessione.'); return; }
       document.getElementById('hdr-sess').textContent = data.sessione.nome;
-
-      // Scarica tutte le righe della sessione
-      var righe = data.righe || [];
-      // Tieni solo quelle non ancora completate (sospese o rimAndate)
-      var daFare = righe.filter(function(r){ return r.stato==='sospeso'||r.stato==='rimandato'; });
-      // Metti prima i sospesi, poi i rimandati
+      var righe = data.righe||[];
+      var daFare = righe.filter(r=>r.stato==='sospeso'||r.stato==='rimandato');
       daFare.sort(ordinaPezzi);
       _pezziLocali = daFare;
       _idxCorrente = 0;
-      pezziSalva(_pezziLocali);
-      idxSalva(0);
-      // Aggiorna stats locali
-      _stats.totale    = righe.length;
-      _stats.confermati= righe.filter(function(r){return r.stato==='confermato';}).length;
-      _stats.mancanti  = righe.filter(function(r){return r.stato==='mancante';}).length;
-      _stats.rimandati = righe.filter(function(r){return r.stato==='rimandato';}).length;
-      aggiornaStatsUI();
-
+      pezziSalva(_pezziLocali); idxSalva(0);
+      _stats.totale     = righe.length;
+      _stats.confermati = righe.filter(r=>r.stato==='confermato').length;
+      _stats.mancanti   = righe.filter(r=>r.stato==='mancante').length;
+      _stats.rimandati  = righe.filter(r=>r.stato==='rimandato').length;
+      aggStatsUI();
       _sock.emit('join_inventario',{sessione_id:_sessId});
-      toast('✅ '+daFare.length+' pezzi caricati — puoi lavorare anche offline','ok');
+      toast('✅ '+daFare.length+' pezzi caricati','ok');
     }catch(e){
-      if(_pezziLocali){ toast('⚠️ Uso pezzi in cache locale','warn'); }
-      else { mostraScherm('⚠️','Errore caricamento','Controlla la connessione.'); return; }
+      if(_pezziLocali){ toast('⚠️ Uso dati in cache','warn'); }
+      else{ mostraScherm('⚠️','Errore caricamento','Controlla la connessione.'); return; }
     }
   } else {
-    // Offline: usa cache locale
-    if(!_pezziLocali || _pezziLocali.length===0){
-      mostraScherm('📴','Nessun dato in cache',
-        'Devi accedere almeno una volta online per scaricare i pezzi. Connettiti al WiFi aziendale e ricarica la pagina.');
+    if(!_pezziLocali||!_pezziLocali.length){
+      mostraScherm('📴','Nessun dato in cache','Accedi almeno una volta online per scaricare i pezzi.');
       return;
     }
-    document.getElementById('hdr-sess').textContent = 'Inventario (offline)';
-    toast('📴 Offline — lavori su '+_pezziLocali.length+' pezzi in cache','warn');
+    document.getElementById('hdr-sess').textContent='Inventario (offline)';
+    toast('📴 Offline — '+_pezziLocali.length+' pezzi in cache','warn');
   }
-
   mostraPezzoCorrente();
 }
 
-function mostraCaricamento(msg){
-  document.getElementById('scroll-area').innerHTML='<div class="schermata"><div class="spinner"></div><div class="s-sub">'+msg+'</div></div>';
-  document.getElementById('azioni').style.display='none';
-}
-
-function aggiornaStatsUI(){
+// ═══════════════════════════════════════════════════════════
+// STATS UI
+// ═══════════════════════════════════════════════════════════
+function aggStatsUI(){
   var tot  = _stats.totale||1;
   var done = (_stats.confermati||0)+(_stats.mancanti||0);
   var pct  = Math.round(done/tot*100);
-  var el=function(id){return document.getElementById(id);};
-  if(el('s-conf')) el('s-conf').textContent=done;
-  if(el('s-risc')) el('s-risc').textContent=_stats.rimandati||0;
-  if(el('s-tot'))  el('s-tot').textContent=_stats.totale||0;
-  if(el('prog-fill')) el('prog-fill').style.width=pct+'%';
-  if(el('hdr-prog'))  el('hdr-prog').textContent=pct+'% completato';
+  var el   = id=>document.getElementById(id);
+  if(el('s-conf'))    el('s-conf').textContent = done;
+  if(el('s-risc'))    el('s-risc').textContent = _stats.rimandati||0;
+  if(el('s-tot'))     el('s-tot').textContent  = _stats.totale||0;
+  if(el('prog-fill')) el('prog-fill').style.width = pct+'%';
+  if(el('hdr-prog'))  el('hdr-prog').textContent  = pct+'% completato';
 }
-
 async function aggStats(){
   if(_isOnline){
-    try{
-      var s=await api('/api/inventario/sessioni/'+_sessId+'/stats');
-      _stats=s;
-    }catch(e){}
+    try{ var s=await api('/api/inventario/sessioni/'+_sessId+'/stats');_stats=s; }catch(e){}
   }
-  aggiornaStatsUI();
+  aggStatsUI();
 }
 
+// ═══════════════════════════════════════════════════════════
+// PEZZI
+// ═══════════════════════════════════════════════════════════
 function mostraPezzoCorrente(){
   _fotoNuove=[];
   document.getElementById('azioni').style.display='none';
+  if(!_pezziLocali||!_pezziLocali.length){ mostraCompletato(); return; }
 
-  if(!_pezziLocali || _pezziLocali.length===0){
-    mostraCompletato(); return;
-  }
-
-  // Cerca il prossimo pezzo non ancora fatto (nella coda locale)
-  // Un pezzo è "fatto" se è nella coda come aggiorna_riga con stato confermato/rimandato
   var coda = codaLeggi();
-  var righeGiaFatte = {};
-  coda.forEach(function(op){
-    if(op.tipo==='aggiorna_riga' && op.stato!=='rimandato') righeGiaFatte[op.rigaId]=true;
-  });
+  var fatti={};
+  coda.forEach(op=>{ if(op.tipo==='aggiorna_riga'&&op.stato!=='rimandato') fatti[op.rigaId]=true; });
 
-  var pezzo = null;
-  for(var i=_idxCorrente; i<_pezziLocali.length; i++){
-    if(!righeGiaFatte[_pezziLocali[i].id]){
-      pezzo = _pezziLocali[i];
-      _idxCorrente = i;
-      idxSalva(i);
-      break;
-    }
+  var pezzo=null;
+  for(var i=_idxCorrente;i<_pezziLocali.length;i++){
+    if(!fatti[_pezziLocali[i].id]){ pezzo=_pezziLocali[i]; _idxCorrente=i; idxSalva(i); break; }
   }
-
   if(!pezzo){
-    // Controlla rimandati
-    var rimandati = coda.filter(function(op){ return op.tipo==='aggiorna_riga' && op.stato==='rimandato'; });
-    if(rimandati.length>0){
-      // Trova il pezzo rimandato nella lista locale
-      var rimId = rimandati[0].rigaId;
-      pezzo = _pezziLocali.find(function(p){ return p.id===rimId; });
+    var rim=coda.filter(op=>op.tipo==='aggiorna_riga'&&op.stato==='rimandato');
+    if(rim.length>0){
+      pezzo=_pezziLocali.find(p=>p.id===rim[0].rigaId);
       if(pezzo) _fase='rimandati';
     }
   }
-
   if(!pezzo){ mostraCompletato(); return; }
-
-  _riga = pezzo;
-  _qty  = _riga.qty_attesa||0;
-  _fase = _fase||'principale';
+  _riga=pezzo; _qty=_riga.qty_attesa||0; _fase=_fase||'principale';
   renderP();
   document.getElementById('azioni').style.display='flex';
 }
 
-// Mantieni prossimoP come alias
 async function prossimoP(){
   _fotoNuove=[];
-  if(_isOnline && _pezziLocali){
-    // Aggiorna la lista locale dal server (rimuovi i pezzi già confermati)
+  if(_isOnline&&_pezziLocali){
     try{
-      var data = await api('/api/inventario/sessioni/'+_sessId);
-      if(data.ok && data.righe){
-        var daFare = data.righe.filter(function(r){ return r.stato==='sospeso'||r.stato==='rimandato'; });
-        daFare.sort(ordinaPezzi);
-        _pezziLocali = daFare;
-        _idxCorrente = 0;
-        pezziSalva(_pezziLocali);
-        idxSalva(0);
-        _stats.confermati = data.righe.filter(function(r){return r.stato==='confermato';}).length;
-        _stats.mancanti   = data.righe.filter(function(r){return r.stato==='mancante';}).length;
-        _stats.rimandati  = data.righe.filter(function(r){return r.stato==='rimandato';}).length;
-        _stats.totale     = data.righe.length;
-        aggiornaStatsUI();
+      var data=await api('/api/inventario/sessioni/'+_sessId);
+      if(data.ok&&data.righe){
+        var df=data.righe.filter(r=>r.stato==='sospeso'||r.stato==='rimandato');
+        df.sort(ordinaPezzi);
+        _pezziLocali=df; _idxCorrente=0;
+        pezziSalva(_pezziLocali); idxSalva(0);
+        _stats.confermati=data.righe.filter(r=>r.stato==='confermato').length;
+        _stats.mancanti  =data.righe.filter(r=>r.stato==='mancante').length;
+        _stats.rimandati =data.righe.filter(r=>r.stato==='rimandato').length;
+        _stats.totale    =data.righe.length;
+        aggStatsUI();
       }
     }catch(e){}
   }
   mostraPezzoCorrente();
 }
 
+// ═══════════════════════════════════════════════════════════
+// RENDER PEZZO — campi SEMPRE dinamici da r
+// ═══════════════════════════════════════════════════════════
+// Campi tecnici da escludere dalla griglia info
+var _EXCL = new Set([
+  'id','sessione_id','componente_id','stato','qty_attesa','qty_trovata',
+  'foto_url','ordine','aggiornato_il','immagine_path','cmp','articolo',
+  'descrizione','note','ubicazione','nota'
+]);
+
 function renderP(){
-  const r=_riga;
+  var r=_riga;
+
   // Foto esistenti
-  const fu=[];
+  var fu=[];
   if(r.foto_url) r.foto_url.split('|').forEach(u=>{u=u.trim();if(u&&!fu.includes(u))fu.push(u);});
   if(r.immagine_path) r.immagine_path.split('|').forEach(u=>{if(u&&!fu.includes(u))fu.push(u);});
-  if(r.files_path) r.files_path.split('|').forEach(u=>{if(u&&/\.(jpg|jpeg|png|webp|gif)/i.test(u)&&!fu.includes(u))fu.push(u);});
-
-  const fotoExHtml=fu.length
+  var fotoExHtml = fu.length
     ? fu.map(u=>'<img class="foto-ex" src="'+esc(u)+'" onclick="window.open(\''+esc(u)+'\',\'_blank\')">').join('')
     : '<div class="no-foto">Nessuna foto nel sistema</div>';
 
-  const faseHtml=_fase==='rimandati'?'<div class="fase-warn">⚠️ Revisione pezzi rimandati</div>':'';
-
-  // Info aggiuntive — tutti i campi non tecnici presenti in r
-  var _EXCL_R = new Set(['id','sessione_id','componente_id','stato','qty_attesa','qty_trovata','foto_url','ordine','aggiornato_il','immagine_path','cmp','articolo','descrizione','note']);
+  // Griglia info — tutti i campi non tecnici con valore
   var infoHtml='';
   Object.keys(r).forEach(function(key){
-    if(_EXCL_R.has(key)) return;
-    var v = r[key];
+    if(_EXCL.has(key)) return;
+    var v=r[key];
     if(v===null||v===undefined||v==='') return;
-    var lbl = key.replace(/_/g,' ').replace(/^\w/,function(c){return c.toUpperCase();});
-    infoHtml+='<div class="info-item"><div class="info-lbl">'+lbl+'</div><div class="info-val">'+esc(String(v))+'</div></div>';
+    infoHtml+='<div class="info-item"><div class="info-lbl">'+esc(fmtLbl(key))+'</div><div class="info-val">'+esc(String(v))+'</div></div>';
   });
 
-  document.getElementById('scroll-area').innerHTML=faseHtml+
-    '<div class="card">'
-    +'<div class="card-sec">'
+  var faseHtml = _fase==='rimandati'?'<div class="fase-warn">⚠️ Revisione rimandati</div>':'';
+
+  document.getElementById('scroll-area').innerHTML = faseHtml
+
+    // Card: dati pezzo
+    +'<div class="card"><div class="card-sec">'
     +'<div class="pezzo-cod">'+esc(r.cmp||'—')+'</div>'
     +'<div class="pezzo-nome">'+esc(r.articolo||r.cmp||'—')+'</div>'
     +(infoHtml?'<div class="info-grid">'+infoHtml+'</div>':'')
     +'</div>'
     +'<div class="card-sec">'
-    +'<div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Foto nel sistema</div>'
+    +'<div class="card-lbl">Foto nel sistema</div>'
     +'<div class="foto-ex-row">'+fotoExHtml+'</div>'
-    +'</div>'
-    +'</div>'
+    +'</div></div>'
 
-    // Quantità
+    // Card: quantità
     +'<div class="card"><div class="card-sec">'
     +'<div class="qty-row">'
     +'<div class="qty-lbl">Quantità trovata</div>'
     +'<div class="qty-ctrl">'
     +'<button class="qbtn m" onclick="cambiaQ(-1)">−</button>'
-    +'<input type="number" class="qinput" id="qty-inp" value="'+_qty+'" min="0" inputmode="numeric" oninput="syncQ(this.value)">'
+    +'<input class="qinput" id="qty-inp" type="number" value="'+_qty+'" min="0" inputmode="numeric" oninput="syncQ(this.value)">'
     +'<button class="qbtn p" onclick="cambiaQ(1)">+</button>'
     +'</div></div>'
-    +'<div class="qty-hint">Quantità attesa nel sistema: <b>'+(r.qty_attesa??'—')+'</b></div>'
+    +'<div class="qty-hint">Attesa: <b>'+(r.qty_attesa??'—')+'</b></div>'
     +'</div></div>'
 
-    // Ubicazione modificabile
+    // Card: ubicazione
     +'<div class="card"><div class="card-sec">'
-    +'<div style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">📍 Ubicazione</div>'
-    +'<input type="text" id="ubicazione-inp" placeholder="es. Scaffale A3, Corsia 2..." value="'+esc(r.ubicazione||'')+'"'
-    +' style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:10px;font-size:14px;font-family:var(--font);outline:none">'
-    +'<div style="font-size:11px;color:var(--text3);margin-top:5px">Attuale: <b>'+(r.ubicazione?esc(r.ubicazione):'non impostata')+'</b></div>'
+    +'<div class="card-lbl">📍 Ubicazione</div>'
+    +'<input class="inp-text" id="ubicazione-inp" type="text" placeholder="es. Scaffale A3..." value="'+esc(r.ubicazione||'')+'">'
     +'</div></div>'
 
-    // Nuove foto
+    // Card: aggiungi foto
     +'<div class="card"><div class="card-sec">'
-    +'<div class="foto-hdr"><span>📷 Aggiungi foto</span><span id="foto-count" style="font-size:11px;color:var(--text3)">0 foto pronte</span></div>'
+    +'<div class="foto-hdr"><span class="card-lbl" style="margin:0">📷 Aggiungi foto</span><span id="foto-count" style="font-size:11px;color:var(--t3)">0 foto</span></div>'
     +'<div style="display:flex;gap:8px;margin-bottom:10px">'
-    +'<button onclick="document.getElementById(\'inp-camera\').click()" style="flex:1;padding:12px;border:2px solid #bbf7d0;border-radius:10px;background:#f0fdf4;color:#16a34a;font-size:14px;font-weight:700;cursor:pointer">📷 Fotocamera</button>'
-    +'<button onclick="document.getElementById(\'inp-file\').click()" style="flex:1;padding:12px;border:2px solid var(--border);border-radius:10px;background:var(--bg);font-size:14px;font-weight:600;cursor:pointer">🖼 Galleria</button>'
+    +'<button onclick="document.getElementById(\'inp-camera\').click()" style="flex:1;padding:12px;border:2px solid #bbf7d0;border-radius:10px;background:#f0fdf4;color:var(--gr);font-size:14px;font-weight:700;cursor:pointer">📷 Fotocamera</button>'
+    +'<button onclick="document.getElementById(\'inp-file\').click()" style="flex:1;padding:12px;border:2px solid var(--bd);border-radius:10px;background:var(--bg);font-size:14px;font-weight:600;cursor:pointer">🖼 Galleria</button>'
     +'</div>'
     +'<div class="foto-grid" id="foto-grid"></div>'
     +'<div class="foto-hint" id="foto-hint">Tocca un pulsante per aggiungere foto</div>'
     +'</div></div>'
 
-    // Note
+    // Card: note
     +'<div class="card"><div class="card-sec">'
-    +'<div style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Note</div>'
-    +'<textarea id="note-inp" rows="2" placeholder="Note sul pezzo...">'+esc(r.nota||'')+'</textarea>'
+    +'<div class="card-lbl">Note</div>'
+    +'<textarea class="inp-text" id="note-inp" rows="3" placeholder="Note sul pezzo...">'+esc(r.nota||'')+'</textarea>'
     +'</div></div>'
     +'<div style="height:8px"></div>';
 }
 
-function cambiaQ(d){_qty=Math.max(0,(_qty||0)+d);var el=document.getElementById('qty-inp');if(el)el.value=_qty;}
-function syncQ(v){_qty=Math.max(0,parseInt(v)||0);}
+// ═══════════════════════════════════════════════════════════
+// QUANTITÀ
+// ═══════════════════════════════════════════════════════════
+function cambiaQ(d){ _qty=Math.max(0,(_qty||0)+d); var el=document.getElementById('qty-inp'); if(el) el.value=_qty; }
+function syncQ(v){ _qty=Math.max(0,parseInt(v)||0); }
 
-function apriFotoMenu(){
-  var m=document.createElement('div');
-  m.style.cssText='position:fixed;inset:0;z-index:400;background:rgba(0,0,0,.5);display:flex;align-items:flex-end';
-  m.innerHTML='<div style="background:#fff;width:100%;border-radius:20px 20px 0 0;padding:20px;padding-bottom:max(env(safe-area-inset-bottom),20px)">'
-    +'<div style="font-weight:700;font-size:16px;text-align:center;margin-bottom:14px">Aggiungi foto</div>'
-    +'<button onclick="this.closest(\'div[style]\').remove();document.getElementById(\'inp-camera\').click()" style="display:block;width:100%;padding:15px;border:none;border-radius:12px;background:#f0fdf4;color:#16a34a;font-size:15px;font-weight:700;cursor:pointer;margin-bottom:8px">📷 Fotocamera</button>'
-    +'<button onclick="this.closest(\'div[style]\').remove();document.getElementById(\'inp-file\').click()" style="display:block;width:100%;padding:15px;border:none;border-radius:12px;background:#f3f4f6;font-size:15px;font-weight:600;cursor:pointer;margin-bottom:8px">🖼 Galleria / File</button>'
-    +'<button onclick="this.closest(\'div[style]\').remove()" style="display:block;width:100%;padding:15px;border:none;border-radius:12px;background:#fee2e2;color:#dc2626;font-size:15px;font-weight:600;cursor:pointer">✕ Annulla</button>'
-    +'</div>';
-  document.body.appendChild(m);
+// ═══════════════════════════════════════════════════════════
+// FOTO
+// ═══════════════════════════════════════════════════════════
+function fotoCameraCapture(input){
+  document.querySelectorAll('.foto-menu-ov').forEach(e=>e.remove());
+  Array.from(input.files).forEach(f=>riceviFile(f));
+  input.value='';
+}
+function fotoGalleria(input){
+  document.querySelectorAll('.foto-menu-ov').forEach(e=>e.remove());
+  Array.from(input.files).forEach(f=>riceviFile(f));
+  input.value='';
+}
+function riceviFile(file){
+  if(!_riga){ toast('Nessun pezzo attivo','err'); return; }
+  var rigaId=_riga.id;
+  var url=URL.createObjectURL(file);
+  var id='foto-'+Date.now()+'-'+Math.random().toString(36).slice(2);
+  _fotoNuove.push({file,nome:file.name,id,url,caricata:false,rigaId});
+  aggAnteprima(id,url);
+  updFotoCount();
+  uploadFoto(file,file.name,id,rigaId);
+}
+function aggAnteprima(id,url){
+  var grid=document.getElementById('foto-grid');
+  if(!grid) return;
+  var hint=document.getElementById('foto-hint');
+  if(hint) hint.style.display='none';
+  var wrap=document.createElement('div');wrap.className='foto-tw';wrap.id='wrap-'+id;
+  var img=document.createElement('img');img.className='foto-th';img.src=url;img.style.opacity='.5';img.id='img-'+id;
+  img.onclick=()=>window.open(url,'_blank');
+  var sp=document.createElement('div');sp.id='spin-'+id;
+  sp.style.cssText='position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.3);border-radius:10px;font-size:18px';
+  sp.textContent='⏳';
+  wrap.appendChild(img);wrap.appendChild(sp);grid.appendChild(wrap);
+}
+function updFotoCount(){
+  var el=document.getElementById('foto-count');
+  if(!el) return;
+  var c=_fotoNuove.filter(f=>f.caricata).length;
+  el.textContent=c+'/'+_fotoNuove.length+' foto';
+}
+async function uploadFoto(file,nome,id,rigaId){
+  if(!rigaId){ toast('Nessun pezzo','err'); return; }
+  var imgEl=()=>document.getElementById('img-'+id);
+  var spEl =()=>document.getElementById('spin-'+id);
+  var wrEl =()=>document.getElementById('wrap-'+id);
+  if(!_isOnline){
+    if(spEl()) spEl().textContent='💾';
+    _fotoNuove.forEach(f=>{if(f.id===id) f.caricata=false;});
+    var del=document.createElement('div');del.className='foto-del';del.textContent='×';
+    del.onclick=()=>{ _fotoNuove=_fotoNuove.filter(f=>f.id!==id); if(wrEl()) wrEl().remove(); updFotoCount(); };
+    if(wrEl()&&imgEl()){ imgEl().style.opacity='.7'; wrEl().appendChild(del); }
+    toast('📴 Foto in attesa di sync','warn'); updFotoCount(); return;
+  }
+  try{
+    var fd=new FormData();fd.append('file',file,nome);
+    var res=await (await fetch('/api/inventario/righe/'+rigaId+'/foto',{method:'POST',body:fd})).json();
+    if(res.ok){
+      if(imgEl()){ imgEl().style.opacity='1'; imgEl().src=res.url; }
+      if(spEl()) spEl().remove();
+      _fotoNuove.forEach(f=>{if(f.id===id){f.caricata=true;f.url=res.url;}});
+      var del=document.createElement('div');del.className='foto-del';del.textContent='×';
+      del.onclick=()=>{ _fotoNuove=_fotoNuove.filter(f=>f.id!==id); if(wrEl()) wrEl().remove(); updFotoCount(); };
+      if(wrEl()) wrEl().appendChild(del);
+      toast('✅ Foto salvata','ok');
+    } else {
+      if(spEl()) spEl().textContent='❌'; toast('Errore foto','err');
+    }
+  }catch(e){ if(spEl()) spEl().textContent='❌'; toast('Errore foto','err'); }
+  updFotoCount();
 }
 
-function apriCam(){
-  // capture=environment apre direttamente la fotocamera posteriore
-  // Funziona su HTTP (no HTTPS richiesto) — nessun permesso manuale necessario
-  document.getElementById('inp-camera').click();
-}
+// Camera
 function chiudiCamera(){
-  if(_camStream){_camStream.getTracks().forEach(function(t){t.stop();});_camStream=null;}
+  if(_camStream){_camStream.getTracks().forEach(t=>t.stop());_camStream=null;}
   document.getElementById('cam-ov').classList.add('hidden');
 }
 function scattaFoto(){
-  var vid=document.getElementById('cam-video');
-  var can=document.getElementById('cam-canvas');
+  var vid=document.getElementById('cam-video'),can=document.getElementById('cam-canvas');
   can.width=vid.videoWidth||1280;can.height=vid.videoHeight||720;
   can.getContext('2d').drawImage(vid,0,0);
   chiudiCamera();
-  can.toBlob(function(blob){aggFoto(blob,'scatto.jpg');},'image/jpeg',0.88);
-}
-function fotoCameraCapture(input){
-  document.querySelectorAll('div[style*="z-index:400"]').forEach(function(el){el.remove();});
-  Array.from(input.files).forEach(function(f){ riceviFile(f); });
-  input.value='';
+  can.toBlob(blob=>aggAnteprima&&riceviFile(blob),'image/jpeg',.88);
 }
 
-function fotoGalleria(input){
-  document.querySelectorAll('div[style*="z-index:400"]').forEach(function(el){el.remove();});
-  Array.from(input.files).forEach(function(f){ riceviFile(f); });
-  input.value='';
+// ═══════════════════════════════════════════════════════════
+// AZIONI
+// ═══════════════════════════════════════════════════════════
+async function azioneConferma(){
+  if(!_riga) return;
+  var rigaId=_riga.id;
+  var btn=document.getElementById('btn-conf'),lbl=document.getElementById('btn-conf-lbl');
+  btn.classList.add('busy');lbl.textContent='Salvataggio...';
+  var note=(document.getElementById('note-inp')||{}).value||'';
+  var ubi =(document.getElementById('ubicazione-inp')||{}).value||'';
+
+  if(_isOnline){
+    if(ubi&&ubi!==(_riga.ubicazione||'')){
+      try{ await api('/api/magazzino/componenti/'+_riga.componente_id,{method:'PUT',body:JSON.stringify({ubicazione:ubi})}); }catch(e){}
+    }
+    var res=await api('/api/inventario/righe/'+rigaId,{method:'PUT',body:JSON.stringify({stato:'confermato',qty_trovata:_qty,note})});
+    btn.classList.remove('busy');lbl.textContent='Conferma';
+    if(res.ok){
+      _pezziLocali=(_pezziLocali||[]).filter(p=>p.id!==rigaId);
+      pezziSalva(_pezziLocali);_idxCorrente=0;idxSalva(0);
+      await aggStats();setTimeout(prossimoP,300);
+    } else toast(res.msg||'Errore','err');
+  } else {
+    codaAggiungi({tipo:'aggiorna_riga',rigaId,stato:'confermato',qty:_qty,note});
+    for(var f of _fotoNuove){
+      if(!f.caricata&&f.file){
+        await new Promise(resolve=>{
+          var fr=new FileReader();
+          fr.onload=e=>{ codaAggiungi({tipo:'upload_foto',rigaId,b64:e.target.result,nome:f.nome,fotoId:f.id}); resolve(); };
+          fr.readAsDataURL(f.file);
+        });
+      }
+    }
+    btn.classList.remove('busy');lbl.textContent='Conferma';
+    toast('💾 Salvato offline — sync al ricollegamento','warn');
+    _idxCorrente++;idxSalva(_idxCorrente);
+    setTimeout(mostraPezzoCorrente,300);
+  }
 }
 
-// Chiamata quando arriva un file (da fotocamera o galleria)
-function riceviFile(file){
-  if(!_riga){ toast('Nessun pezzo attivo','err'); return; }
-  var rigaId = _riga.id; // cattura subito prima di qualsiasi await
-  var url = URL.createObjectURL(file);
-  var id  = 'foto-'+Date.now()+'-'+Math.random().toString(36).slice(2);
-  _fotoNuove.push({file:file, nome:file.name, id:id, url:url, caricata:false, rigaId:rigaId});
-  aggiungiAnteprima(id, url);
-  updFotoCount();
-  uploadFoto(file, file.name, id, rigaId);
+async function azioneRimanda(){
+  if(!_riga) return;
+  var rigaId=_riga.id;
+  if(_isOnline){
+    var res=await api('/api/inventario/righe/'+rigaId,{method:'PUT',body:JSON.stringify({stato:'rimandato',qty_trovata:_qty})});
+    if(res.ok){ await aggStats();setTimeout(prossimoP,300); }
+    else toast(res.msg||'Errore','err');
+  } else {
+    codaAggiungi({tipo:'aggiorna_riga',rigaId,stato:'rimandato',qty:_qty});
+    toast('💾 Rimandato offline','warn');
+    _idxCorrente++;idxSalva(_idxCorrente);setTimeout(mostraPezzoCorrente,300);
+  }
 }
 
-function aggiungiAnteprima(id, url){
-  var grid = document.getElementById('foto-grid');
-  if(!grid){ console.warn('foto-grid non trovata'); return; }
-  var hint = document.getElementById('foto-hint');
-  if(hint) hint.style.display = 'none';
-  var wrap = document.createElement('div');
-  wrap.className = 'foto-thumb-wrap';
-  wrap.id = 'wrap-'+id;
-  var img = document.createElement('img');
-  img.className = 'foto-thumb';
-  img.src = url;
-  img.style.opacity = '0.5';
-  img.id = 'img-'+id;
-  img.onclick = function(){ window.open(url,'_blank'); };
-  var spinner = document.createElement('div');
-  spinner.id = 'spin-'+id;
-  spinner.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.3);border-radius:10px;font-size:18px';
-  spinner.textContent = '⏳';
-  wrap.appendChild(img);
-  wrap.appendChild(spinner);
-  grid.appendChild(wrap);
+// ═══════════════════════════════════════════════════════════
+// SINCRONIZZAZIONE OFFLINE
+// ═══════════════════════════════════════════════════════════
+async function sincronizzaOra(){
+  if(_syncInCorso||!_isOnline) return;
+  _syncInCorso=true;
+  var sb=document.getElementById('nb-sync');if(sb) sb.textContent='⏳ Sync...';
+  var coda=codaLeggi(),ok=0,err=0;
+  for(var op of coda){
+    try{
+      if(op.tipo==='aggiorna_riga'){
+        var r=await fetch('/api/inventario/righe/'+op.rigaId,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({stato:op.stato,qty_trovata:op.qty,note:op.note||''})});
+        var res=await r.json();
+        if(res.ok){codaRimuovi(op.ts);ok++;}else err++;
+      } else if(op.tipo==='upload_foto'){
+        var mime=op.b64.split(';')[0].split(':')[1]||'image/jpeg';
+        var bin=atob(op.b64.split(',')[1]),arr=new Uint8Array(bin.length);
+        for(var j=0;j<bin.length;j++) arr[j]=bin.charCodeAt(j);
+        var fd=new FormData();fd.append('file',new Blob([arr],{type:mime}),op.nome);
+        var r2=await fetch('/api/inventario/righe/'+op.rigaId+'/foto',{method:'POST',body:fd});
+        var res2=await r2.json();
+        if(res2.ok){codaRimuovi(op.ts);ok++;}else err++;
+      }
+    }catch(e){err++;}
+  }
+  _syncInCorso=false;aggNetBar();
+  if(ok>0&&err===0){
+    toast('✅ Sync completata ('+ok+' op)','ok');
+    await aggStats();
+    if(_sessId&&_sock.connected) _sock.emit('sync_completata',{sessione_id:_sessId,n:ok});
+    await prossimoP();
+  } else if(err>0){
+    toast('⚠️ '+ok+' OK, '+err+' errori','warn');
+  }
 }
 
+// ═══════════════════════════════════════════════════════════
+// PING / CONNETTIVITÀ
+// ═══════════════════════════════════════════════════════════
+async function pingServer(){
+  try{
+    var ctrl=new AbortController(),tid=setTimeout(()=>ctrl.abort(),2000);
+    var r=await fetch('/api/ping',{cache:'no-cache',signal:ctrl.signal});
+    clearTimeout(tid);
+    var wasOff=!_isOnline;
+    _isOnline=r.ok;
+    if(wasOff&&_isOnline){
+      aggNetBar();
+      var n=codaLeggi().length;
+      if(_sessId) _sock.emit('join_inventario',{sessione_id:_sessId});
+      if(n>0){ toast('🟢 Online — sync '+n+' operazioni','warn'); setTimeout(sincronizzaOra,500); }
+      else toast('🟢 Connesso','ok');
+    }
+  }catch(e){
+    var wasOn=_isOnline;_isOnline=false;
+    if(wasOn){aggNetBar();toast('🔴 Connessione persa','warn');}
+  }
+  aggNetBar();
+}
+function avviaPing(){ pingServer();_pingInterval=setInterval(pingServer,5000); }
 
-
-function updFotoCount(){
-  var el = document.getElementById('foto-count');
-  if(!el) return;
-  var n = _fotoNuove.length;
-  var c = _fotoNuove.filter(function(f){return f.caricata;}).length;
-  el.textContent = c+'/'+n+' foto salvate';
+function aggNetBar(){
+  var bar=document.getElementById('net-bar');
+  var lbl=document.getElementById('nb-label');
+  var q  =document.getElementById('nb-q');
+  var sb =document.getElementById('nb-sync');
+  if(!bar) return;
+  var n=codaLeggi().length;
+  bar.style.display='flex';
+  if(!_isOnline){
+    bar.className='net-bar offline';lbl.textContent='🔴 Offline — azioni salvate in locale';
+    q.style.display=n?'inline':'none';q.textContent=n+' in coda';sb.style.display='none';
+  } else if(n>0){
+    bar.className='net-bar pending';lbl.textContent='🟡 Online — '+n+' da sincronizzare';
+    q.style.display='inline';q.textContent=n+' in attesa';sb.style.display='inline';
+  } else {
+    bar.className='net-bar online';lbl.textContent='🟢 Online';
+    q.style.display='none';sb.style.display='none';
+  }
 }
 
+// ═══════════════════════════════════════════════════════════
+// RICERCA
+// ═══════════════════════════════════════════════════════════
+function apriCerca(){
+  if(!_pezziLocali||!_pezziLocali.length){ toast('Nessun pezzo caricato','err');return; }
+  document.getElementById('cerca-ov').classList.remove('hidden');
+  cercaFiltra('');
+  setTimeout(()=>document.getElementById('cerca-inp').focus(),100);
+}
+function chiudiCerca(){ document.getElementById('cerca-ov').classList.add('hidden'); }
+function cercaFiltra(q){
+  var list=document.getElementById('cerca-list');
+  if(!_pezziLocali){ list.innerHTML='<div class="cerca-empty">Nessun pezzo</div>';return; }
+  q=q.toLowerCase().trim();
+  var coda=codaLeggi(),fatti={};
+  coda.forEach(op=>{if(op.tipo==='aggiorna_riga') fatti[op.rigaId]=op.stato;});
+  var res=_pezziLocali.filter(p=>{
+    if(!q) return true;
+    return (p.articolo||'').toLowerCase().includes(q)||(p.cmp||'').toLowerCase().includes(q)||(p.marca||'').toLowerCase().includes(q);
+  });
+  if(!res.length){ list.innerHTML='<div class="cerca-empty">Nessun risultato</div>';return; }
+  var hi=function(s){if(!q)return esc(s);return esc(s).replace(new RegExp('('+q.replace(/[\-\[\]{}()*+?.,\\^$|#]/g,'\\$&')+')','gi'),'<b style="color:var(--or)">$1</b>');};
+  list.innerHTML=res.map(p=>{
+    var stato=fatti[p.id]||p.stato;
+    var ico=stato==='confermato'?'✅':stato==='rimandato'?'⏳':'○';
+    return '<div class="cerca-item" onclick="selPezzoId('+p.id+')">'
+      +'<div class="cerca-item-nome">'+ico+' '+hi(p.articolo||p.cmp||'—')+'</div>'
+      +'<div class="cerca-item-sub"><span>'+hi(p.cmp||'')+'</span>'+(p.marca?'<span>'+hi(p.marca)+'</span>':'')+'</div>'
+      +'</div>';
+  }).join('');
+}
+function selPezzoId(id){
+  if(!_pezziLocali) return;
+  var idx=_pezziLocali.findIndex(p=>p.id===id);
+  if(idx<0){ toast('Pezzo non trovato','err');return; }
+  _idxCorrente=idx;idxSalva(idx);chiudiCerca();
+  _fotoNuove=[];_riga=_pezziLocali[idx];_qty=_riga.qty_attesa||0;
+  renderP();
+  document.getElementById('azioni').style.display='flex';
+  document.getElementById('scroll-area').scrollTop=0;
+}
 
-
-
-
+// ═══════════════════════════════════════════════════════════
+// SCHERMATE
+// ═══════════════════════════════════════════════════════════
+function mostraCaricamento(msg){
+  document.getElementById('scroll-area').innerHTML='<div class="schermata"><div class="spinner"></div><div class="s-sub">'+esc(msg)+'</div></div>';
+  document.getElementById('azioni').style.display='none';
+}
 function mostraScherm(ico,titolo,sub){
   document.getElementById('scroll-area').innerHTML='<div class="schermata"><div class="s-ico">'+ico+'</div><div class="s-titolo">'+esc(titolo)+'</div><div class="s-sub">'+esc(sub)+'</div></div>';
   document.getElementById('azioni').style.display='none';
 }
-
 function mostraCompletato(){
   var s=_stats;
   document.getElementById('scroll-area').innerHTML='<div class="schermata">'
-    +'<div class="s-ico">🎉</div>'
-    +'<div class="s-titolo">Completato!</div>'
-    +'<div class="s-sub">Tutti i pezzi inventariati. Il database è aggiornato.</div>'
+    +'<div class="s-ico">🎉</div><div class="s-titolo">Completato!</div>'
+    +'<div class="s-sub">Tutti i pezzi inventariati.</div>'
     +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%;max-width:260px;margin-top:10px">'
-    +'<div style="background:#f0fdf4;border-radius:12px;padding:14px;text-align:center"><div style="font-size:28px;font-weight:800;color:var(--green)">'+(((s.confermati||0)+(s.mancanti||0)))+'</div><div style="font-size:11px;color:var(--text3)">Completati</div></div>'
-    +'<div style="background:#fffbeb;border-radius:12px;padding:14px;text-align:center"><div style="font-size:28px;font-weight:800;color:var(--yellow)">'+(s.rimandati||0)+'</div><div style="font-size:11px;color:var(--text3)">Rimandati</div></div>'
-    +'</div><div style="font-size:12px;color:var(--text3);margin-top:8px">Torna al PC per il report completo.</div>'
+    +'<div style="background:#f0fdf4;border-radius:12px;padding:14px;text-align:center"><div style="font-size:28px;font-weight:800;color:var(--gr)">'+(((s.confermati||0)+(s.mancanti||0)))+'</div><div style="font-size:11px;color:var(--t3)">Completati</div></div>'
+    +'<div style="background:#fffbeb;border-radius:12px;padding:14px;text-align:center"><div style="font-size:28px;font-weight:800;color:var(--ye)">'+(s.rimandati||0)+'</div><div style="font-size:11px;color:var(--t3)">Rimandati</div></div>'
+    +'</div><div style="font-size:12px;color:var(--t3);margin-top:8px">Torna al PC per il report.</div>'
     +'</div>';
   document.getElementById('azioni').style.display='none';
 }
@@ -581,445 +733,43 @@ async function mostraListaSessioni(){
   document.getElementById('hdr-sess').textContent='Scegli sessione';
   var rows=[];
   try{rows=await api('/api/inventario/sessioni');}catch(e){}
-  if(!Array.isArray(rows))rows=[];
-  var attive=rows.filter(function(s){return s.stato==='attiva';});
+  if(!Array.isArray(rows)) rows=[];
+  var attive=rows.filter(s=>s.stato==='attiva');
   if(!attive.length){
     document.getElementById('scroll-area').innerHTML='<div class="schermata">'
       +'<div class="s-ico">📋</div><div class="s-titolo">Nessuna sessione</div>'
-      +'<div class="s-sub">Vai al PC, apri il Magazzino e avvia una sessione dal pulsante 📋 Inventario.</div>'
-      +'<button onclick="location.reload()" style="margin-top:12px;padding:12px 24px;border:none;border-radius:10px;background:var(--orange);color:#fff;font-size:15px;font-weight:700;cursor:pointer">🔄 Ricarica</button>'
+      +'<div class="s-sub">Apri il Magazzino sul PC e avvia una sessione inventario.</div>'
+      +'<button onclick="location.reload()" style="margin-top:12px;padding:12px 24px;border:none;border-radius:10px;background:var(--or);color:#fff;font-size:15px;font-weight:700;cursor:pointer">🔄 Ricarica</button>'
       +'</div>';
     return;
   }
   var html='<div style="padding:4px"><div style="font-weight:800;font-size:17px;margin-bottom:14px">Seleziona sessione</div>';
-  attive.forEach(function(s){
+  attive.forEach(s=>{
     var pct=Math.round(((s.confermati||0)+(s.mancanti||0))/(s.totale_pezzi||1)*100);
-    html+='<div class="sess-card" onclick="window.location.href=\'/inventario-mobile?sessione='+s.id+'\'">'
+    html+='<div class="sess-card" onclick="location.href=\'/inventario-mobile?sessione='+s.id+'\'">'
       +'<div style="font-weight:700;font-size:15px;margin-bottom:3px">'+esc(s.nome)+'</div>'
-      +'<div style="font-size:12px;color:var(--text3);margin-bottom:8px">📂 '+esc(s.categoria||'')+' · '+(s.totale_pezzi||0)+' pezzi</div>'
-      +'<div style="height:5px;background:#f3f4f6;border-radius:3px;margin-bottom:7px"><div style="height:100%;width:'+pct+'%;background:var(--green);border-radius:3px"></div></div>'
+      +'<div style="font-size:12px;color:var(--t3);margin-bottom:8px">'+esc(s.categoria||'')+'  ·  '+(s.totale_pezzi||0)+' pezzi</div>'
+      +'<div style="height:5px;background:#f3f4f6;border-radius:3px;margin-bottom:7px"><div style="height:100%;width:'+pct+'%;background:var(--gr);border-radius:3px"></div></div>'
       +'<div style="display:flex;gap:10px;font-size:12px">'
-      +'<span style="color:var(--green)">✅ '+(s.confermati||0)+'</span>'
-      +'<span style="color:var(--yellow)">⏳ '+(s.sospesi||0)+'</span>'
-      +'<span style="margin-left:auto;color:var(--text3)">'+pct+'%</span>'
+      +'<span style="color:var(--gr)">✅ '+(s.confermati||0)+'</span>'
+      +'<span style="color:var(--ye)">⏳ '+(s.sospesi||0)+'</span>'
+      +'<span style="margin-left:auto;color:var(--t3)">'+pct+'%</span>'
       +'</div></div>';
   });
   html+='</div>';
   document.getElementById('scroll-area').innerHTML=html;
 }
 
-_sock.on('connect', function(){
-  if(_sessId) _sock.emit('join_inventario',{sessione_id:_sessId});
-});
-_sock.on('inventario_chiusa',function(d){
-  if(d.sessione_id===_sessId) mostraScherm('🔒','Sessione chiusa','Il responsabile ha chiuso questa sessione.');
-});
+// ═══════════════════════════════════════════════════════════
+// SOCKET.IO
+// ═══════════════════════════════════════════════════════════
+_sock.on('connect',()=>{ if(_sessId) _sock.emit('join_inventario',{sessione_id:_sessId}); });
+_sock.on('inventario_chiusa',d=>{ if(parseInt(d.sessione_id)===_sessId) mostraScherm('🔒','Sessione chiusa','Il responsabile ha chiuso questa sessione.'); });
+_sock.on('inventario_aggiornamento',d=>{ if(parseInt(d.sessione_id)===_sessId) prossimoP(); });
 
-
-
-
-// ══════════════════════════════════════════════════════════════════════
-// SISTEMA OFFLINE — coda locale con localStorage
-// ══════════════════════════════════════════════════════════════════════
-
-var _isOnline    = false; // True solo se il server è raggiungibile
-var _pingInterval = null;
-var _syncInCorso = false;
-var CODA_KEY     = 'inv_coda_' + (_sessId || 'x');
-
-// ── Coda operazioni ───────────────────────────────────────────────────
-function codaLeggi(){
-  try{ return JSON.parse(localStorage.getItem(CODA_KEY)||'[]'); }
-  catch(e){ return []; }
-}
-function codaScrivi(coda){
-  try{ localStorage.setItem(CODA_KEY, JSON.stringify(coda)); }
-  catch(e){ console.warn('localStorage pieno:', e); }
-}
-function codaAggiungi(op){
-  var coda = codaLeggi();
-  coda.push({...op, ts: Date.now()});
-  codaScrivi(coda);
-  aggiornaNetBar();
-}
-function codaRimuovi(ts){
-  var coda = codaLeggi().filter(function(o){ return o.ts !== ts; });
-  codaScrivi(coda);
-  aggiornaNetBar();
-}
-
-// ── UI barra rete ─────────────────────────────────────────────────────
-function aggiornaNetBar(){
-  var bar    = document.getElementById('net-bar');
-  var label  = document.getElementById('net-label');
-  var queue  = document.getElementById('net-queue');
-  var btnSync= document.getElementById('btn-sync');
-  if(!bar) return;
-
-  var coda = codaLeggi();
-  var n    = coda.length;
-
-  bar.style.display = 'flex';
-
-  if(!_isOnline){
-    bar.className = 'offline';
-    label.textContent = '🔴 Offline — le azioni vengono salvate in locale';
-    queue.style.display  = n>0 ? 'inline' : 'none';
-    queue.textContent    = n+' in coda';
-    btnSync.style.display= 'none';
-  } else if(n > 0){
-    bar.className = 'pending';
-    label.textContent = '🟡 Online — '+n+' operazioni da sincronizzare';
-    queue.style.display  = 'inline';
-    queue.textContent    = n+' in attesa';
-    btnSync.style.display= 'inline';
-  } else {
-    bar.className = 'online';
-    label.textContent = '🟢 Online';
-    queue.style.display  = 'none';
-    btnSync.style.display= 'none';
-  }
-}
-
-// ── Sincronizzazione ──────────────────────────────────────────────────
-async function sincronizzaOra(){
-  if(_syncInCorso || !_isOnline) return;
-  _syncInCorso = true;
-  var btnSync = document.getElementById('btn-sync');
-  if(btnSync) btnSync.textContent = '⏳ Sincronizzazione...';
-
-  var coda = codaLeggi();
-  var ok = 0, err = 0;
-
-  for(var i=0; i<coda.length; i++){
-    var op = coda[i];
-    try{
-      if(op.tipo === 'aggiorna_riga'){
-        var r = await fetch('/api/inventario/righe/'+op.rigaId, {
-          method:'PUT',
-          headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({stato:op.stato, qty_trovata:op.qty, note:op.note||''})
-        });
-        var res = await r.json();
-        if(res.ok){ codaRimuovi(op.ts); ok++; }
-        else { err++; console.warn('Sync errore:', res.msg); }
-
-      } else if(op.tipo === 'upload_foto'){
-        // Ricostruisci blob da base64
-        var mime = op.b64.split(';')[0].split(':')[1]||'image/jpeg';
-        var bin  = atob(op.b64.split(',')[1]);
-        var arr  = new Uint8Array(bin.length);
-        for(var j=0;j<bin.length;j++) arr[j]=bin.charCodeAt(j);
-        var blob = new Blob([arr],{type:mime});
-        var fd   = new FormData();
-        fd.append('file', blob, op.nome);
-        var r2 = await fetch('/api/inventario/righe/'+op.rigaId+'/foto', {method:'POST', body:fd});
-        var res2 = await r2.json();
-        if(res2.ok){ codaRimuovi(op.ts); ok++; }
-        else { err++; }
-      }
-    }catch(e){
-      err++;
-      console.warn('Sync op fallita:', e);
-    }
-  }
-
-  _syncInCorso = false;
-  aggiornaNetBar();
-
-  if(ok > 0 && err === 0){
-    toast('✅ Sincronizzazione completata ('+ok+' operazioni)', 'ok');
-    await aggStats();
-    // Notifica PC via SocketIO che ci sono stati aggiornamenti
-    if(_sessId && _sock.connected) _sock.emit('sync_completata', {sessione_id:_sessId, n:ok});
-    // Aggiorna lista pezzi locale dal server
-    try{
-      var data = await api('/api/inventario/sessioni/'+_sessId);
-      if(data.ok && data.righe){
-        var daFare = data.righe.filter(function(r){ return r.stato==='sospeso'||r.stato==='rimandato'; });
-        daFare.sort(ordinaPezzi);
-        _pezziLocali = daFare;
-        _idxCorrente = 0;
-        pezziSalva(_pezziLocali); idxSalva(0);
-      }
-    }catch(e){}
-    mostraPezzoCorrente();
-  } else if(err > 0){
-    toast('⚠️ '+ok+' OK, '+err+' errori — riprova', 'warn');
-  }
-}
-
-// ── Override azioni per supporto offline ─────────────────────────────
-// Sostituisce api() con versione offline-aware
-async function apiOffline(url, opts){
-  if(_isOnline){
-    return api(url, opts);
-  }
-  // Offline: simula risposta OK e salva in coda
-  return {ok: true, msg: 'Salvato offline', _offline: true};
-}
-
-// Versione offline di azioneConferma
-async function azioneConferma(){
-  if(!_riga) return;
-  var rigaId = _riga.id; // cattura subito
-  var btn    = document.getElementById('btn-conf');
-  var lbl    = document.getElementById('btn-conf-lbl');
-  btn.classList.add('busy'); lbl.textContent='Salvataggio...';
-  var note = (document.getElementById('note-inp')||{}).value||'';
-  var ubicazione = (document.getElementById('ubicazione-inp')||{}).value||'';
-
-  if(_isOnline){
-    // Upload foto già avvenuto in riceviFile, salva ubicazione se modificata
-    if(ubicazione && ubicazione !== (_riga.ubicazione||'')){
-      try{
-        await api('/api/magazzino/componenti/'+_riga.componente_id,{
-          method:'PUT', body:JSON.stringify({ubicazione:ubicazione})
-        });
-      }catch(e){}
-    }
-    var res = await api('/api/inventario/righe/'+rigaId,{
-      method:'PUT',
-      body:JSON.stringify({stato:'confermato', qty_trovata:_qty, note:note})
-    });
-    btn.classList.remove('busy'); lbl.textContent='Conferma';
-    if(res.ok){
-      // Rimuovi pezzo dalla lista locale
-      if(_pezziLocali && _riga){
-        _pezziLocali = _pezziLocali.filter(function(p){return p.id!==_riga.id;});
-        pezziSalva(_pezziLocali);
-        _idxCorrente = 0; idxSalva(0);
-      }
-      await aggStats(); setTimeout(prossimoP,300);
-    }
-    else toast(res.msg||'Errore','err');
-  } else {
-    // OFFLINE: salva in coda
-    codaAggiungi({tipo:'aggiorna_riga', rigaId:rigaId, stato:'confermato', qty:_qty, note:note});
-    // Salva TUTTE le foto non ancora caricate — ognuna separata in coda
-    for(var i=0;i<_fotoNuove.length;i++){
-      var f = _fotoNuove[i];
-      if(!f.caricata && f.file){
-        await new Promise(function(resolve){
-          var fRef = f; // cattura riferimento
-          var reader = new FileReader();
-          reader.onload = function(e){
-            codaAggiungi({
-              tipo: 'upload_foto',
-              rigaId: rigaId,
-              b64: e.target.result,
-              nome: fRef.nome,
-              fotoId: fRef.id
-            });
-            resolve();
-          };
-          reader.readAsDataURL(fRef.file);
-        });
-      }
-    }
-    btn.classList.remove('busy'); lbl.textContent='Conferma';
-    toast('💾 Salvato offline — sync quando torni online','warn');
-    aggiornaNetBar();
-    // Avanza al prossimo pezzo anche offline
-    _idxCorrente++;
-    idxSalva(_idxCorrente);
-    setTimeout(mostraPezzoCorrente, 300);
-  }
-}
-
-async function azioneRimanda(){
-  if(!_riga) return;
-  var rigaId = _riga.id;
-  if(_isOnline){
-    var res = await api('/api/inventario/righe/'+rigaId,{
-      method:'PUT', body:JSON.stringify({stato:'rimandato', qty_trovata:_qty})
-    });
-    if(res.ok){ await aggStats(); setTimeout(prossimoP,300); }
-    else toast(res.msg||'Errore','err');
-  } else {
-    codaAggiungi({tipo:'aggiorna_riga', rigaId:rigaId, stato:'rimandato', qty:_qty});
-    toast('💾 Rimandato salvato offline','warn');
-    aggiornaNetBar();
-    _idxCorrente++;
-    idxSalva(_idxCorrente);
-    setTimeout(mostraPezzoCorrente, 300);
-  }
-}
-
-// ── Upload foto offline-aware ─────────────────────────────────────────
-async function uploadFoto(file, nome, id, rigaId){
-  if(!rigaId){ toast('Nessun pezzo selezionato','err'); return; }
-  if(!_isOnline){
-    // Offline: segna come "da caricare" ma mostra anteprima
-    var imgEl  = document.getElementById('img-'+id);
-    var spinEl = document.getElementById('spin-'+id);
-    var wrapEl = document.getElementById('wrap-'+id);
-    if(spinEl) spinEl.textContent = '💾';
-    // Salveremo in coda al Conferma
-    _fotoNuove.forEach(function(f){ if(f.id===id){ f.caricata=false; } });
-    toast('📴 Foto salvata — si caricherà al sync','warn');
-    // Aggiungi tasto elimina
-    if(wrapEl && imgEl){
-      imgEl.style.opacity='0.7';
-      var del=document.createElement('div'); del.className='foto-del'; del.textContent='×';
-      del.onclick=function(){ _fotoNuove=_fotoNuove.filter(function(f){return f.id!==id;}); wrapEl.remove(); updFotoCount(); };
-      wrapEl.appendChild(del);
-    }
-    updFotoCount();
-    return;
-  }
-  // Online: upload normale
-  try{
-    var fd = new FormData(); fd.append('file', file, nome);
-    var r  = await fetch('/api/inventario/righe/'+rigaId+'/foto', {method:'POST', body:fd});
-    var res= await r.json();
-    var imgEl  = document.getElementById('img-'+id);
-    var spinEl = document.getElementById('spin-'+id);
-    var wrapEl = document.getElementById('wrap-'+id);
-    if(res.ok){
-      if(imgEl){ imgEl.style.opacity='1'; imgEl.src=res.url; }
-      if(spinEl) spinEl.remove();
-      _fotoNuove.forEach(function(f){ if(f.id===id){ f.caricata=true; f.url=res.url; } });
-      if(wrapEl){
-        var del=document.createElement('div'); del.className='foto-del'; del.textContent='×';
-        del.onclick=function(){
-          _fotoNuove=_fotoNuove.filter(function(f){return f.id!==id;});
-          wrapEl.remove(); updFotoCount();
-        };
-        wrapEl.appendChild(del);
-      }
-      toast('✅ Foto salvata!','ok');
-    } else {
-      if(spinEl) spinEl.textContent='❌';
-      toast('Errore: '+(res.msg||''),'err');
-    }
-  }catch(e){
-    var spinEl=document.getElementById('spin-'+id);
-    if(spinEl) spinEl.textContent='❌';
-    toast('Errore: '+e.message,'err');
-  }
-}
-
-
-// ── Connettività basata su ping al server ────────────────────────────
-async function pingServer(){
-  try{
-    var controller = new AbortController();
-    var tid = setTimeout(function(){ controller.abort(); }, 2000);
-    var r = await fetch("/api/ping", {cache:"no-cache", signal:controller.signal});
-    clearTimeout(tid);
-    var wasOffline = !_isOnline;
-    _isOnline = r.ok;
-    if(wasOffline && _isOnline){
-      aggiornaNetBar();
-      var n = codaLeggi().length;
-      if(n>0){
-        toast("🟢 Connesso — sincronizzo "+n+" operazioni...","warn");
-        // Aspetta che SocketIO si riconnetta poi sincronizza
-        var _syncDelay = _sock.connected ? 0 : 1500;
-        if(_sessId) _sock.emit('join_inventario',{sessione_id:_sessId});
-        setTimeout(sincronizzaOra, _syncDelay + 300);
-      } else {
-        if(_sessId) _sock.emit('join_inventario',{sessione_id:_sessId});
-        toast("🟢 Connesso al server","ok");
-      }
-    }
-  }catch(e){
-    var wasOnline = _isOnline;
-    _isOnline = false;
-    if(wasOnline){ aggiornaNetBar(); toast("🔴 Server non raggiungibile","warn"); }
-  }
-  aggiornaNetBar();
-}
-
-function avviaPing(){
-  pingServer();
-  _pingInterval = setInterval(pingServer, 5000);
-}
-
-
-// ── RICERCA PEZZI ─────────────────────────────────────────────────────
-function apriCerca(){
-  if(!_pezziLocali||!_pezziLocali.length){
-    toast('Nessun pezzo caricato','err'); return;
-  }
-  document.getElementById('cerca-results').classList.remove('hidden');
-  cercaFiltра('');
-  setTimeout(function(){ document.getElementById('cerca-inp2').focus(); }, 100);
-}
-
-function chiudiCerca(){
-  document.getElementById('cerca-results').classList.add('hidden');
-}
-
-function cercaFiltра(q){
-  // Sincronizza i due input
-  var inp1 = document.getElementById('cerca-inp');
-  var inp2 = document.getElementById('cerca-inp2');
-  if(inp1 && document.activeElement===inp1) { if(inp2) inp2.value=q; }
-  else { if(inp1) inp1.value=q; }
-
-  var list = document.getElementById('cerca-list');
-  if(!_pezziLocali){ list.innerHTML='<div class="cerca-empty">Nessun pezzo caricato</div>'; return; }
-
-  q = q.toLowerCase().trim();
-  var coda = codaLeggi();
-  var fatti = {};
-  coda.forEach(function(op){
-    if(op.tipo==='aggiorna_riga') fatti[op.rigaId]=op.stato;
-  });
-
-  var risultati = _pezziLocali.filter(function(p){
-    if(!q) return true;
-    var nome = (p.articolo||'').toLowerCase();
-    var cod  = (p.cmp||'').toLowerCase();
-    var marc = (p.marca||'').toLowerCase();
-    return nome.indexOf(q)>=0 || cod.indexOf(q)>=0 || marc.indexOf(q)>=0;
-  });
-
-  if(!risultati.length){
-    list.innerHTML='<div class="cerca-empty">Nessun risultato per "'+q+'"</div>';
-    return;
-  }
-
-  list.innerHTML = risultati.map(function(p){
-    var stato = fatti[p.id]||p.stato;
-    var qty   = p.qty_attesa||0;
-    var statoLabel = stato==='confermato'?'✅':stato==='rimandato'?'⏳':'○';
-    var hi = function(s){ 
-      if(!q) return s;
-      return s.replace(new RegExp('('+q.replace(/[\-\[\]{}()*+?.,\\^$|#]/g,'\\$&')+')','gi'),
-        '<b style="color:var(--orange)">$1</b>');
-    };
-    return '<div class="cerca-item" onclick="selezionaPezzoId('+p.id+')">'
-      +'<div class="cerca-item-nome">'+statoLabel+' '+hi(p.articolo||p.cmp||'—')+'</div>'
-      +'<div class="cerca-item-sub">'
-      +'<span>'+hi(p.cmp||'')+'</span>'
-      +(p.marca?'<span>'+hi(p.marca)+'</span>':'')
-      +(p.modello?'<span>'+p.modello+'</span>':'')
-      +'<span class="cerca-item-qty '+(qty>0?'qty-ok':'qty-zero')+'">'+qty+' pz</span>'
-      +'</div>'
-      +'</div>';
-  }).join('');
-}
-
-function selezionaPezzoId(id){
-  if(!_pezziLocali) return;
-  var idx = _pezziLocali.findIndex(function(p){ return p.id===id; });
-  if(idx<0){ toast('Pezzo non trovato','err'); return; }
-  _idxCorrente = idx;
-  idxSalva(idx);
-  chiudiCerca();
-  _fotoNuove=[];
-  _riga = _pezziLocali[idx];
-  _qty  = _riga.qty_attesa||0;
-  renderP();
-  document.getElementById('azioni').style.display='flex';
-  // Scroll in cima
-  var scroll = document.getElementById('scroll-area');
-  if(scroll) scroll.scrollTop=0;
-}
-
+// ═══════════════════════════════════════════════════════════
+// START
+// ═══════════════════════════════════════════════════════════
 init();
 </script>
 </body>
