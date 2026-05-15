@@ -450,7 +450,7 @@ function renderP(){
     cod_udm:        function(r){return r.cod_udm?{l:'Cod. UDM',v:esc(r.cod_udm)}:null;},
     cod_fornitore:  function(r){return r.cod_fornitore?{l:'Cod. forn.',v:esc(r.cod_fornitore)}:null;},
     fornitore:      function(r){return r.fornitore?{l:'Fornitore',v:esc(r.fornitore)}:null;},
-    note:           function(r){return r.note?{l:'Note',v:esc(r.note)}:null;},
+    note:           function(r){return r.nota?{l:'Note',v:esc(r.nota)}:null;},
     extra1:         function(r){return r.extra1?{l:'Extra 1',v:esc(r.extra1)}:null;},
     extra2:         function(r){return r.extra2?{l:'Extra 2',v:esc(r.extra2)}:null;},
     extra3:         function(r){return r.extra3?{l:'Extra 3',v:esc(r.extra3)}:null;},
@@ -510,7 +510,7 @@ function renderP(){
     // Note
     +'<div class="card"><div class="card-sec">'
     +'<div style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Note</div>'
-    +'<textarea id="note-inp" rows="2" placeholder="Note sul pezzo..."></textarea>'
+    +'<textarea id="note-inp" rows="2" placeholder="Note sul pezzo...">'+esc(r.nota||'')+'</textarea>'
     +'</div></div>'
     +'<div style="height:8px"></div>';
 }
@@ -658,6 +658,9 @@ async function mostraListaSessioni(){
   document.getElementById('scroll-area').innerHTML=html;
 }
 
+_sock.on('connect', function(){
+  if(_sessId) _sock.emit('join_inventario',{sessione_id:_sessId});
+});
 _sock.on('inventario_chiusa',function(d){
   if(d.sessione_id===_sessId) mostraScherm('🔒','Sessione chiusa','Il responsabile ha chiuso questa sessione.');
 });
@@ -863,6 +866,20 @@ async function sincronizzaOra(){
   if(ok > 0 && err === 0){
     toast('✅ Sincronizzazione completata ('+ok+' operazioni)', 'ok');
     await aggStats();
+    // Notifica PC via SocketIO che ci sono stati aggiornamenti
+    if(_sessId && _sock.connected) _sock.emit('sync_completata', {sessione_id:_sessId, n:ok});
+    // Aggiorna lista pezzi locale dal server
+    try{
+      var data = await api('/api/inventario/sessioni/'+_sessId);
+      if(data.ok && data.righe){
+        var daFare = data.righe.filter(function(r){ return r.stato==='sospeso'||r.stato==='rimandato'; });
+        daFare.sort(ordinaPezzi);
+        _pezziLocali = daFare;
+        _idxCorrente = 0;
+        pezziSalva(_pezziLocali); idxSalva(0);
+      }
+    }catch(e){}
+    mostraPezzoCorrente();
   } else if(err > 0){
     toast('⚠️ '+ok+' OK, '+err+' errori — riprova', 'warn');
   }
@@ -1032,8 +1049,16 @@ async function pingServer(){
     if(wasOffline && _isOnline){
       aggiornaNetBar();
       var n = codaLeggi().length;
-      if(n>0) toast("🟢 Server raggiunto — "+n+" operazioni in coda","warn");
-      else toast("🟢 Connesso al server","ok");
+      if(n>0){
+        toast("🟢 Connesso — sincronizzo "+n+" operazioni...","warn");
+        // Aspetta che SocketIO si riconnetta poi sincronizza
+        var _syncDelay = _sock.connected ? 0 : 1500;
+        if(_sessId) _sock.emit('join_inventario',{sessione_id:_sessId});
+        setTimeout(sincronizzaOra, _syncDelay + 300);
+      } else {
+        if(_sessId) _sock.emit('join_inventario',{sessione_id:_sessId});
+        toast("🟢 Connesso al server","ok");
+      }
     }
   }catch(e){
     var wasOnline = _isOnline;

@@ -2778,10 +2778,21 @@ def api_inv_sessione_dettaglio(sid):
     sess = db.fetchone("SELECT * FROM sessioni_inventario WHERE id=?", (sid,))
     if not sess:
         return jsonify({"ok": False, "msg": "Sessione non trovata"}), 404
-    righe = db.fetchall("""
+
+    try:
+        cols = {r["name"] for r in db.fetchall("PRAGMA table_info(componenti)")}
+    except Exception:
+        cols = set()
+
+    def opt_c(col, alias=None):
+        a = alias or col
+        return f"c.{col} AS {a}" if col in cols else f"NULL AS {a}"
+
+    righe = db.fetchall(f"""
         SELECT r.*,
                c.codice          AS cmp,
                c.descrizione     AS articolo,
+               c.descrizione     AS descrizione,
                c.produttore      AS marca,
                c.modello,
                c.anno            AS anno_da,
@@ -2791,12 +2802,30 @@ def api_inv_sessione_dettaglio(sid):
                c.ubicazione,
                c.cod_barre,
                c.udm             AS cod_udm,
-               c.note,
+               c.udm             AS unita_misura,
+               c.note            AS nota,
                c.extra3,
                c.cod_prod_forn,
                c.cod_fornitore,
                c.fornitore,
-               c.immagine        AS immagine_path
+               c.immagine        AS immagine_path,
+               {opt_c('versione')},
+               {opt_c('intervallo')},
+               {opt_c('tipologia')},
+               {opt_c('categoria')},
+               {opt_c('sottocategoria')},
+               {opt_c('stato_magazzino')},
+               {opt_c('scorta_minima')},
+               {opt_c('listino1')},
+               {opt_c('listino2')},
+               {opt_c('listino3')},
+               {opt_c('prezzo_acquisto')},
+               {opt_c('prezzo_vendita')},
+               {opt_c('cod_iva')},
+               {opt_c('extra1')},
+               {opt_c('extra2')},
+               {opt_c('extra4')},
+               {opt_c('cod_modello')}
         FROM inventario_righe r
         JOIN componenti c ON c.id = r.componente_id
         WHERE r.sessione_id=?
