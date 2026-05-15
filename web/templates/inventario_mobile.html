@@ -144,7 +144,6 @@ if('serviceWorker' in navigator){
       <div class="hdr-prog" id="hdr-prog"></div>
     </div>
     <button onclick="apriCerca()" style="background:rgba(255,255,255,.2);border:1.5px solid rgba(255,255,255,.4);color:#fff;border-radius:10px;padding:7px 10px;font-size:17px;cursor:pointer;-webkit-tap-highlight-color:transparent">🔍</button>
-    <button onclick="apriImpostazioni()" style="background:rgba(255,255,255,.2);border:1.5px solid rgba(255,255,255,.4);color:#fff;border-radius:10px;padding:7px 10px;font-size:17px;cursor:pointer;-webkit-tap-highlight-color:transparent">⚙️</button>
   </div>
 </div>
 <div class="prog-bar"><div class="prog-fill" id="prog-fill" style="width:0%"></div></div>
@@ -200,18 +199,6 @@ if('serviceWorker' in navigator){
 <input type="file" id="inp-file" accept="image/*" multiple onchange="fotoGalleria(this)">
 <input type="file" id="inp-camera" accept="image/*" capture="environment" onchange="fotoCameraCapture(this)">
 
-<!-- Pannello impostazioni -->
-<div class="settings-ov hidden" id="settings-ov" onclick="if(event.target===this)chiudiImpostazioni()">
-  <div class="settings-panel">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
-      <div class="settings-titolo">⚙️ Campi da mostrare</div>
-      <button onclick="chiudiImpostazioni()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text3)">×</button>
-    </div>
-    <div class="settings-sub">Seleziona le informazioni che vuoi vedere per ogni pezzo</div>
-    <div id="campi-list"></div>
-    <button onclick="chiudiImpostazioni()" style="width:100%;margin-top:14px;padding:14px;border:none;border-radius:12px;background:var(--orange);color:#fff;font-size:16px;font-weight:700;cursor:pointer">Salva e chiudi</button>
-  </div>
-</div>
 
 <script>
 const _sock=io();
@@ -278,11 +265,6 @@ async function init(){
       _idxCorrente = 0;
       pezziSalva(_pezziLocali);
       idxSalva(0);
-      buildCampoMap(righe[0] || daFare[0]);
-      _campiAttivi = _campiAttivi.filter(k => _campoMap[k]);
-      if(_campiAttivi.length === 0) _campiAttivi = CAMPI_DISPONIBILI.map(x=>x.key);
-      localStorage.setItem('inv_campi_attivi', JSON.stringify(_campiAttivi));
-
       // Aggiorna stats locali
       _stats.totale    = righe.length;
       _stats.confermati= righe.filter(function(r){return r.stato==='confermato';}).length;
@@ -304,10 +286,6 @@ async function init(){
       return;
     }
     document.getElementById('hdr-sess').textContent = 'Inventario (offline)';
-    buildCampoMap(_pezziLocali[0]);
-    _campiAttivi = _campiAttivi.filter(k => _campoMap[k]);
-    if(_campiAttivi.length === 0) _campiAttivi = CAMPI_DISPONIBILI.map(x=>x.key);
-    localStorage.setItem('inv_campi_attivi', JSON.stringify(_campiAttivi));
     toast('📴 Offline — lavori su '+_pezziLocali.length+' pezzi in cache','warn');
   }
 
@@ -426,14 +404,15 @@ function renderP(){
 
   const faseHtml=_fase==='rimandati'?'<div class="fase-warn">⚠️ Revisione pezzi rimandati</div>':'';
 
-  // Info aggiuntive — solo campi attivati nelle impostazioni
+  // Info aggiuntive — tutti i campi non tecnici presenti in r
+  var _EXCL_R = new Set(['id','sessione_id','componente_id','stato','qty_attesa','qty_trovata','foto_url','ordine','aggiornato_il','immagine_path','cmp','articolo','descrizione','note']);
   var infoHtml='';
-  _campiAttivi.forEach(function(key){
-    if(!_campoMap[key]) return;
-    var res = _campoMap[key](r);
-    var lbl = res ? res.l : key.replace(/_/g,' ').replace(/^\w/,function(c){return c.toUpperCase();});
-    var val = res ? res.v : '<span style="color:var(--text3)">—</span>';
-    infoHtml+='<div class="info-item"><div class="info-lbl">'+lbl+'</div><div class="info-val">'+val+'</div></div>';
+  Object.keys(r).forEach(function(key){
+    if(_EXCL_R.has(key)) return;
+    var v = r[key];
+    if(v===null||v===undefined||v==='') return;
+    var lbl = key.replace(/_/g,' ').replace(/^\w/,function(c){return c.toUpperCase();});
+    infoHtml+='<div class="info-item"><div class="info-lbl">'+lbl+'</div><div class="info-val">'+esc(String(v))+'</div></div>';
   });
 
   document.getElementById('scroll-area').innerHTML=faseHtml+
@@ -639,76 +618,6 @@ _sock.on('inventario_chiusa',function(d){
 });
 
 
-// ── IMPOSTAZIONI CAMPI ────────────────────────────────────────────────
-var CAMPI_DISPONIBILI = [];
-
-var _EXCL_KEYS = new Set([
-  'id','sessione_id','componente_id','stato',
-  'qty_attesa','qty_trovata','foto_url','ordine',
-  'aggiornato_il','immagine_path','cmp','articolo','descrizione'
-]);
-var _campoMap = {};
-
-function buildCampoMap(sample){
-  _campoMap = {};
-  CAMPI_DISPONIBILI = [];
-  if(!sample) return;
-  Object.keys(sample).forEach(function(key){
-    if(_EXCL_KEYS.has(key)) return;
-    var lbl = key.replace(/_/g,' ').replace(/^\w/,function(c){return c.toUpperCase();});
-    _campoMap[key] = (function(k,l){
-      return function(r){
-        var v = r[k];
-        if(v===null||v===undefined||v==='') return null;
-        return {l:l, v:esc(String(v))};
-      };
-    })(key, lbl);
-    CAMPI_DISPONIBILI.push({key:key, label:lbl, desc:lbl, gruppo:'Dati'});
-  });
-}
-
-// Carica preferenze dal localStorage
-var _campiAttivi = JSON.parse(localStorage.getItem('inv_campi') || 'null') ||
-  ['marca','modello','categoria','colore','anno_da'];
-
-function apriImpostazioni(){
-  var list = document.getElementById('campi-list');
-  // Raggruppa per gruppo
-  var gruppi = {};
-  CAMPI_DISPONIBILI.forEach(function(c){
-    var g = c.gruppo || 'Altro';
-    if(!gruppi[g]) gruppi[g] = [];
-    gruppi[g].push(c);
-  });
-  var html = '';
-  Object.keys(gruppi).forEach(function(g){
-    html += '<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin:14px 0 6px">'+g+'</div>';
-    gruppi[g].forEach(function(c){
-      var checked = _campiAttivi.includes(c.key) ? 'checked' : '';
-      html += '<div class="campo-row">'
-        +'<div><div class="campo-nome">'+c.label+'</div><div class="campo-desc">'+c.desc+'</div></div>'
-        +'<label class="toggle">'
-        +'<input type="checkbox" '+checked+' data-k="'+c.key+'" onchange="toggleCampo(this.dataset.k,this.checked)">'
-        +'<span class="toggle-slider"></span>'
-        +'</label>'
-        +'</div>';
-    });
-  });
-  list.innerHTML = html;
-  document.getElementById('settings-ov').classList.remove('hidden');
-}
-
-function chiudiImpostazioni(){
-  document.getElementById('settings-ov').classList.add('hidden');
-  localStorage.setItem('inv_campi', JSON.stringify(_campiAttivi));
-  // Ri-renderizza se c'è un pezzo attivo
-  if(_riga) renderP();
-}
-
-function toggleCampo(key, attivo){
-  if(attivo){ if(!_campiAttivi.includes(key)) _campiAttivi.push(key); }
-  else { _campiAttivi = _campiAttivi.filter(function(k){return k!==key;}); }
-}
 
 
 // ══════════════════════════════════════════════════════════════════════
