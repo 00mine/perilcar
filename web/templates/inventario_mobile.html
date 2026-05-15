@@ -279,6 +279,9 @@ async function init(){
       pezziSalva(_pezziLocali);
       idxSalva(0);
       buildCampoMap(righe[0] || daFare[0]);
+      _campiAttivi = _campiAttivi.filter(k => _campoMap[k]);
+      if(_campiAttivi.length === 0) _campiAttivi = CAMPI_DISPONIBILI.map(x=>x.key);
+      localStorage.setItem('inv_campi_attivi', JSON.stringify(_campiAttivi));
 
       // Aggiorna stats locali
       _stats.totale    = righe.length;
@@ -302,6 +305,9 @@ async function init(){
     }
     document.getElementById('hdr-sess').textContent = 'Inventario (offline)';
     buildCampoMap(_pezziLocali[0]);
+    _campiAttivi = _campiAttivi.filter(k => _campoMap[k]);
+    if(_campiAttivi.length === 0) _campiAttivi = CAMPI_DISPONIBILI.map(x=>x.key);
+    localStorage.setItem('inv_campi_attivi', JSON.stringify(_campiAttivi));
     toast('📴 Offline — lavori su '+_pezziLocali.length+' pezzi in cache','warn');
   }
 
