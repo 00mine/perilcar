@@ -278,6 +278,7 @@ async function init(){
       _idxCorrente = 0;
       pezziSalva(_pezziLocali);
       idxSalva(0);
+      buildCampoMap(righe[0] || daFare[0]);
 
       // Aggiorna stats locali
       _stats.totale    = righe.length;
@@ -300,6 +301,7 @@ async function init(){
       return;
     }
     document.getElementById('hdr-sess').textContent = 'Inventario (offline)';
+    buildCampoMap(_pezziLocali[0]);
     toast('📴 Offline — lavori su '+_pezziLocali.length+' pezzi in cache','warn');
   }
 
@@ -420,48 +422,10 @@ function renderP(){
 
   // Info aggiuntive — solo campi attivati nelle impostazioni
   var infoHtml='';
-  var euro = function(v){return v>0?'€ '+parseFloat(v).toLocaleString('it-IT',{minimumFractionDigits:2}):'—';};
-  var CAMPO_MAP = {
-    cmp:            function(r){return r.cmp?{l:'Codice',v:'<span style="font-family:monospace;font-weight:700">'+esc(r.cmp)+'</span>'}:null;},
-    descrizione:    function(r){return r.descrizione?{l:'Descrizione',v:esc(r.descrizione)}:null;},
-    cod_barre:      function(r){return r.cod_barre?{l:'Cod. a barre',v:'<span style="font-family:monospace">'+esc(r.cod_barre)+'</span>'}:null;},
-    marca:          function(r){return r.marca?{l:'Produttore',v:esc(r.marca)}:null;},
-    modello:        function(r){return r.modello?{l:'Modello',v:esc(r.modello)}:null;},
-    cod_modello:    function(r){return r.cod_modello?{l:'Cod. modello',v:esc(r.cod_modello)}:null;},
-    anno_da:        function(r){return r.anno_da?{l:'Anno',v:r.anno_da+(r.anno_a?' – '+r.anno_a:'')}:null;},
-    versione:       function(r){return r.versione?{l:'Versione',v:esc(r.versione)}:null;},
-    carburante:     function(r){return r.carburante?{l:'Carburante',v:esc(r.carburante)}:null;},
-    cilindrata:     function(r){return r.cilindrata?{l:'Cilindrata',v:esc(r.cilindrata)+' cc'}:null;},
-    intervallo:     function(r){return r.intervallo?{l:'Intervallo',v:esc(r.intervallo)}:null;},
-    tipologia:      function(r){return r.tipologia?{l:'Tipologia',v:esc(r.tipologia)}:null;},
-    categoria:      function(r){return r.categoria?{l:'Categoria',v:esc(r.categoria)}:null;},
-    sottocategoria: function(r){return r.sottocategoria?{l:'Sottocategoria',v:esc(r.sottocategoria)}:null;},
-    colore:         function(r){return r.colore?{l:'Colore',v:esc(r.colore)}:null;},
-    unita_misura:   function(r){return r.unita_misura?{l:'U.M.',v:esc(r.unita_misura)}:null;},
-    ubicazione:     function(r){return r.ubicazione?{l:'Ubicazione',v:esc(r.ubicazione)}:null;},
-    stato_magazzino:function(r){return r.stato_magazzino?{l:'Stato',v:esc(r.stato_magazzino)}:null;},
-    scorta_minima:  function(r){return (r.scorta_minima!=null)?{l:'Scorta min.',v:r.scorta_minima}:null;},
-    listino1:       function(r){return r.listino1>0?{l:'Listino 1',v:euro(r.listino1)}:null;},
-    listino2:       function(r){return r.listino2>0?{l:'Listino 2',v:euro(r.listino2)}:null;},
-    listino3:       function(r){return r.listino3>0?{l:'Listino 3',v:euro(r.listino3)}:null;},
-    prezzo_acquisto:function(r){return r.prezzo_acquisto>0?{l:'P. acquisto',v:euro(r.prezzo_acquisto)}:null;},
-    prezzo_vendita: function(r){return r.prezzo_vendita>0?{l:'P. vendita',v:euro(r.prezzo_vendita)}:null;},
-    cod_iva:        function(r){return r.cod_iva?{l:'Cod. IVA',v:esc(r.cod_iva)}:null;},
-    cod_udm:        function(r){return r.cod_udm?{l:'Cod. UDM',v:esc(r.cod_udm)}:null;},
-    cod_fornitore:  function(r){return r.cod_fornitore?{l:'Cod. forn.',v:esc(r.cod_fornitore)}:null;},
-    fornitore:      function(r){return r.fornitore?{l:'Fornitore',v:esc(r.fornitore)}:null;},
-    cod_prod_forn:  function(r){return r.cod_prod_forn?{l:'Cod. prod. forn.',v:esc(r.cod_prod_forn)}:null;},
-    nota:           function(r){return r.nota?{l:'Nota mag.',v:esc(r.nota)}:null;},
-    note:           function(r){var v=(r.note&&r.note!==r.nota)?((r.nota||'')+' / '+r.note):(r.nota||'');return v?{l:'Note',v:esc(v)}:null;},
-    extra1:         function(r){return r.extra1?{l:'Extra 1',v:esc(r.extra1)}:null;},
-    extra2:         function(r){return r.extra2?{l:'Extra 2',v:esc(r.extra2)}:null;},
-    extra3:         function(r){return r.extra3?{l:'Extra 3',v:esc(r.extra3)}:null;},
-    extra4:         function(r){return r.extra4?{l:'Extra 4',v:esc(r.extra4)}:null;},
-  };
   _campiAttivi.forEach(function(key){
-    if(!CAMPO_MAP[key]) return;
-    var res = CAMPO_MAP[key](r);
-    var lbl = res ? res.l : (CAMPI_DISPONIBILI.find(function(c){return c.key===key;})||{}).label||key;
+    if(!_campoMap[key]) return;
+    var res = _campoMap[key](r);
+    var lbl = res ? res.l : key.replace(/_/g,' ').replace(/^\w/,function(c){return c.toUpperCase();});
     var val = res ? res.v : '<span style="color:var(--text3)">—</span>';
     infoHtml+='<div class="info-item"><div class="info-lbl">'+lbl+'</div><div class="info-val">'+val+'</div></div>';
   });
@@ -513,9 +477,7 @@ function renderP(){
     // Note
     +'<div class="card"><div class="card-sec">'
     +'<div style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Note</div>'
-    +'<textarea id="note-inp" rows="2" placeholder="Note sul pezzo...">'
-    +esc((r.note && r.note !== r.nota) ? ((r.nota||'') + '\n---\n' + r.note) : (r.nota||''))
-    +'</textarea>'
+    +'<textarea id="note-inp" rows="2" placeholder="Note sul pezzo...">'+esc(r.nota||'')+'</textarea>'
     +'</div></div>'
     +'<div style="height:8px"></div>';
 }
@@ -672,48 +634,32 @@ _sock.on('inventario_chiusa',function(d){
 
 
 // ── IMPOSTAZIONI CAMPI ────────────────────────────────────────────────
-var CAMPI_DISPONIBILI = [
-  // Identificazione
-  {key:'cmp',             label:'Codice',           desc:'Codice identificativo pezzo', gruppo:'Identificazione'},
-  {key:'descrizione',     label:'Descrizione',      desc:'Descrizione estesa del pezzo', gruppo:'Identificazione'},
-  {key:'cod_barre',       label:'Cod. a barre',     desc:'Codice a barre / EAN', gruppo:'Identificazione'},
-  // Compatibilità veicolo
-  {key:'marca',           label:'Produttore',       desc:'Marca/produttore del pezzo', gruppo:'Veicolo'},
-  {key:'modello',         label:'Modello auto',     desc:'Modello di riferimento', gruppo:'Veicolo'},
-  {key:'cod_modello',     label:'Cod. modello',     desc:'Codice modello specifico', gruppo:'Veicolo'},
-  {key:'anno_da',         label:'Anno',             desc:'Anno compatibilità (da-a)', gruppo:'Veicolo'},
-  {key:'versione',        label:'Versione',         desc:'Versione del veicolo', gruppo:'Veicolo'},
-  {key:'carburante',      label:'Carburante',       desc:'Tipo di carburante', gruppo:'Veicolo'},
-  {key:'cilindrata',      label:'Cilindrata',       desc:'Cilindrata motore', gruppo:'Veicolo'},
-  {key:'intervallo',      label:'Intervallo',       desc:'Intervallo di manutenzione', gruppo:'Veicolo'},
-  // Classificazione
-  {key:'tipologia',       label:'Tipologia',        desc:'Tipologia articolo', gruppo:'Classificazione'},
-  {key:'categoria',       label:'Categoria',        desc:'Categoria magazzino', gruppo:'Classificazione'},
-  {key:'sottocategoria',  label:'Sottocategoria',   desc:'Sottocategoria magazzino', gruppo:'Classificazione'},
-  {key:'colore',          label:'Colore',           desc:'Colore del pezzo', gruppo:'Classificazione'},
-  {key:'unita_misura',    label:'U.M.',             desc:'Unità di misura', gruppo:'Classificazione'},
-  // Magazzino
-  {key:'ubicazione',      label:'Ubicazione',       desc:'Posizione fisica in magazzino', gruppo:'Magazzino'},
-  {key:'stato_magazzino', label:'Stato',            desc:'Stato del pezzo in magazzino', gruppo:'Magazzino'},
-  {key:'scorta_minima',   label:'Scorta minima',    desc:'Soglia minima di riordino', gruppo:'Magazzino'},
-  // Prezzi
-  {key:'listino1',        label:'Listino 1',        desc:'Prezzo listino 1', gruppo:'Prezzi'},
-  {key:'listino2',        label:'Listino 2',        desc:'Prezzo listino 2', gruppo:'Prezzi'},
-  {key:'listino3',        label:'Listino 3',        desc:'Prezzo listino 3', gruppo:'Prezzi'},
-  {key:'prezzo_acquisto', label:'Prezzo acquisto',  desc:'Prezzo di acquisto', gruppo:'Prezzi'},
-  {key:'prezzo_vendita',  label:'Prezzo vendita',   desc:'Prezzo di vendita', gruppo:'Prezzi'},
-  // IVA e codici
-  {key:'cod_iva',         label:'Cod. IVA',         desc:'Codice IVA', gruppo:'Codici'},
-  {key:'cod_udm',         label:'Cod. UDM',         desc:'Codice unità di misura', gruppo:'Codici'},
-  {key:'cod_fornitore',   label:'Cod. fornitore',   desc:'Codice presso il fornitore', gruppo:'Codici'},
-  {key:'fornitore',       label:'Fornitore',        desc:'Nome fornitore', gruppo:'Codici'},
-  // Extra
-  {key:'note',            label:'Note',             desc:'Note interne magazzino', gruppo:'Extra'},
-  {key:'extra1',          label:'Extra 1',          desc:'Campo extra 1', gruppo:'Extra'},
-  {key:'extra2',          label:'Extra 2',          desc:'Campo extra 2', gruppo:'Extra'},
-  {key:'extra3',          label:'Extra 3',          desc:'Campo extra 3', gruppo:'Extra'},
-  {key:'extra4',          label:'Extra 4',          desc:'Campo extra 4', gruppo:'Extra'},
-];
+var CAMPI_DISPONIBILI = [];
+
+var _EXCL_KEYS = new Set([
+  'id','sessione_id','componente_id','stato',
+  'qty_attesa','qty_trovata','foto_url','ordine',
+  'aggiornato_il','immagine_path','cmp','articolo','descrizione'
+]);
+var _campoMap = {};
+
+function buildCampoMap(sample){
+  _campoMap = {};
+  CAMPI_DISPONIBILI = [];
+  if(!sample) return;
+  Object.keys(sample).forEach(function(key){
+    if(_EXCL_KEYS.has(key)) return;
+    var lbl = key.replace(/_/g,' ').replace(/^\w/,function(c){return c.toUpperCase();});
+    _campoMap[key] = (function(k,l){
+      return function(r){
+        var v = r[k];
+        if(v===null||v===undefined||v==='') return null;
+        return {l:l, v:esc(String(v))};
+      };
+    })(key, lbl);
+    CAMPI_DISPONIBILI.push({key:key, label:lbl, desc:lbl, gruppo:'Dati'});
+  });
+}
 
 // Carica preferenze dal localStorage
 var _campiAttivi = JSON.parse(localStorage.getItem('inv_campi') || 'null') ||
