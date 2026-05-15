@@ -939,11 +939,13 @@ _sock.on('inventario_chiusa', async function(){
   _tutti = [];
   _caricando = false;
   await caricaDati();
+  if(_selId) await selectRow(_selId);
 });
 _sock.on('magazzino_aggiornato', async function(){
   _tutti = [];
   _caricando = false;
   await caricaDati();
+  if(_selId) await selectRow(_selId);
 });
 
 // ── COLONNE — ordine identico a Danea ────────────────────────────────
@@ -987,7 +989,7 @@ const COLS = [
   ['anno_da',        'Anno da',          70, 'num'],
   ['anno_a',         'Anno a',           70, 'num'],
   ['intervallo',     'Intervallo',       90, 'str'],
-  ['files_path',     'File/Img',         60, 'files'],
+  ['immagine_path',  'File/Img',         60, 'files'],
 ];
 
 const TOT_W = COLS.reduce((s,[,,w])=>s+w, 0);
@@ -1387,7 +1389,7 @@ async function selectRow(id, el) {
   document.getElementById('pan-nome').value      = r.articolo||'';
   document.getElementById('pan-note').value      = r.nota||'';
   document.getElementById('pan-ubicazione').value = r.ubicazione||'—';
-  renderFiles(r.files_path);
+  renderFiles(r.immagine_path||'');
 
   const info = await apiFetch(`/api/magazzino/info-movimenti/${id}`);
   const giacEl = document.getElementById('cnt-giacenza');

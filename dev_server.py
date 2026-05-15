@@ -691,7 +691,7 @@ def api_modifica_componente(cid):
               v("anno") or v("anno_da"),
               v("cod_prod_forn"),
               v("alimentazione") or v("carburante"),
-              v("colore"), v("note") or v("nota"), v("cilindrata"),
+              v("colore"), (v("note") if "note" in dati else v("nota")), v("cilindrata"),
               v("ubicazione"), v("cod_barre"), v("extra3"),
               v("cod_fornitore"), v("fornitore"),
               v("immagine") or v("immagine_path"),
