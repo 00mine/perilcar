@@ -190,6 +190,9 @@ _sock.on('reload', ()=>{ document.getElementById('reload-badge').style.opacity='
 var _sessId = null;
 var _righe  = [];
 var _interval = null;
+var _lanIp = null; var _lanPort = window.location.port||'5000';
+fetch('/api/server-info').then(r=>r.json()).then(d=>{ _lanIp=d.lan_ip; _lanPort=String(d.port); }).catch(()=>{});
+function getMobileUrl(sid){ return `http://${_lanIp||window.location.hostname}:${_lanPort}/inventario-mobile?sessione=${sid}`; }
 
 function esc(s){ return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 async function apiFetch(url, opts={}){
@@ -261,7 +264,7 @@ async function caricaDettaglio(id){
   const tot   = s.totale_pezzi||1;
   const done  = (s.confermati||0)+(s.mancanti||0);
   const pct   = Math.round(done/tot*100);
-  const mobileUrl = `http://${window.location.hostname}:5000/inventario-mobile?sessione=${id}`;
+  const mobileUrl = getMobileUrl(id);
 
   const chiusa = s.stato==='chiusa';
 
@@ -314,6 +317,7 @@ async function caricaDettaglio(id){
         <table>
           <thead><tr>
             <th>Foto</th><th>Cod.</th><th>Descrizione</th><th>Marca</th>
+            <th>Ubicazione</th><th>Note</th>
             <th style="text-align:center">Attesa</th><th style="text-align:center">Trovata</th>
             <th>Stato</th>
           </tr></thead>
@@ -355,6 +359,8 @@ function renderRighe(righe){
       <td style="font-family:var(--mono);font-size:10px;color:var(--orange)">${esc(r.cmp||'')}</td>
       <td title="${esc(r.articolo||'')}">${esc((r.articolo||'').slice(0,30))}</td>
       <td>${esc(r.marca||'—')}</td>
+      <td>${esc(r.ubicazione||'—')}</td>
+      <td title="${esc(r.note||r.nota||'')}">${(()=>{const n=r.note||r.nota||'';return esc(n.length>40?n.slice(0,40)+'...':n)||'—';})()}</td>
       <td style="text-align:center;font-family:var(--mono)">${r.qty_attesa??'—'}</td>
       <td style="text-align:center;font-family:var(--mono);font-weight:700;color:${r.qty_trovata!==null&&r.qty_trovata!==undefined?(r.qty_trovata==r.qty_attesa?'var(--green)':'var(--red)'):'inherit'}">${r.qty_trovata??'—'}</td>
       <td>${badge}</td>
@@ -363,7 +369,7 @@ function renderRighe(righe){
 }
 
 function copiaUrl(id){
-  const url = `http://${window.location.hostname}:${window.location.port}/inventario-mobile?sessione=${id}`;
+  const url = getMobileUrl(id);
   navigator.clipboard.writeText(url).then(()=>toast('📋 URL copiato! Incollalo nel browser del telefono'));
 }
 
@@ -377,8 +383,15 @@ async function chiudiSessione(id){
 // ── SocketIO real-time ────────────────────────────────────────────────
 
 
+_sock.on('connect', function(){
+  if(_sessId) _sock.emit('join_inventario',{sessione_id:_sessId});
+});
 _sock.on('inventario_nuova_sessione', ()=>{ caricaSessioni(); });
 _sock.on('inventario_chiusa', ()=>{ caricaSessioni(); });
+_sock.on('inventario_sync_completata', function(data){
+  if(_sessId && parseInt(data.sessione_id)===_sessId) _scheduleRefresh();
+  else caricaSessioni();
+});
 
 // Aggiornamento foto in tempo reale
 _sock.on('inventario_foto', function(data){
@@ -391,32 +404,70 @@ _sock.on('inventario_foto', function(data){
   }
 });
 
-// Aggiornamento stato riga in tempo reale
-_sock.on('inventario_aggiornamento', async function(data){
+// Aggiornamento stato riga in tempo reale — refetch completo debounced
+var _aggiornamentoTimer = null;
+function _scheduleRefresh(){
+  clearTimeout(_aggiornamentoTimer);
+  _aggiornamentoTimer = setTimeout(async function(){
+    if(!_sessId) return;
+    try{
+      const data = await apiFetch(`/api/inventario/sessioni/${_sessId}`);
+      if(data.ok){
+        _righe = data.righe || [];
+        renderRighe(_righe);
+      }
+      const stats = await apiFetch(`/api/inventario/sessioni/${_sessId}/stats`);
+      const tot  = stats.totale||1;
+      const done = (stats.confermati||0)+(stats.mancanti||0);
+      const pct  = Math.round(done/tot*100);
+      const el=(id)=>document.getElementById(id);
+      if(el('k-conf'))  el('k-conf').textContent  = stats.confermati||0;
+      if(el('k-manc'))  el('k-manc').textContent  = stats.mancanti||0;
+      if(el('k-sosp'))  el('k-sosp').textContent  = stats.rimandati||0;
+      if(el('prog-fill')) el('prog-fill').style.width = pct+'%';
+      document.querySelectorAll('.progress-pct').forEach(e=>e.textContent=pct+'%');
+      await caricaSessioni();
+    }catch(e){}
+  }, 400); // debounce 400ms — raggruppa eventi multipli in un solo fetch
+}
+
+_sock.on('inventario_aggiornamento', function(data){
   if(parseInt(data.sessione_id) !== parseInt(_sessId)) return;
-  const idx = _righe.findIndex(r=>parseInt(r.id)===parseInt(data.riga_id));
-  if(idx>=0){
-    _righe[idx].stato       = data.stato;
-    _righe[idx].qty_trovata = data.qty_trovata;
-    renderRighe(_righe);
-  }
-  // Aggiorna KPI
-  const stats = await apiFetch(`/api/inventario/sessioni/${_sessId}/stats`);
-  const tot  = stats.totale||1;
-  const done = (stats.confermati||0)+(stats.mancanti||0);
-  const pct  = Math.round(done/tot*100);
-  const el=(id)=>document.getElementById(id);
-  if(el('k-conf'))  el('k-conf').textContent  = stats.confermati||0;
-  if(el('k-manc'))  el('k-manc').textContent  = stats.mancanti||0;
-  if(el('k-sosp'))  el('k-sosp').textContent  = stats.rimandati||0;
-  if(el('prog-fill')) el('prog-fill').style.width = pct+'%';
-  if(el('progress-pct')) el('progress-pct')?.querySelector?.('.progress-pct') // skip
-  document.querySelectorAll('.progress-pct').forEach(e=>e.textContent=pct+'%');
-  await caricaSessioni();
+  _scheduleRefresh();
 });
 
 // ── Init ──────────────────────────────────────────────────────────────
-caricaSessioni();
+// ── Polling fallback: aggiorna righe ogni 5s + stats se sessione attiva ──
+setInterval(async function(){
+  if(!_sessId) return;
+  // Rinforza join room ad ogni tick (no-op se già nella room)
+  _sock.emit('join_inventario',{sessione_id:_sessId});
+  try{
+    const data = await apiFetch(`/api/inventario/sessioni/${_sessId}`);
+    if(!data.ok) return;
+    _righe = data.righe||[];
+    renderRighe(_righe);
+    const s = data.sessione;
+    const tot  = (s.confermati||0)+(s.mancanti||0)+(s.sospesi||0)||1;
+    const done = (s.confermati||0)+(s.mancanti||0);
+    const pct  = Math.round(done/tot*100);
+    const el=(id)=>document.getElementById(id);
+    if(el('k-conf'))  el('k-conf').textContent  = s.confermati||0;
+    if(el('k-manc'))  el('k-manc').textContent  = s.mancanti||0;
+    if(el('k-sosp'))  el('k-sosp').textContent  = s.sospesi||0;
+    if(el('prog-fill')) el('prog-fill').style.width = pct+'%';
+    document.querySelectorAll('.progress-pct').forEach(e=>e.textContent=pct+'%');
+    await caricaSessioni();
+  }catch(e){}
+}, 5000);
+
+// ── Init: auto-seleziona sessione da URL ─────────────────────────────
+(async function(){
+  await caricaSessioni();
+  const _up = new URLSearchParams(window.location.search);
+  const _sidUrl = parseInt(_up.get('sessione')) || parseInt(_up.get('highlight')) || 0;
+  if(_sidUrl) await selSessione(_sidUrl);
+})();
 </script>
 </body>
 </html>
