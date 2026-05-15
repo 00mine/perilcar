@@ -69,11 +69,26 @@ logging.basicConfig(level=logging.INFO,
     format="%(asctime)s  %(name)-20s  %(levelname)s  %(message)s")
 log = logging.getLogger("perilcar.dev")
 
-from flask import Flask, render_template, request, jsonify, session, redirect, url_for, send_file
+from flask import Flask, render_template, request, jsonify, session, redirect, url_for, send_file, Response
 from flask_socketio import SocketIO, join_room, leave_room
 
+try:
+    import orjson as _orjson
+    def _fast_json(obj):
+        return Response(_orjson.dumps(obj), mimetype="application/json")
+except ImportError:
+    _fast_json = jsonify
+
 app = Flask(__name__, template_folder="web/templates", static_folder="web/static")
-app.secret_key = "8e805f4e5eac7a1f47eb5e377af5a2e64ba46d5463746e980201e5a31bae4d24"
+_sk = _cfg.get("flask_secret_key", "")
+if not _sk or len(_sk) < 32:
+    import secrets as _sec, json as _j
+    _sk = _sec.token_hex(32)
+    _cfg["flask_secret_key"] = _sk
+    _sk_path = ROOT / "config" / "settings.json"
+    _sk_path.parent.mkdir(parents=True, exist_ok=True)
+    _sk_path.write_text(_j.dumps(_cfg, indent=2, ensure_ascii=False), encoding="utf-8")
+app.secret_key = _sk
 
 @app.route('/favicon.ico')
 def favicon():
@@ -98,89 +113,83 @@ cfg = ConfigManager()
 db  = DatabaseManager(cfg.get("db_path"))
 log.info(f"DB magazzino: {cfg.get('db_path')}")
 
-# ── Auto-fix view e mapping colonne all'avvio ────────────────────────
+# ── Mapping colonne DB (schema Danea 18 col) ────────────────────────
 _DB_COLS = {
-    "cmp": "codice", "articolo": "nome", "nota": "nota",
-    "scorta": "scorta_minima", "eliminato": "eliminato",
-    "aggiornato_il": "aggiornato_il", "all_cols": [],
-    "tabella_movimenti": "movimenti_magazzino"
+    "cmp": "codice", "articolo": "descrizione", "nota": "note",
+    "eliminato": "eliminato", "aggiornato_il": "aggiornato_il",
+    "all_cols": [], "tabella_movimenti": "movimenti_magazzino"
 }
 
 def _auto_fix_view():
-    """Rileva colonne reali del DB e ricrea v_giacenza."""
+    """Ricrea v_giacenza con schema Danea fisso."""
     global _DB_COLS
-    import sqlite3 as _sq3
     try:
-        # Connessione diretta per evitare problemi con il connection pool
-        _raw = _sq3.connect(cfg.get("db_path"), timeout=10)
-        _raw.row_factory = _sq3.Row
+        _raw = db.get_connection()
         cols = [r[1] for r in _raw.execute("PRAGMA table_info(componenti)").fetchall()]
         if not cols:
             _raw.close(); return
 
-        # Rileva nomi colonne
-        cmp_col   = "cmp"      if "cmp"      in cols else "codice"
-        art_col   = "articolo" if "articolo" in cols else ("nome" if "nome" in cols else "descrizione")
-        nota_col  = "nota"     if "nota"     in cols else ("note" if "note" in cols else None)
-        scor_col  = "scorta"   if "scorta"   in cols else ("scorta_minima" if "scorta_minima" in cols else None)
-        elim_col  = "eliminato" if "eliminato" in cols else None
-        files_col = "files_path" if "files_path" in cols else None
-        img_col   = "immagine_path" if "immagine_path" in cols else None
-        aggi_col  = "aggiornato_il" if "aggiornato_il" in cols else ("modificato_il" if "modificato_il" in cols else "creato_il")
-
-        # Rileva tabella movimenti
         tables = [r[0] for r in _raw.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()]
         tab_mov = "movimenti_magazzino" if "movimenti_magazzino" in tables else "movimenti"
 
-        # Aggiorna mapping globale
         _DB_COLS = {
-            "cmp": cmp_col, "articolo": art_col,
-            "nota": nota_col or "nota",
-            "scorta": scor_col or "scorta",
-            "eliminato": elim_col or "eliminato",
-            "aggiornato_il": aggi_col,
-            "all_cols": cols,
-            "tabella_movimenti": tab_mov,
+            "cmp": "codice", "articolo": "descrizione", "nota": "note",
+            "eliminato": "eliminato", "aggiornato_il": "aggiornato_il",
+            "all_cols": cols, "tabella_movimenti": tab_mov,
         }
-        log.info(f"DB schema: cmp={cmp_col}, art={art_col}, mov={tab_mov}")
+        log.info(f"DB schema: cmp=codice, art=descrizione, mov={tab_mov}")
+
+        # Migrazione: aggiungi colonna giacenza se non esiste e popolala dai movimenti
+        if "giacenza" not in cols:
+            _raw.execute("ALTER TABLE componenti ADD COLUMN giacenza INTEGER NOT NULL DEFAULT 0")
+            _raw.execute(f"""
+                UPDATE componenti SET giacenza = COALESCE((
+                    SELECT SUM(CASE
+                        WHEN tipo IN ('carico','inventario') THEN  quantita
+                        WHEN tipo = 'scarico'               THEN -quantita
+                        WHEN tipo = 'rettifica'             THEN  quantita
+                        ELSE 0 END)
+                    FROM {tab_mov} WHERE componente_id = componenti.id
+                ), 0)
+            """)
+            _raw.commit()
+            cols.append("giacenza")
+            log.info("Colonna giacenza aggiunta e popolata")
 
         def opt(c, alias=None):
             a = alias or c
-            return f"c.{c} AS {a}" if c in cols else f"'' AS {a}"
+            return f"c.{c} AS {a}" if c in cols else f"NULL AS {a}"
 
         _raw.execute("DROP VIEW IF EXISTS v_giacenza")
         _raw.execute(f"""
             CREATE VIEW v_giacenza AS
             SELECT
-                c.id AS componente_id,
-                c.{cmp_col} AS cmp,
-                c.{art_col} AS articolo,
-                {opt('tipologia')}, {opt('categoria')}, {opt('sottocategoria')},
-                {opt('cod_udm')}, {opt('cod_iva')},
-                {opt('listino1')}, {opt('listino2')}, {opt('listino3')},
-                c.{nota_col or 'rowid'} AS nota,
-                {opt('cod_barre')}, {opt('marca')}, {opt('modello')},
-                {opt('extra1')}, {opt('extra2')}, {opt('extra3')}, {opt('extra4')},
-                {opt('cod_fornitore')}, {opt('fornitore')},
-                {opt('prezzo_forn')},
-                c.{scor_col or '0'} AS scorta,
-                {opt('ubicazione')}, {opt('stato_magazzino')},
-                {opt('colore')}, {opt('cilindrata')}, {opt('carburante')},
-                {opt('versione')}, {opt('anno_da')}, {opt('anno_a')},
-                {'c.'+img_col if img_col else "''"} AS immagine_path,
-                {'c.'+files_col if files_col else "''"} AS files_path,
-                {'c.'+elim_col if elim_col else '0'} AS eliminato,
-                COALESCE((
-                    SELECT SUM(CASE WHEN m.tipo='carico'  THEN m.quantita
-                                    WHEN m.tipo='scarico' THEN -m.quantita
-                                    ELSE 0 END)
-                    FROM {tab_mov} m WHERE m.componente_id=c.id
-                ), 0) AS esistenza
-            FROM componenti c WHERE {'c.'+elim_col+'=0' if elim_col else '1=1'}
+                c.id              AS componente_id,
+                c.codice          AS cmp,
+                c.descrizione     AS articolo,
+                {opt('produttore','marca')},
+                {opt('modello')},
+                {opt('udm','cod_udm')},
+                {opt('anno','anno_da')},
+                {opt('cod_prod_forn')},
+                {opt('alimentazione','carburante')},
+                {opt('colore')},
+                {opt('note','nota')},
+                {opt('cilindrata')},
+                {opt('ubicazione')},
+                {opt('cod_barre')},
+                {opt('extra3')},
+                {opt('cod_fornitore')},
+                {opt('fornitore')},
+                {opt('immagine','immagine_path')},
+                c.eliminato,
+                c.aggiornato_il,
+                c.giacenza        AS esistenza
+            FROM componenti c WHERE c.eliminato=0
         """)
         _raw.commit()
         _raw.close()
-        log.info(f"v_giacenza OK")
+        log.info("v_giacenza OK")
     except Exception as e:
         log.warning(f"Auto-fix view: {e}")
 
@@ -189,14 +198,13 @@ _auto_fix_view()
 # Aggiungi indici per velocizzare le query
 def _crea_indici():
     try:
-        import sqlite3 as _sq3
-        _raw = _sq3.connect(cfg.get("db_path"), timeout=10)
+        _raw = db.get_connection()
         tab_mov = _DB_COLS.get("tabella_movimenti", "movimenti_magazzino")
         col_cmp = _DB_COLS.get("cmp", "codice")
-        # Indice sui movimenti per componente_id (critico per la view)
         _raw.execute(f"CREATE INDEX IF NOT EXISTS idx_mov_comp ON {tab_mov}(componente_id)")
-        # Indice su componenti per ordinamento
         _raw.execute(f"CREATE INDEX IF NOT EXISTS idx_comp_art ON componenti({col_cmp})")
+        _raw.execute("CREATE INDEX IF NOT EXISTS idx_comp_desc    ON componenti(descrizione)")
+        _raw.execute("CREATE INDEX IF NOT EXISTS idx_comp_giacenza ON componenti(giacenza)")
         _raw.commit()
         _raw.close()
         log.info("Indici DB creati OK")
@@ -342,7 +350,7 @@ except Exception as _ce:
     log.warning(f"Pulizia avvio: {_ce}")
 
 
-# ── Crea tabelle inventario se non esistono ───────────────────────────────────
+# ── Crea/migra tabelle inventario ─────────────────────────────────────────────
 try:
     import sqlite3 as _sq_inv
     _inv_conn = _sq_inv.connect(cfg.get("db_path"), timeout=10)
@@ -377,6 +385,34 @@ try:
     CREATE INDEX IF NOT EXISTS idx_inv_sessione ON inventario_righe(sessione_id);
     CREATE INDEX IF NOT EXISTS idx_inv_stato ON inventario_righe(sessione_id, stato);
     """)
+    # Migrazione: aggiunge colonne mancanti a sessioni_inventario se DB vecchio
+    _inv_existing = {r[1] for r in _inv_conn.execute("PRAGMA table_info(sessioni_inventario)").fetchall()}
+    for _col, _defn in [
+        ("categoria",     "TEXT"),
+        ("filtro_json",   "TEXT"),
+        ("totale_pezzi",  "INTEGER DEFAULT 0"),
+        ("confermati",    "INTEGER DEFAULT 0"),
+        ("mancanti",      "INTEGER DEFAULT 0"),
+        ("sospesi",       "INTEGER DEFAULT 0"),
+        ("creato_da",     "INTEGER"),
+        ("chiuso_il",     "TEXT"),
+    ]:
+        if _col not in _inv_existing:
+            _inv_conn.execute(f"ALTER TABLE sessioni_inventario ADD COLUMN {_col} {_defn}")
+    # Se esiste sessioni_inventario_righe (schema vecchio), copia i dati in inventario_righe
+    _old_tables = {r[0] for r in _inv_conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
+    if "sessioni_inventario_righe" in _old_tables and "inventario_righe" in _old_tables:
+        _cnt = _inv_conn.execute("SELECT COUNT(*) FROM inventario_righe").fetchone()[0]
+        if _cnt == 0:
+            _inv_conn.execute("""
+                INSERT OR IGNORE INTO inventario_righe
+                    (sessione_id,componente_id,stato,qty_attesa,qty_trovata,note,ordine,aggiornato_il)
+                SELECT sessione_id,componente_id,
+                    COALESCE(stato,'sospeso'),
+                    COALESCE(qty_attesa,0),qty_trovata,
+                    note,COALESCE(ordine,0),aggiornato_il
+                FROM sessioni_inventario_righe
+            """)
     _inv_conn.commit()
     _inv_conn.close()
     log.info("Tabelle inventario pronte")
@@ -493,8 +529,8 @@ def api_logout():
 # ══════════════════════════════════════════════════════════════════════════════
 
 # Cache componenti
-_comp_cache = {"ts": 0, "data": None}
-_COMP_CACHE_TTL = 30
+_comp_cache = {"ts": 0, "data": None, "total": 0}
+_COMP_CACHE_TTL = 120
 
 @app.route("/api/magazzino/componenti")
 @require_login
@@ -503,7 +539,7 @@ _COMP_CACHE_TTL = 30
 def api_componenti():
     global _comp_cache
     p = request.args
-    ha_filtri = any(p.get(k) for k in ["q","es_min","es_max","sotto_scorta","marca","modello"])
+    ha_filtri = any(p.get(k) for k in ["q","es_min","es_max","marca","modello"])
     limit  = min(int(p.get("limit",  500)), 2000)
     offset = max(int(p.get("offset", 0)),   0)
 
@@ -519,7 +555,7 @@ def api_componenti():
     if p.get("es_max","").isdigit():
         sql += " AND esistenza <= ?"; params.append(int(p["es_max"]))
     if p.get("sotto_scorta") == "1":
-        sql += " AND esistenza <= scorta AND scorta > 0"
+        sql += " AND esistenza = 0"
     if p.get("marca"):
         sql += " AND marca LIKE ?"; params.append(f"%{p['marca']}%")
     if p.get("modello"):
@@ -527,30 +563,40 @@ def api_componenti():
     sql += " ORDER BY articolo"
 
     try:
-        # Usa cache per la prima pagina senza filtri (caso più comune)
-        if not ha_filtri and offset == 0 and (time.time() - _comp_cache["ts"]) < _COMP_CACHE_TTL and _comp_cache["data"]:
+        # Cache full-dataset senza filtri: serve tutte le pagine dalla memoria
+        if not ha_filtri and (time.time() - _comp_cache["ts"]) < _COMP_CACHE_TTL and _comp_cache["data"] is not None:
             cached = _comp_cache["data"]
-            return jsonify({"rows": cached[:limit], "total": len(cached), "offset": 0, "limit": limit, "cached": True})
+            return _fast_json({"rows": cached[offset:offset+limit], "total": _comp_cache["total"],
+                               "offset": offset, "limit": limit, "cached": True})
 
-        count_sql = "SELECT COUNT(*) AS n FROM v_giacenza WHERE 1=1" + sql[sql.find("WHERE 1=1")+9:]
-        total_row = db.fetchone(count_sql, params)
-        total = total_row["n"] if total_row else 0
-
-        rows = db.fetchall(sql + f" LIMIT {limit} OFFSET {offset}", params)
-
-        # Aggiorna cache se prima pagina senza filtri
-        if not ha_filtri and offset == 0:
-            _comp_cache = {"ts": time.time(), "data": None}  # invalida per ora
-        return jsonify({"rows": rows, "total": total, "offset": offset, "limit": limit})
+        conn = db.get_connection()
+        try:
+            if not ha_filtri:
+                # Prima richiesta senza filtri: carica TUTTO in cache (query v_giacenza senza LIMIT)
+                all_rows = [dict(r) for r in conn.execute(sql).fetchall()]
+                _comp_cache = {"ts": time.time(), "data": all_rows, "total": len(all_rows)}
+                return _fast_json({"rows": all_rows[offset:offset+limit], "total": len(all_rows),
+                                   "offset": offset, "limit": limit})
+            else:
+                # Con filtri: COUNT + SELECT limitato
+                where_extra = sql[sql.find("WHERE 1=1") + 9:]
+                total = conn.execute(
+                    "SELECT COUNT(*) AS n FROM v_giacenza WHERE 1=1" + where_extra, params
+                ).fetchone()["n"]
+                rows = [dict(r) for r in conn.execute(
+                    sql + f" LIMIT {limit} OFFSET {offset}", params
+                ).fetchall()]
+                return _fast_json({"rows": rows, "total": total, "offset": offset, "limit": limit})
+        finally:
+            conn.close()
     except Exception as e:
         log.warning(f"api_componenti errore: {e}")
         _auto_fix_view()
         try:
             rows = db.fetchall(sql + f" LIMIT {limit} OFFSET {offset}", params)
-            return jsonify({"rows": rows, "total": limit, "offset": offset, "limit": limit})
+            return _fast_json({"rows": rows, "total": limit, "offset": offset, "limit": limit})
         except Exception as e2:
             return jsonify({"ok": False, "msg": str(e2)}), 500
-        return jsonify(db.fetchall(sql, params))
 
 @app.route("/api/magazzino/componenti", methods=["POST"])
 @require_login
@@ -558,41 +604,42 @@ def api_crea_componente():
     dati = request.json or {}
     if not dati.get("codice"):
         return jsonify({"ok": False, "msg": "Codice obbligatorio"}), 400
-    if not dati.get("nome"):
-        return jsonify({"ok": False, "msg": "Nome obbligatorio"}), 400
-    if db.fetchone("SELECT id FROM componenti WHERE cmp=? AND eliminato=0", (dati["codice"],)):
+    if not dati.get("nome") and not dati.get("descrizione"):
+        return jsonify({"ok": False, "msg": "Descrizione obbligatoria"}), 400
+    if db.fetchone("SELECT id FROM componenti WHERE codice=? AND eliminato=0", (dati["codice"],)):
         return jsonify({"ok": False, "msg": f"Codice '{dati['codice']}' già esistente"}), 400
 
     u = cu()
-    for campo in ("anno_da","anno_a","scorta_minima"):
-        v = str(dati.get(campo,"") or "")
-        dati[campo] = int(v) if v.isdigit() else None
+    # Mappa campi form → colonne DB (schema Danea 18 col)
+    FORM_TO_DB = {
+        "codice": "codice", "nome": "descrizione", "descrizione": "descrizione",
+        "marca": "produttore", "produttore": "produttore",
+        "modello": "modello", "udm": "udm", "cod_udm": "udm",
+        "anno": "anno", "anno_da": "anno",
+        "cod_prod_forn": "cod_prod_forn",
+        "carburante": "alimentazione", "alimentazione": "alimentazione",
+        "colore": "colore", "note": "note", "nota": "note",
+        "cilindrata": "cilindrata", "ubicazione": "ubicazione",
+        "cod_barre": "cod_barre", "extra3": "extra3",
+        "cod_fornitore": "cod_fornitore", "fornitore": "fornitore",
+        "immagine": "immagine", "immagine_path": "immagine",
+    }
+    CAMPI_INT   = set()
+    CAMPI_FLOAT = set()
 
     try:
-        # Tutti i campi accettati
-        CAMPI_COMP = [
-            "codice","nome","descrizione","tipologia","categoria","sottocategoria",
-            "cod_udm","cod_iva","listino1","listino2","listino3",
-            "marca","modello","cod_modello","colore","cilindrata","carburante",
-            "versione","anno_da","anno_a","intervallo","scorta_minima",
-            "note","cod_barre","internet","extra1","extra2","extra3","extra4",
-            "cod_fornitore","fornitore","cod_prod_forn","prezzo_forn",
-            "note_fornitura","ord_multipli","gg_ordine","ubicazione",
-            "stato_magazzino","immagine_path","files_path"
-        ]
-        campi_validi = {k: dati.get(k) for k in CAMPI_COMP if dati.get(k) is not None and str(dati.get(k,"")).strip() != ""}
-        campi_validi["pubblicato"] = 0
-        campi_validi["creato_da"] = u.get("id")
-
-        # Conversioni numeriche
-        for nk in ("anno_da","anno_a","scorta_minima","ord_multipli","gg_ordine"):
-            if nk in campi_validi:
-                try: campi_validi[nk] = int(float(campi_validi[nk]))
-                except: del campi_validi[nk]
-        for fk in ("listino1","listino2","listino3","prezzo_forn"):
-            if fk in campi_validi:
-                try: campi_validi[fk] = float(campi_validi[fk])
-                except: del campi_validi[fk]
+        campi_validi = {}
+        for form_key, db_col in FORM_TO_DB.items():
+            v = dati.get(form_key)
+            if v is None or str(v).strip() == "":
+                continue
+            if db_col in CAMPI_INT:
+                try: v = int(float(v))
+                except: continue
+            elif db_col in CAMPI_FLOAT:
+                try: v = float(str(v).replace(",", "."))
+                except: continue
+            campi_validi[db_col] = v
 
         with db._write_lock:
             conn = db.get_connection()
@@ -603,14 +650,13 @@ def api_crea_componente():
                     f"INSERT INTO componenti ({cols_str}) VALUES ({placeholders})",
                     list(campi_validi.values()))
                 comp_id = cur.lastrowid
-                conn.execute("INSERT OR IGNORE INTO magazzino(componente_id,scorta_minima) VALUES(?,?)",
-                             (comp_id, campi_validi.get("scorta_minima", 0)))
                 conn.execute("""INSERT INTO log_operazioni
                     (utente_id,username,modulo,azione,tabella,record_id,dati_nuovi)
                     VALUES(?,?,?,?,?,?,?)""",
                     (u.get("id"),u.get("username"),"MAGAZZINO","CREA","componenti",comp_id,str(campi_validi)))
                 conn.commit()
                 conn.close()
+                _comp_cache["ts"] = 0  # invalida cache
                 return jsonify({"ok": True, "msg": "Componente creato", "id": comp_id})
             except Exception as e:
                 conn.rollback()
@@ -633,20 +679,29 @@ def api_modifica_componente(cid):
     try:
         db_write([
             ("""UPDATE componenti SET
-                nome=?, descrizione=?, marca=?, modello=?, cod_modello=?,
-                colore=?, cilindrata=?, carburante=?, versione=?, intervallo=?,
-                anno_da=?, anno_a=?, scorta_minima=?, note=?,
-                immagine_path=?, pubblicato=?, modificato_il=datetime('now')
+                descrizione=?, produttore=?, modello=?, udm=?, anno=?,
+                cod_prod_forn=?, alimentazione=?, colore=?, note=?, cilindrata=?,
+                ubicazione=?, cod_barre=?, extra3=?,
+                cod_fornitore=?, fornitore=?, immagine=?,
+                aggiornato_il=datetime('now')
              WHERE id=? AND eliminato=0""",
-             (v("nome"), v("descrizione"), v("marca"), v("modello"), v("cod_modello"),
-              v("colore"), v("cilindrata"), v("carburante"), v("versione"), v("intervallo"),
-              v("anno_da"), v("anno_a"), v("scorta_minima"), v("note"),
-              v("immagine_path"), v("pubblicato", 0), cid)),
+             (v("descrizione") or v("nome"),
+              v("produttore") or v("marca"),
+              v("modello"), v("udm", "pz"),
+              v("anno") or v("anno_da"),
+              v("cod_prod_forn"),
+              v("alimentazione") or v("carburante"),
+              v("colore"), v("note") or v("nota"), v("cilindrata"),
+              v("ubicazione"), v("cod_barre"), v("extra3"),
+              v("cod_fornitore"), v("fornitore"),
+              v("immagine") or v("immagine_path"),
+              cid)),
             ("""INSERT INTO log_operazioni
                 (utente_id,username,modulo,azione,tabella,record_id)
                 VALUES(?,?,?,?,?,?)""",
              (u.get("id"),u.get("username"),"MAGAZZINO","MODIFICA","componenti",cid))
         ])
+        _comp_cache["ts"] = 0  # invalida cache
         return jsonify({"ok": True, "msg": "Componente aggiornato"})
     except Exception as e:
         return jsonify({"ok": False, "msg": f"Errore: {e}"}), 500
@@ -657,12 +712,13 @@ def api_elimina_componente(cid):
     u = cu()
     try:
         db_write([
-            ("UPDATE componenti SET eliminato=1, modificato_il=datetime('now') WHERE id=?", (cid,)),
+            ("UPDATE componenti SET eliminato=1, aggiornato_il=datetime('now') WHERE id=?", (cid,)),
             ("""INSERT INTO log_operazioni
                 (utente_id,username,modulo,azione,tabella,record_id)
                 VALUES(?,?,?,?,?,?)""",
              (u.get("id"),u.get("username"),"MAGAZZINO","ELIMINA","componenti",cid))
         ])
+        _comp_cache["ts"] = 0  # invalida cache
         return jsonify({"ok": True, "msg": "Componente eliminato"})
     except Exception as e:
         return jsonify({"ok": False, "msg": str(e)}), 500
@@ -763,6 +819,15 @@ def api_movimento():
                 conn.execute(
                     "INSERT INTO movimenti_magazzino ("+",".join(m_fields)+") VALUES ("+",".join(["?"]*len(m_fields))+")",
                     m_vals)
+                conn.execute("""
+                    UPDATE componenti SET giacenza = COALESCE((
+                        SELECT SUM(CASE
+                            WHEN tipo IN ('carico','inventario') THEN  quantita
+                            WHEN tipo = 'scarico'               THEN -quantita
+                            WHEN tipo = 'rettifica'             THEN  quantita
+                            ELSE 0 END)
+                        FROM movimenti_magazzino WHERE componente_id = ?
+                    ), 0) WHERE id = ?""", (cid, cid))
                 conn.execute("UPDATE magazzino SET aggiornato_il=datetime('now') WHERE componente_id=?", (cid,))
                 try:
                     conn.execute(
@@ -773,6 +838,7 @@ def api_movimento():
                 conn.commit()
             finally:
                 conn.close()
+        _comp_cache["ts"] = 0  # invalida cache (giacenza cambiata)
         # Recupera id movimento appena inserito
         mov_id = None
         try:
@@ -792,21 +858,14 @@ def api_movimenti():
     sql = """SELECT
              m.*,
              c.codice          AS cmp,
-             c.nome            AS articolo,
-             c.marca           AS produttore,
-             c.categoria,
-             c.sottocategoria,
+             c.descrizione     AS articolo,
+             c.produttore,
              c.modello,
              c.colore,
              c.cilindrata,
-             c.carburante,
-             c.tipologia,
+             c.alimentazione   AS carburante,
              c.ubicazione,
-             c.stato_magazzino,
-             c.extra1,
-             c.extra2,
              c.extra3,
-             c.extra4,
              u.username
              FROM movimenti_magazzino m
              LEFT JOIN componenti c ON c.id = m.componente_id
@@ -859,6 +918,15 @@ def api_elimina_movimento(mid):
             conn = db.get_connection()
             try:
                 conn.execute("DELETE FROM movimenti_magazzino WHERE id=?", (mid,))
+                conn.execute("""
+                    UPDATE componenti SET giacenza = COALESCE((
+                        SELECT SUM(CASE
+                            WHEN tipo IN ('carico','inventario') THEN  quantita
+                            WHEN tipo = 'scarico'               THEN -quantita
+                            WHEN tipo = 'rettifica'             THEN  quantita
+                            ELSE 0 END)
+                        FROM movimenti_magazzino WHERE componente_id = ?
+                    ), 0) WHERE id = ?""", (mov["componente_id"], mov["componente_id"]))
                 conn.execute("""INSERT INTO log_operazioni
                     (utente_id,username,modulo,azione,tabella,record_id)
                     VALUES(?,?,?,?,?,?)""",
@@ -870,22 +938,35 @@ def api_elimina_movimento(mid):
     except Exception as e:
         return jsonify({"ok": False, "msg": str(e)}), 500
 
+def _get_lan_ip():
+    """Restituisce l'IP LAN della macchina (non localhost)."""
+    import socket as _sock
+    try:
+        s = _sock.socket(_sock.AF_INET, _sock.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        return "127.0.0.1"
+
+@app.route("/api/server-info")
+def api_server_info():
+    port = int(os.environ.get("PORT", 5000))
+    return jsonify({"lan_ip": _get_lan_ip(), "port": port})
+
 @app.route("/api/magazzino/stats")
 @require_login
 def api_stats():
-    t  = db.fetchone("SELECT COUNT(*) AS n FROM v_giacenza")
-    s  = db.fetchone("SELECT COUNT(*) AS n FROM v_giacenza WHERE esistenza <= scorta AND scorta > 0")
-    u  = db.fetchone("SELECT creato_il FROM movimenti_magazzino ORDER BY id DESC LIMIT 1")
-    pz = db.fetchone("SELECT COALESCE(SUM(esistenza),0) AS n FROM v_giacenza")
-    val= db.fetchone("""SELECT COALESCE(SUM(v.esistenza * COALESCE(c.listino1,0)),0) AS n
-                         FROM v_giacenza v JOIN componenti c ON c.id=v.componente_id
-                         WHERE v.esistenza>0 AND c.listino1>0""")
-    foto = db.fetchone("SELECT COUNT(*) AS n FROM componenti WHERE immagine_path IS NOT NULL AND immagine_path!='' AND eliminato=0")
+    t    = db.fetchone("SELECT COUNT(*) AS n FROM componenti WHERE eliminato=0")
+    u    = db.fetchone("SELECT creato_il FROM movimenti_magazzino ORDER BY id DESC LIMIT 1")
+    pz   = db.fetchone("SELECT COALESCE(SUM(giacenza),0) AS n FROM componenti WHERE eliminato=0")
+    disp = db.fetchone("SELECT COUNT(*) AS n FROM componenti WHERE eliminato=0 AND giacenza > 0")
+    foto = db.fetchone("SELECT COUNT(*) AS n FROM componenti WHERE immagine IS NOT NULL AND immagine!='' AND eliminato=0")
     return jsonify({"totale_componenti": t["n"] if t else 0,
-                    "sotto_scorta": s["n"] if s else 0,
+                    "disponibili": disp["n"] if disp else 0,
                     "ultimo_movimento": u["creato_il"] if u else "—",
                     "pezzi_totali": pz["n"] if pz else 0,
-                    "valore_stima": round(float(val["n"]) if val else 0, 2),
                     "con_foto": foto["n"] if foto else 0})
 
 @app.route("/api/backup", methods=["POST"])
@@ -913,10 +994,10 @@ def api_backup():
 @require_login
 def api_inventario():
     return jsonify(db.fetchall("""
-        SELECT cmp, articolo, descrizione, esistenza, scorta,
-               marca, modello, cod_modello, colore,
-               cilindrata, carburante, versione,
-               anno_da, anno_a, intervallo, nota
+        SELECT cmp, articolo, esistenza,
+               marca, modello, colore,
+               cilindrata, carburante,
+               anno_da, nota, ubicazione
         FROM v_giacenza ORDER BY articolo
     """))
 
@@ -958,35 +1039,30 @@ def api_upload_file(cid):
     fname = f"comp_{cid}_{uuid.uuid4().hex[:8]}.{ext}"
     f.save(UPLOAD_FOLDER / fname)
     url = f"/static/uploads/{fname}"
-    # Aggiungi alla lista files_path (separatore |)
-    comp = db.fetchone("SELECT files_path, immagine_path FROM componenti WHERE id=?", (cid,))
+    # Imposta immagine principale se è un'immagine e non ce n'è una
     imgs_ext = {"png","jpg","jpeg","gif","webp"}
-    existing_files = comp["files_path"] or ""
-    new_files = (existing_files + "|" + url).strip("|") if existing_files else url
-    # Se è immagine e non c'è ancora immagine principale, impostala
-    new_img = comp["immagine_path"]
+    comp = db.fetchone("SELECT immagine FROM componenti WHERE id=?", (cid,))
+    new_img = comp["immagine"] if comp else None
     if ext in imgs_ext and not new_img:
         new_img = url
     try:
         db_write([("""UPDATE componenti
-                      SET files_path=?, immagine_path=?, modificato_il=datetime('now')
-                      WHERE id=?""", (new_files, new_img, cid))])
-        return jsonify({"ok": True, "url": url, "files": new_files.split("|") if new_files else []})
+                      SET immagine=?, aggiornato_il=datetime('now')
+                      WHERE id=?""", (new_img, cid))])
+        return jsonify({"ok": True, "url": url, "files": [url]})
     except Exception as e:
         return jsonify({"ok": False, "msg": str(e)}), 500
 
 @app.route("/api/magazzino/delete-file/<int:cid>", methods=["POST"])
 @require_login
 def api_delete_file(cid):
-    """Rimuove un file dalla lista allegati."""
+    """Rimuove immagine da un componente."""
     url_da_rimuovere = (request.json or {}).get("url","")
-    comp = db.fetchone("SELECT files_path, immagine_path FROM componenti WHERE id=?", (cid,))
-    files = [f for f in (comp["files_path"] or "").split("|") if f and f != url_da_rimuovere]
-    new_files = "|".join(files)
-    new_img   = comp["immagine_path"] if comp["immagine_path"] != url_da_rimuovere else (files[0] if files else None)
+    comp = db.fetchone("SELECT immagine FROM componenti WHERE id=?", (cid,))
+    new_img = None if (comp and comp["immagine"] == url_da_rimuovere) else (comp["immagine"] if comp else None)
     try:
-        db_write([("""UPDATE componenti SET files_path=?, immagine_path=?, modificato_il=datetime('now') WHERE id=?""",
-                   (new_files, new_img, cid))])
+        db_write([("""UPDATE componenti SET immagine=?, aggiornato_il=datetime('now') WHERE id=?""",
+                   (new_img, cid))])
         return jsonify({"ok": True})
     except Exception as e:
         return jsonify({"ok": False, "msg": str(e)}), 500
@@ -995,48 +1071,414 @@ def api_delete_file(cid):
 # IMPORT / EXPORT EXCEL — formato Danea + generico
 # ══════════════════════════════════════════════════════════════════════════════
 
-# Mappa colonne Danea → campi DB (case-insensitive)
+# ── Rilevamento automatico colonne Excel ─────────────────────────────────────
+# Ogni entry: (campo_db, [alias_lista], tipo, label_ui)
+# tipo: "chiave" | "richiesto" | "movimento" | "calcolo" | "prezzo" | None
+_CAMPO_ALIASES = [
+    ("codice",        ["cod.", "cod", "codice", "sku", "cmp", "codart", "cod articolo",
+                       "codice articolo", "cod. articolo", "riferimento", "rif", "rif.",
+                       "code", "art.", "art", "numero articolo", "n. articolo",
+                       "cod.art.", "cod. art.", "codice art", "codice ricambio"],
+                      "chiave",    "Codice articolo"),
+    ("nome",          ["nome", "descrizione", "articolo", "desc", "descrizione articolo",
+                       "nome articolo", "denominazione", "item", "prodotto",
+                       "articolo desc", "descrizione completa", "descrizione prodotto"],
+                      "richiesto", "Nome / Descrizione"),
+    ("esistenza",     ["quantita", "quantità", "qta", "q.ta", "q.tà", "q.tà giacenza",
+                       "giacenza", "esistenza", "es", "qty", "disponibile", "stock",
+                       "pezzi", "qt", "quantita giacenza", "q.ta giacenza",
+                       "giacenza attuale", "disponibilita", "disponibilità",
+                       "magazzino", "scorta attuale"],
+                      "movimento", "Quantità (giacenza iniziale)"),
+    ("scorta_minima", ["scorta min", "scorta minima", "scorta min.", "scorta min. (pz)",
+                       "min", "minimo", "qtà minima", "giacenza minima", "stock minimo",
+                       "qt min", "qt. min", "quantita minima"],
+                      "calcolo",   "Scorta minima"),
+    ("categoria",     ["categoria", "cat", "category", "gruppo", "reparto", "famiglia"],
+                      None,        "Categoria"),
+    ("sottocategoria",["sottocategoria", "sottocat", "sotto categoria", "subcategoria"],
+                      None,        "Sottocategoria"),
+    ("tipologia",     ["tipologia", "tipo", "type", "kind"],
+                      None,        "Tipologia"),
+    ("marca",         ["marca", "brand", "produttore", "fabbricante", "manufacturer"],
+                      None,        "Marca / Produttore"),
+    ("modello",       ["modello", "model", "mod.", "mod"],
+                      None,        "Modello"),
+    ("nota",          ["nota", "note", "osservazioni", "commento", "commenti", "info",
+                       "annotazioni", "descrizione lunga", "note aggiuntive"],
+                      None,        "Note"),
+    ("ubicazione",    ["ubicazione", "posizione", "pos", "location", "scaffale",
+                       "zona", "posizione magazzino", "ubicaz."],
+                      None,        "Ubicazione"),
+    ("colore",        ["colore", "color", "col."],
+                      None,        "Colore"),
+    ("cod_barre",     ["cod barre", "cod. a barre", "barcode", "ean", "codice barre",
+                       "cod. barre", "upc", "cod.barre", "ean13"],
+                      None,        "Cod. a barre"),
+    ("listino1",      ["listino 1", "listino1", "prezzo", "prezzo vendita", "p.v.",
+                       "prezzo 1", "pr vendita", "vendita", "prezzo al pubblico",
+                       "prezzo cliente", "pr. vendita"],
+                      "prezzo",    "Listino 1 (prezzo vendita)"),
+    ("listino2",      ["listino 2", "listino2", "prezzo 2", "p.v. 2", "listino b"],
+                      "prezzo",    "Listino 2"),
+    ("listino3",      ["listino 3", "listino3", "prezzo 3", "p.v. 3", "listino c"],
+                      "prezzo",    "Listino 3"),
+    ("prezzo_forn",   ["prezzo forn.", "prezzo fornitore", "costo", "costo acquisto",
+                       "p.a.", "prezzo acquisto", "pr acquisto", "costo unitario",
+                       "prezzo forn", "costo forn"],
+                      "prezzo",    "Prezzo fornitore / Costo"),
+    ("cod_fornitore", ["cod fornitore", "cod. fornitore", "codice fornitore", "cod forn"],
+                      None,        "Cod. fornitore"),
+    ("fornitore",     ["fornitore", "supplier", "vendor", "fornitore principale"],
+                      None,        "Fornitore"),
+    ("stato_magazzino",["stato magazzino", "stato", "status"],
+                      None,        "Stato magazzino"),
+    ("anno_da",       ["anno da", "anno dal", "anno inizio", "anno from", "from year"],
+                      None,        "Anno da"),
+    ("anno_a",        ["anno a", "anno al", "anno fine", "anno to", "to year"],
+                      None,        "Anno a"),
+    ("cod_udm",       ["cod udm", "cod. udm", "udm", "unità misura", "um",
+                       "unita misura", "u.m."],
+                      None,        "Unità di misura"),
+    ("cod_iva",       ["cod iva", "cod. iva", "iva", "aliquota", "aliquota iva",
+                       "% iva"],
+                      None,        "Cod. IVA"),
+    ("internet",      ["internet", "web", "online", "sito"],
+                      None,        "Internet/Web"),
+    ("extra1",        ["extra1", "extra 1", "campo extra 1", "campo1"],
+                      None,        "Extra 1"),
+    ("extra2",        ["extra2", "extra 2", "campo extra 2", "campo2"],
+                      None,        "Extra 2"),
+    ("extra3",        ["extra3", "extra 3", "campo extra 3", "campo3"],
+                      None,        "Extra 3"),
+    ("extra4",        ["extra4", "extra 4", "campo extra 4", "campo4"],
+                      None,        "Extra 4"),
+]
+
+_CAMPO_INFO = {c: {"tipo": t, "label": l, "alias": a}
+               for c, a, t, l in _CAMPO_ALIASES}
+
+
+def _rileva_mapping(headers):
+    """Rileva automaticamente a cosa corrisponde ogni colonna Excel.
+    Restituisce dict {header_originale: {campo, label, tipo, confidenza}}.
+    """
+    result = {}
+    used_fields = set()
+
+    def _norm(s):
+        return " ".join(s.lower().replace(".", " ").replace("'", " ")
+                         .replace("_", " ").replace("(", " ").replace(")", " ")
+                         .split())
+
+    for h in headers:
+        h_norm = _norm(h)
+        best_field = None
+        best_score = 0
+
+        for campo, aliases, tipo, label in _CAMPO_ALIASES:
+            if campo in used_fields:
+                continue
+            for alias in aliases:
+                a_norm = _norm(alias)
+                if h_norm == a_norm:
+                    score = 100
+                elif a_norm in h_norm or h_norm in a_norm:
+                    score = 70
+                else:
+                    continue
+                if score > best_score:
+                    best_score = score
+                    best_field = campo
+
+        if not best_field:
+            danea = DANEA_MAP.get(h.lower().strip())
+            if danea:
+                best_field = danea
+                best_score = 80
+
+        if best_field and best_field not in used_fields:
+            used_fields.add(best_field)
+            info = _CAMPO_INFO.get(best_field, {})
+            result[h] = {
+                "campo":      best_field,
+                "label":      info.get("label", best_field.replace("_", " ").title()),
+                "tipo":       info.get("tipo"),
+                "confidenza": "alta" if best_score >= 100 else "media",
+            }
+        else:
+            result[h] = {
+                "campo":      None,
+                "label":      "— Ignora —",
+                "tipo":       None,
+                "confidenza": "nessuna",
+            }
+
+    return result
+
+
+@app.route("/api/magazzino/analizza-excel", methods=["POST"])
+@require_login
+def api_analizza_excel():
+    """Legge le colonne dell'Excel e suggerisce il mapping senza importare."""
+    if "file" not in request.files:
+        return jsonify({"ok": False, "msg": "Nessun file"}), 400
+    f = request.files["file"]
+    if not f.filename.lower().endswith((".xlsx", ".xls")):
+        return jsonify({"ok": False, "msg": "Solo .xlsx o .xls"}), 400
+    import openpyxl
+    try:
+        wb = openpyxl.load_workbook(f, data_only=True, read_only=True)
+        ws = wb.active
+        header_row = next(ws.iter_rows(min_row=1, max_row=1, values_only=True))
+        headers = [str(h or "").strip() for h in header_row if h is not None and str(h).strip()]
+        totale = (ws.max_row or 1) - 1
+        mapping = _rileva_mapping(headers)
+        campi_disponibili = (
+            [{"campo": c, "label": info["label"], "tipo": info.get("tipo")}
+             for c, info in _CAMPO_INFO.items()]
+            + [{"campo": None, "label": "— Ignora —", "tipo": None}]
+        )
+        return jsonify({"ok": True, "headers": headers, "mapping": mapping,
+                        "campi_disponibili": campi_disponibili, "totale": totale})
+    except Exception as e:
+        log.warning(f"analizza-excel: {e}")
+        return jsonify({"ok": False, "msg": str(e)}), 500
+
+
+def _processa_import_mappato(tmp_path, mapping, utente_id, utente_username):
+    """Import Excel con mapping colonne confermato dall'utente."""
+    global _import_stato
+    import openpyxl, os as _os, datetime as _dt
+
+    _import_stato.update({"running": True, "importati": 0, "aggiornati": 0,
+                           "saltati": 0, "totale": 0, "processed": 0,
+                           "msg": "Avvio importazione...", "ok": None})
+    try:
+        wb = openpyxl.load_workbook(tmp_path, data_only=True, read_only=True)
+        ws = wb.active
+        header_row = next(ws.iter_rows(min_row=1, max_row=1, values_only=True))
+        headers = [str(h or "").strip() for h in header_row]
+
+        # campo_db → indice colonna Excel
+        campo_idx = {}
+        for i, h in enumerate(headers):
+            campo = mapping.get(h)
+            if campo and campo not in campo_idx:
+                campo_idx[campo] = i
+
+        def get_val(row, campo, default=None):
+            idx = campo_idx.get(campo)
+            if idx is None or idx >= len(row): return default
+            v = row[idx]
+            if v is None: return default
+            if isinstance(v, (_dt.datetime, _dt.date)): return str(v.year)
+            s = str(v).strip()
+            return s if s not in ("None", "nan", "") else default
+
+        def to_int(row, campo):
+            try: v = get_val(row, campo, "0"); return int(float(v)) if v else 0
+            except: return 0
+
+        def to_float(row, campo):
+            try:
+                v = get_val(row, campo)
+                return float(str(v).replace(",", ".")) if v else None
+            except: return None
+
+        col_codice = _DB_COLS.get("cmp", "codice")
+        col_nome   = _DB_COLS.get("articolo", "nome")
+        col_nota   = _DB_COLS.get("nota", "nota")
+        col_scorta = _DB_COLS.get("scorta", "scorta_minima")
+        col_elim   = _DB_COLS.get("eliminato", "eliminato")
+        tab_mov    = _DB_COLS.get("tabella_movimenti", "movimenti_magazzino")
+
+        CAMPI_FLOAT = {"listino1", "listino2", "listino3", "prezzo_forn"}
+        CAMPI_INT   = {"scorta_min", "ord_multipli", "gg_ordine"}
+
+        importati = aggiornati = saltati = row_n = 0
+        BATCH = 500
+
+        with db._write_lock:
+            conn = db.get_connection()
+            try:
+                for row in ws.iter_rows(min_row=2, values_only=True):
+                    row_n += 1
+                    codice    = get_val(row, "codice")
+                    nome      = get_val(row, "nome")
+                    esistenza = to_int(row, "esistenza")
+
+                    if not codice and not nome:
+                        saltati += 1; continue
+                    if not codice: codice = f"IMP-{row_n:05d}"
+                    if not nome:   nome   = codice
+
+                    campi = {col_nome: nome}
+
+                    for campo in campo_idx:
+                        if campo in ("codice", "nome", "esistenza"):
+                            continue
+                        if campo in CAMPI_FLOAT:
+                            v = to_float(row, campo)
+                        elif campo in CAMPI_INT:
+                            v = to_int(row, campo)
+                        else:
+                            v = get_val(row, campo)
+
+                        if v is None or v == "":
+                            continue
+
+                        db_col = col_nota   if campo == "nota"      else \
+                                 col_scorta if campo == "scorta_min" else campo
+                        campi[db_col] = v
+
+                    existing = conn.execute(
+                        f"SELECT id FROM componenti WHERE {col_codice}=? AND {col_elim}=0",
+                        (codice,)
+                    ).fetchone()
+
+                    if existing:
+                        comp_id = existing[0]
+                        if campi:
+                            sets = ", ".join(f"{k}=?" for k in campi)
+                            conn.execute(
+                                f"UPDATE componenti SET {sets}, aggiornato_il=datetime('now') WHERE id=?",
+                                list(campi.values()) + [comp_id]
+                            )
+                        aggiornati += 1
+                    else:
+                        campi[col_codice] = codice
+                        campi[col_elim]   = 0
+                        cols_str = ", ".join(campi.keys())
+                        phs      = ", ".join(["?"] * len(campi))
+                        cur = conn.execute(
+                            f"INSERT INTO componenti ({cols_str}) VALUES ({phs})",
+                            list(campi.values())
+                        )
+                        comp_id = cur.lastrowid
+                        importati += 1
+
+                    if esistenza > 0:
+                        already = conn.execute(
+                            f"SELECT id FROM {tab_mov} WHERE componente_id=? AND riferimento='Import Excel' LIMIT 1",
+                            (comp_id,)
+                        ).fetchone()
+                        if not already:
+                            try:
+                                conn.execute(
+                                    f"INSERT INTO {tab_mov} (componente_id,tipo,quantita,quantita_prima,quantita_dopo,riferimento,username) VALUES(?,?,?,?,?,?,?)",
+                                    (comp_id, "carico", esistenza, 0, esistenza, "Import Excel", utente_username)
+                                )
+                            except Exception:
+                                conn.execute(
+                                    f"INSERT INTO {tab_mov} (componente_id,tipo,quantita,quantita_prima,quantita_dopo,riferimento) VALUES(?,?,?,?,?,?)",
+                                    (comp_id, "carico", esistenza, 0, esistenza, "Import Excel")
+                                )
+                            conn.execute(
+                                "UPDATE componenti SET giacenza=giacenza+? WHERE id=?",
+                                (esistenza, comp_id))
+
+                    if row_n % BATCH == 0:
+                        conn.commit()
+                        _import_stato.update({
+                            "importati": importati, "aggiornati": aggiornati,
+                            "saltati": saltati, "processed": row_n,
+                            "msg": f"⏳ {importati} nuovi, {aggiornati} aggiornati, riga {row_n}..."
+                        })
+                        socketio.emit("import_progress", {
+                            "importati": importati, "aggiornati": aggiornati,
+                            "processed": row_n, "saltati": saltati
+                        })
+
+                conn.commit()
+            except Exception as _e:
+                log.error(f"Import mappato errore riga {row_n}: {_e}")
+                try: conn.rollback()
+                except: pass
+                raise
+            finally:
+                conn.close()
+
+        try: _os.remove(tmp_path)
+        except: pass
+
+        msg = f"✅ Import completato: {importati} nuovi, {aggiornati} aggiornati, {saltati} saltati su {row_n} righe"
+        log.info(msg)
+        _comp_cache["ts"] = 0  # invalida cache dopo import
+        _import_stato.update({"running": False, "importati": importati,
+                               "aggiornati": aggiornati, "saltati": saltati,
+                               "processed": row_n, "msg": msg, "ok": True})
+        socketio.emit("import_done", {"ok": True, "msg": msg,
+                                       "importati": importati, "aggiornati": aggiornati,
+                                       "saltati": saltati})
+    except Exception as e:
+        msg = f"❌ Errore import: {e}"
+        log.error(msg)
+        _import_stato.update({"running": False, "msg": msg, "ok": False})
+        socketio.emit("import_done", {"ok": False, "msg": msg})
+
+
+@app.route("/api/magazzino/import-excel-mappato", methods=["POST"])
+@require_login
+def api_import_excel_mappato():
+    """Avvia import Excel con mapping confermato dall'utente."""
+    global _import_stato
+    if _import_stato.get("running"):
+        return jsonify({"ok": False, "msg": "Import già in corso"}), 409
+    if "file" not in request.files:
+        return jsonify({"ok": False, "msg": "Nessun file"}), 400
+    f = request.files["file"]
+    if not f.filename.lower().endswith((".xlsx", ".xls")):
+        return jsonify({"ok": False, "msg": "Solo .xlsx o .xls"}), 400
+    import json as _json, os as _os
+    try:
+        mapping = _json.loads(request.form.get("mapping", "{}"))
+    except Exception:
+        return jsonify({"ok": False, "msg": "Mapping JSON non valido"}), 400
+    u = cu()
+    tmp_path = str(ROOT / "logs" / "_import_mappato_tmp.xlsx")
+    f.save(tmp_path)
+    log.info(f"Import mappato: file {_os.path.getsize(tmp_path)//1024}KB, "
+             f"{len(mapping)} colonne mappate")
+    t = threading.Thread(target=_processa_import_mappato,
+                         args=(tmp_path, mapping, u.get("id"), u.get("username")),
+                         daemon=True)
+    t.start()
+    return jsonify({"ok": True, "msg": "Import avviato"})
+
+
+# Mappa colonne Danea → campi DB (case-insensitive, schema 18 col)
 DANEA_MAP = {
     "cod.":             "codice",
-    "descrizione":      "nome",
-    "tipologia":        "tipologia",
-    "categoria":        "categoria",
-    "sottocategoria":   "sottocategoria",
-    "cod. udm":         "cod_udm",
-    "cod. iva":         "cod_iva",
-    "listino 1":        "listino1",
-    "listino 2":        "listino2",
-    "listino 3":        "listino3",
-    "note":             "nota",
+    "descrizione":      "descrizione",
+    "produttore":       "produttore",
+    "modello":          "modello",
+    "q.tà giacenza":    "esistenza",
+    "pz":               "udm",
+    "anno":             "anno",
+    "cod. prod. forn.": "cod_prod_forn",
+    "alimentazione":    "alimentazione",
+    "colore":           "colore",
+    "note":             "note",
+    "cilindrata":       "cilindrata",
+    "ubicazione":       "ubicazione",
     "cod. a barre":     "cod_barre",
-    "internet":         "internet",
-    "produttore":       "marca",
-    "extra 1":          "extra1",
-    "extra 2":          "extra2",
     "extra 3":          "extra3",
-    "extra 4":          "extra4",
     "cod. fornitore":   "cod_fornitore",
     "fornitore":        "fornitore",
-    "cod. prod. forn.": "cod_prod_forn",
-    "prezzo forn.":     "prezzo_forn",
-    "note fornitura":   "note_fornitura",
-    "ord. a multipli di": "ord_multipli",
-    "gg. ordine":       "gg_ordine",
-    "scorta min.":      "scorta_minima",
-    "ubicazione":       "ubicazione",
-    "q.tà giacenza":    "esistenza",
-    "stato magazzino":  "stato_magazzino",
-    "immagine":         "immagine_path",
+    "immagine":         "immagine",
     # alias generici
     "cmp":              "codice",
-    "articolo":         "nome",
+    "articolo":         "descrizione",
+    "nome":             "descrizione",
     "es":               "esistenza",
-    "scorta minima":    "scorta_minima",
-    "anno da":          "anno_da",
-    "anno a":           "anno_a",
-    "marca":            "marca",
-    "modello":          "modello",
-    "colore":           "colore",
+    "giacenza":         "esistenza",
+    "anno da":          "anno",
+    "marca":            "produttore",
+    "nota":             "note",
+    "carburante":       "alimentazione",
+    "cod. udm":         "udm",
+    "udm":              "udm",
 }
 
 @app.route("/api/magazzino/export-excel")
@@ -1067,40 +1509,25 @@ def api_export_excel():
     cols = [
         ("Cod.",             "cmp",            10),
         ("Descrizione",      "articolo",       36),
-        ("Tipologia",        "tipologia",      18),
-        ("Categoria",        "categoria",      14),
-        ("Sottocategoria",   "sottocategoria", 14),
-        ("Cod. Udm",         "cod_udm",        10),
-        ("Cod. Iva",         "cod_iva",        10),
-        ("Listino 1",        "listino1",       12),
-        ("Listino 2",        "listino2",       12),
-        ("Listino 3",        "listino3",       12),
-        ("Note",             "nota",           30),
-        ("Cod. a barre",     "cod_barre",      14),
         ("Produttore",       "marca",          16),
-        ("Extra 1",          "extra1",         12),
-        ("Extra 2",          "extra2",         12),
+        ("Modello",          "modello",        16),
+        ("Q.tà giacenza",    "esistenza",      12),
+        ("Cod. Udm",         "cod_udm",        10),
+        ("Anno",             "anno_da",        10),
+        ("Cod. prod. forn.", "cod_prod_forn",  16),
+        ("Alimentazione",    "carburante",     14),
+        ("Colore",           "colore",         12),
+        ("Note",             "nota",           30),
+        ("Cilindrata",       "cilindrata",     12),
+        ("Ubicazione",       "ubicazione",     18),
+        ("Cod. a barre",     "cod_barre",      14),
         ("Extra 3",          "extra3",         12),
-        ("Extra 4",          "extra4",         12),
         ("Cod. fornitore",   "cod_fornitore",  14),
         ("Fornitore",        "fornitore",      16),
-        ("Prezzo forn.",     "prezzo_forn",    12),
-        ("Scorta min.",      "scorta",         10),
-        ("Ubicazione",       "ubicazione",     18),
-        ("Q.tà giacenza",    "esistenza",      12),
-        ("Stato magazzino",  "stato_magazzino",14),
-        ("Modello",          "modello",        16),
-        ("Colore",           "colore",         12),
-        ("Cilindrata",       "cilindrata",     12),
-        ("Carburante",       "carburante",     12),
-        ("Versione",         "versione",       12),
-        ("Anno da",          "anno_da",        10),
-        ("Anno a",           "anno_a",         10),
-        ("Foto",             "files_path",     20),
+        ("Foto",             "immagine_path",  20),
     ]
 
-    NUM_KEYS = {"esistenza","scorta","listino1","listino2","listino3",
-                "prezzo_forn","ord_multipli","gg_ordine","anno_da","anno_a"}
+    NUM_KEYS = {"esistenza", "anno_da"}
 
     # Intestazioni
     for c, (label, _, w) in enumerate(cols, 1):
@@ -1114,7 +1541,7 @@ def api_export_excel():
     ws.freeze_panes = "A2"
 
     # Dati
-    foto_col_idx = next((c+1 for c,(l,k,w) in enumerate(cols) if k=="files_path"), None)
+    foto_col_idx = next((c+1 for c,(l,k,w) in enumerate(cols) if k=="immagine_path"), None)
     tmp_files = []
 
     for ri, r in enumerate(rows, 2):
@@ -1122,11 +1549,9 @@ def api_export_excel():
         ws.row_dimensions[ri].height = 15  # altezza normale
 
         for ci, (_, key, _) in enumerate(cols, 1):
-            if key == "files_path":
-                # Scrivi URL come testo per ora, foto sotto
-                paths = [p for p in (r.get("files_path") or "").split("|") if p]
-                if not paths and r.get("immagine_path"):
-                    paths = [r.get("immagine_path")]
+            if key == "immagine_path":
+                # Scrivi URL immagine principale
+                paths = [r.get("immagine_path")] if r.get("immagine_path") else []
                 foto_cell = ws.cell(row=ri, column=ci, value="")
                 foto_cell.border    = border
                 foto_cell.alignment = center
@@ -1241,41 +1666,31 @@ def api_import_excel():
                     if not codice: codice = "IMP-" + str(row_n).zfill(4)
                     if not nome:   nome   = codice
 
-                    scorta    = toint(row, "scorta_minima")
                     esistenza = toint(row, "esistenza")
 
-                    campi = {
-                        _DB_COLS.get("articolo","articolo"): nome,
-                        "tipologia":      get(row, "tipologia"),
-                        "categoria":      get(row, "categoria"),
-                        "sottocategoria": get(row, "sottocategoria"),
-                        "cod_udm":        get(row, "cod_udm"),
-                        "cod_iva":        get(row, "cod_iva"),
-                        "listino1":       tofloat(row, "listino1"),
-                        "listino2":       tofloat(row, "listino2"),
-                        "listino3":       tofloat(row, "listino3"),
-                        "note":           get(row, "nota"),
-                        "cod_barre":      get(row, "cod_barre"),
-                        "internet":       get(row, "internet"),
-                        "marca":          get(row, "marca"),
-                        "extra1":         get(row, "extra1"),
-                        "extra2":         get(row, "extra2"),
-                        "extra3":         get(row, "extra3"),
-                        "extra4":         get(row, "extra4"),
-                        "cod_fornitore":  get(row, "cod_fornitore"),
-                        "fornitore":      get(row, "fornitore"),
-                        "cod_prod_forn":  get(row, "cod_prod_forn"),
-                        "prezzo_forn":    tofloat(row, "prezzo_forn"),
-                        "note_fornitura": get(row, "note_fornitura"),
-                        "ord_multipli":   toint(row, "ord_multipli"),
-                        "gg_ordine":      toint(row, "gg_ordine"),
-                        "scorta_minima":  scorta,
-                        "ubicazione":     get(row, "ubicazione"),
-                        "stato_magazzino":get(row, "stato_magazzino"),
+                    campi_raw = {
+                        "descrizione":   nome,
+                        "udm":           get(row, "udm") or get(row, "cod_udm") or "pz",
+                        "note":          get(row, "nota") or get(row, "note"),
+                        "cod_barre":     get(row, "cod_barre"),
+                        "produttore":    get(row, "produttore") or get(row, "marca"),
+                        "modello":       get(row, "modello"),
+                        "extra3":        get(row, "extra3"),
+                        "cod_fornitore": get(row, "cod_fornitore"),
+                        "fornitore":     get(row, "fornitore"),
+                        "cod_prod_forn": get(row, "cod_prod_forn"),
+                        "ubicazione":    get(row, "ubicazione"),
+                        "anno":          get(row, "anno") or get(row, "anno_da"),
+                        "alimentazione": get(row, "alimentazione") or get(row, "carburante"),
+                        "colore":        get(row, "colore"),
+                        "cilindrata":    get(row, "cilindrata"),
                     }
+                    valid_cols = set(_DB_COLS.get("all_cols", []))
+                    campi = {k: v for k, v in campi_raw.items()
+                             if v is not None and v != "" and (not valid_cols or k in valid_cols)}
 
                     existing = conn.execute(
-                        "SELECT id FROM componenti WHERE cmp=? AND eliminato=0",
+                        "SELECT id FROM componenti WHERE codice=? AND eliminato=0",
                         (codice,)).fetchone()
 
                     if existing:
@@ -1287,9 +1702,8 @@ def api_import_excel():
                             vals)
                         aggiornati += 1
                     else:
-                        campi[_DB_COLS.get("cmp","cmp")] = codice
-                        campi["pubblicato"] = 0
-                        campi["creato_da"]  = u.get("id")
+                        campi["codice"]   = codice
+                        campi["eliminato"] = 0
                         cols_str = ", ".join(campi.keys())
                         placeholders = ", ".join(["?"] * len(campi))
                         cur = conn.execute(
@@ -1297,8 +1711,8 @@ def api_import_excel():
                             list(campi.values()))
                         comp_id = cur.lastrowid
                         conn.execute(
-                            "INSERT OR IGNORE INTO magazzino(componente_id,scorta_minima) VALUES(?,?)",
-                            (comp_id, scorta))
+                            "INSERT OR IGNORE INTO magazzino(componente_id) VALUES(?)",
+                            (comp_id,))
                         importati += 1
 
                     # Carico iniziale se giacenza > 0
@@ -1396,41 +1810,28 @@ def api_import_excel_stream():
                     if not codice: codice = "IMP-" + str(row_n).zfill(4)
                     if not nome:   nome   = codice
 
-                    scorta    = toint(row, "scorta_minima")
                     esistenza = toint(row, "esistenza")
 
-                    # Usa nomi colonne reali rilevati da _DB_COLS
-                    col_art_n  = _DB_COLS.get("articolo", "articolo")
-                    col_nota_n = _DB_COLS.get("nota", "nota")
-                    col_scor_n = _DB_COLS.get("scorta", "scorta")
-                    all_cols_n = _DB_COLS.get("all_cols", [])
                     campi_raw = {
-                        col_art_n:        nome,
-                        "tipologia":      get(row,"tipologia"),
-                        "categoria":      get(row,"categoria"),
-                        "sottocategoria": get(row,"sottocategoria"),
-                        "cod_udm":        get(row,"cod_udm") or "PZ",
-                        "cod_iva":        get(row,"cod_iva"),
-                        "listino1":       get(row,"listino1"),
-                        "listino2":       get(row,"listino2"),
-                        "listino3":       get(row,"listino3"),
-                        col_nota_n:       get(row,"nota") or get(row,"note"),
-                        "cod_barre":      get(row,"cod_barre"),
-                        "marca":          get(row,"marca") or get(row,"produttore"),
-                        "modello":        get(row,"modello"),
-                        "cod_fornitore":  get(row,"cod_fornitore"),
-                        "fornitore":      get(row,"fornitore"),
-                        "prezzo_forn":    get(row,"prezzo_forn"),
-                        col_scor_n:       toint(row,"scorta_minima") or toint(row,"scorta"),
-                        "ubicazione":     get(row,"ubicazione"),
-                        "stato_magazzino":get(row,"stato_magazzino"),
-                        "colore":         get(row,"colore"),
-                        "anno_da":        get(row,"anno_da"),
-                        "anno_a":         get(row,"anno_a"),
+                        "descrizione":   nome,
+                        "udm":           get(row,"udm") or get(row,"cod_udm") or "pz",
+                        "note":          get(row,"nota") or get(row,"note"),
+                        "cod_barre":     get(row,"cod_barre"),
+                        "produttore":    get(row,"produttore") or get(row,"marca"),
+                        "modello":       get(row,"modello"),
+                        "extra3":        get(row,"extra3"),
+                        "cod_fornitore": get(row,"cod_fornitore"),
+                        "fornitore":     get(row,"fornitore"),
+                        "cod_prod_forn": get(row,"cod_prod_forn"),
+                        "ubicazione":    get(row,"ubicazione"),
+                        "colore":        get(row,"colore"),
+                        "anno":          get(row,"anno") or get(row,"anno_da"),
+                        "alimentazione": get(row,"alimentazione") or get(row,"carburante"),
+                        "cilindrata":    get(row,"cilindrata"),
                     }
-                    # Filtra solo colonne esistenti nel DB
+                    valid_cols = set(_DB_COLS.get("all_cols", []))
                     campi = {k:v for k,v in campi_raw.items()
-                             if v is not None and v != "" and (not all_cols_n or k in all_cols_n)}
+                             if v is not None and v != "" and (not valid_cols or k in valid_cols)}
 
                     col_cmp_r  = _DB_COLS.get("cmp","cmp")
                     col_elim_r = _DB_COLS.get("eliminato","eliminato")
@@ -1537,7 +1938,7 @@ def cerca_nel_db(domanda):
         pezzi_trovati = db.fetchall(f"""
             SELECT cmp, articolo, marca, modello, categoria,
                    esistenza, scorta, ubicazione, listino1,
-                   cilindrata, carburante, anno_da, anno_a
+                   cilindrata, carburante, anno_da
             FROM v_giacenza
             WHERE {conditions}
             ORDER BY esistenza DESC
@@ -1545,13 +1946,13 @@ def cerca_nel_db(domanda):
         """, params)
         risultati['pezzi_trovati'] = pezzi_trovati
 
-    # ── SOTTO SCORTA ─────────────────────────────────────────────────
+    # ── PEZZI ESAURITI ───────────────────────────────────────────────
     if any(w in d for w in ['scorta','mancano','esauriti','finiti','ordinare','acquistare']):
         sotto = db.fetchall("""
-            SELECT cmp, articolo, marca, categoria, esistenza, scorta
+            SELECT cmp, articolo, marca, ubicazione
             FROM v_giacenza
-            WHERE scorta > 0 AND esistenza <= scorta
-            ORDER BY (scorta - esistenza) DESC
+            WHERE esistenza <= 0
+            ORDER BY articolo
             LIMIT 20
         """)
         risultati['sotto_scorta'] = sotto
@@ -1568,7 +1969,7 @@ def cerca_nel_db(domanda):
     if any(w in d for w in ['venduti','venduto','scaricati','vendite','vendo','vende',
                              'vendono','richiesti','richiesto','popolare']):
         venduti = db.fetchall(f"""
-            SELECT c.nome as articolo, c.marca, c.categoria,
+            SELECT c.descrizione as articolo, c.produttore as marca,
                    SUM(m.quantita) as qty, COUNT(*) as n_vendite
             FROM movimenti_magazzino m
             JOIN componenti c ON c.id = m.componente_id
@@ -1589,7 +1990,7 @@ def cerca_nel_db(domanda):
         elif '3' in d or 'trimestre' in d: mesi = 3
 
         fermi = db.fetchall(f"""
-            SELECT c.codice as cmp, c.nome as articolo, c.marca, c.categoria,
+            SELECT c.codice as cmp, c.descrizione as articolo, c.produttore as marca,
                    v.esistenza,
                    MAX(m.creato_il) as ultimo_movimento
             FROM componenti c
@@ -1605,27 +2006,12 @@ def cerca_nel_db(domanda):
         risultati['pezzi_fermi'] = fermi
         risultati['mesi_fermi'] = mesi
 
-    # ── VALORE MAGAZZINO ──────────────────────────────────────────────
-    if any(w in d for w in ['valore','vale','stimato','stima','patrimonio','soldi','euro']):
-        valore = db.fetchone("""
-            SELECT
-                SUM(v.esistenza * COALESCE(c.listino1, 0)) as valore_totale,
-                COUNT(CASE WHEN c.listino1 > 0 THEN 1 END) as con_prezzo,
-                COUNT(*) as totale,
-                SUM(v.esistenza) as pezzi_totali
-            FROM v_giacenza v
-            JOIN componenti c ON c.id = v.componente_id
-            WHERE v.esistenza > 0
-        """)
-        risultati['valore'] = valore
-
     # ── STATISTICHE GENERALI ──────────────────────────────────────────
     if any(w in d for w in ['quanti','totale','statistiche','riepilogo',
-                             'magazzino','articoli','componenti']):
+                             'magazzino','articoli','componenti','valore']):
         stats = db.fetchone("""
             SELECT COUNT(*) as tot,
                    SUM(CASE WHEN esistenza > 0 THEN 1 ELSE 0 END) as disp,
-                   SUM(CASE WHEN scorta > 0 AND esistenza <= scorta THEN 1 ELSE 0 END) as sc,
                    SUM(esistenza) as pz_tot
             FROM v_giacenza
         """)
@@ -1642,11 +2028,11 @@ def cerca_nel_db(domanda):
 
         if marca_trovata:
             disponibili = db.fetchall("""
-                SELECT articolo, categoria, esistenza, scorta, ubicazione
+                SELECT articolo, esistenza, ubicazione
                 FROM v_giacenza
                 WHERE LOWER(marca) LIKE ?
                   AND esistenza > 0
-                ORDER BY categoria, articolo
+                ORDER BY articolo
                 LIMIT 40
             """, [f"%{marca_trovata}%"])
             risultati['recupero_auto'] = disponibili
@@ -2393,8 +2779,24 @@ def api_inv_sessione_dettaglio(sid):
     if not sess:
         return jsonify({"ok": False, "msg": "Sessione non trovata"}), 404
     righe = db.fetchall("""
-        SELECT r.*, c.codice as cmp, c.nome as articolo,
-               c.marca, c.categoria, c.immagine_path, c.files_path
+        SELECT r.*,
+               c.codice          AS cmp,
+               c.descrizione     AS articolo,
+               c.produttore      AS marca,
+               c.modello,
+               c.anno            AS anno_da,
+               c.alimentazione   AS carburante,
+               c.colore,
+               c.cilindrata,
+               c.ubicazione,
+               c.cod_barre,
+               c.udm             AS cod_udm,
+               c.note,
+               c.extra3,
+               c.cod_prod_forn,
+               c.cod_fornitore,
+               c.fornitore,
+               c.immagine        AS immagine_path
         FROM inventario_righe r
         JOIN componenti c ON c.id = r.componente_id
         WHERE r.sessione_id=?
@@ -2407,17 +2809,14 @@ def api_inv_sessione_dettaglio(sid):
 def api_inv_prossimo(sid):
     """Restituisce il prossimo pezzo sospeso da inventariare."""
     riga = db.fetchone("""
-        SELECT r.*, c.codice as cmp, c.nome as articolo,
-               c.marca, c.categoria, c.immagine_path, c.files_path,
-               c.colore, c.modello, c.anno_da, c.anno_a,
-               c.cod_modello, c.cilindrata, c.carburante, c.versione,
-               c.tipologia, c.sottocategoria, c.intervallo,
-               c.cod_udm, c.cod_iva, c.listino1, c.listino2, c.listino3,
-               c.cod_barre, c.ubicazione, c.stato_magazzino,
-               c.prezzo_acquisto, c.prezzo_vendita, c.scorta_minima,
+        SELECT r.*, c.codice as cmp, c.descrizione as articolo,
+               c.produttore as marca, c.immagine as immagine_path,
+               c.colore, c.modello, c.anno as anno_da,
+               c.cilindrata, c.alimentazione as carburante,
+               c.udm as cod_udm,
+               c.cod_barre, c.ubicazione,
                c.fornitore, c.cod_fornitore, c.note,
-               c.extra1, c.extra2, c.extra3, c.extra4,
-               c.unita_misura, c.descrizione
+               c.extra3, c.cod_prod_forn
         FROM inventario_righe r
         JOIN componenti c ON c.id = r.componente_id
         WHERE r.sessione_id=? AND r.stato='sospeso'
@@ -2426,17 +2825,14 @@ def api_inv_prossimo(sid):
     if not riga:
         # Controlla se ci sono rimandati
         rimandato = db.fetchone("""
-            SELECT r.*, c.codice as cmp, c.nome as articolo,
-                   c.marca, c.categoria, c.immagine_path, c.files_path,
-                   c.colore, c.modello, c.anno_da, c.anno_a,
-                   c.cod_modello, c.cilindrata, c.carburante, c.versione,
-                   c.tipologia, c.sottocategoria, c.intervallo,
-                   c.cod_udm, c.cod_iva, c.listino1, c.listino2, c.listino3,
-                   c.cod_barre, c.ubicazione, c.stato_magazzino,
-                   c.prezzo_acquisto, c.prezzo_vendita, c.scorta_minima,
+            SELECT r.*, c.codice as cmp, c.descrizione as articolo,
+                   c.produttore as marca, c.immagine as immagine_path,
+                   c.colore, c.modello, c.anno as anno_da,
+                   c.cilindrata, c.alimentazione as carburante,
+                   c.udm as cod_udm,
+                   c.cod_barre, c.ubicazione,
                    c.fornitore, c.cod_fornitore, c.note,
-                   c.extra1, c.extra2, c.extra3, c.extra4,
-                   c.unita_misura, c.descrizione
+                   c.extra3, c.cod_prod_forn
             FROM inventario_righe r
             JOIN componenti c ON c.id = r.componente_id
             WHERE r.sessione_id=? AND r.stato='rimandato'
@@ -2508,6 +2904,17 @@ def api_inv_aggiorna_riga(rid):
                         conn.execute(
                             "INSERT INTO movimenti_magazzino ("+",".join(m_fields)+") VALUES ("+",".join(["?"]*len(m_fields))+")",
                             m_vals)
+                        # Aggiorna giacenza denormalizzata + invalida cache
+                        conn.execute("""
+                            UPDATE componenti SET giacenza = COALESCE((
+                                SELECT SUM(CASE
+                                    WHEN tipo IN ('carico','inventario') THEN  quantita
+                                    WHEN tipo = 'scarico'               THEN -quantita
+                                    WHEN tipo = 'rettifica'             THEN  quantita
+                                    ELSE 0 END)
+                                FROM movimenti_magazzino WHERE componente_id = ?
+                            ), 0) WHERE id = ?""", (cid, cid))
+                        _comp_cache["ts"] = 0
 
                 # Aggiorna contatori sessione
                 stats = conn.execute("""
@@ -2532,21 +2939,21 @@ def api_inv_aggiorna_riga(rid):
                 except: pass
 
                 conn.commit()
-
-                # Notifica PC in tempo reale
-                socketio.emit("inventario_aggiornamento", {
-                    "sessione_id": sid, "riga_id": rid,
-                    "componente_id": cid, "stato": stato,
-                    "qty_trovata": qtrv, "qty_attesa": qatt
-                }, room=f"inventario_{sid}")
-
-                return jsonify({"ok": True, "msg": f"Pezzo {stato}"})
             except Exception as e:
                 conn.rollback(); raise
             finally:
                 conn.close()
+
     except Exception as e:
         return jsonify({"ok": False, "msg": str(e)}), 500
+
+    # Notifica FUORI dal lock — evita blocking su threading mode
+    socketio.emit("inventario_aggiornamento", {
+        "sessione_id": sid, "riga_id": rid,
+        "componente_id": cid, "stato": stato,
+        "qty_trovata": qtrv, "qty_attesa": qatt
+    }, room=f"inventario_{sid}")
+    return jsonify({"ok": True, "msg": f"Pezzo {stato}"})
 
 @app.route("/api/inventario/righe/<int:rid>/foto", methods=["POST"])
 @require_login
@@ -2578,19 +2985,12 @@ def api_inv_foto(rid):
                 old_foto_url = old_riga[0] if old_riga and old_riga[0] else ""
                 new_foto_url = (old_foto_url + "|" + url).strip("|") if old_foto_url else url
                 conn.execute("UPDATE inventario_righe SET foto_url=? WHERE id=?", (new_foto_url, rid))
-                # Aggiorna immagine_path e files_path del componente
-                comp = conn.execute("SELECT immagine_path, files_path FROM componenti WHERE id=?", (cid,)).fetchone()
+                # Aggiorna immagine del componente se non ne ha già una
+                comp = conn.execute("SELECT immagine FROM componenti WHERE id=?", (cid,)).fetchone()
                 if comp:
-                    new_img   = comp[0] or url   # prima foto diventa immagine principale
-                    old_files = comp[1] or ""
-                    # Evita duplicati
-                    existing  = set(old_files.split("|")) if old_files else set()
-                    if url not in existing:
-                        new_files = (old_files + "|" + url).strip("|") if old_files else url
-                    else:
-                        new_files = old_files
-                    conn.execute("UPDATE componenti SET immagine_path=?, files_path=?, modificato_il=datetime('now') WHERE id=?",
-                                 (new_img, new_files, cid))
+                    new_img = comp[0] or url
+                    conn.execute("UPDATE componenti SET immagine=?, aggiornato_il=datetime('now') WHERE id=?",
+                                 (new_img, cid))
                 conn.commit()
             finally:
                 conn.close()
@@ -2612,8 +3012,34 @@ def api_inv_foto(rid):
 @require_login
 def api_inv_chiudi(sid):
     try:
-        db_write([("UPDATE sessioni_inventario SET stato='chiusa', chiuso_il=datetime('now') WHERE id=?", (sid,))])
+        with db._write_lock:
+            conn = db.get_connection()
+            try:
+                # Sincronizza immagini inventario → componenti
+                righe = conn.execute(
+                    """SELECT componente_id, foto_url FROM inventario_righe
+                       WHERE sessione_id=? AND foto_url IS NOT NULL AND foto_url != ''""",
+                    (sid,)
+                ).fetchall()
+                for r in righe:
+                    prima_foto = r["foto_url"].split("|")[0].strip()
+                    if prima_foto:
+                        conn.execute(
+                            "UPDATE componenti SET immagine=?, aggiornato_il=datetime('now') WHERE id=?",
+                            (prima_foto, r["componente_id"])
+                        )
+                conn.execute(
+                    "UPDATE sessioni_inventario SET stato='chiusa', chiuso_il=datetime('now') WHERE id=?",
+                    (sid,)
+                )
+                conn.commit()
+            except Exception as e:
+                conn.rollback(); raise
+            finally:
+                conn.close()
+        _comp_cache["ts"] = 0
         socketio.emit("inventario_chiusa", {"sessione_id": sid})
+        socketio.emit("magazzino_aggiornato", {"reload": True})
         return jsonify({"ok": True, "msg": "Sessione chiusa"})
     except Exception as e:
         return jsonify({"ok": False, "msg": str(e)}), 500
@@ -2632,6 +3058,15 @@ def on_leave_inventario(data):
     sid = data.get("sessione_id")
     if sid:
         leave_room(f"inventario_{sid}")
+
+@socketio.on("sync_completata")
+def on_sync_completata(data):
+    """Telefono ha sincronizzato operazioni offline — notifica il PC."""
+    sid = data.get("sessione_id")
+    n   = data.get("n", 0)
+    if sid:
+        socketio.emit("inventario_sync_completata", {"sessione_id": sid, "n": n},
+                      room=f"inventario_{sid}")
 
 @app.route("/api/ping")
 def api_ping():
@@ -2714,21 +3149,23 @@ def _processa_import_bg(tmp_path, utente_id, utente_username):
                         "listino1": get(row,"listino1"),
                         "listino2": get(row,"listino2"),
                         "listino3": get(row,"listino3"),
-                        _DB_COLS.get("nota","nota"): get(row,"nota") or get(row,"note"),
+                        "note": get(row,"nota") or get(row,"note"),
                         "cod_barre": get(row,"cod_barre"),
-                        "marca": get(row,"marca") or get(row,"produttore"),
+                        "produttore": get(row,"produttore") or get(row,"marca"),
                         "modello": get(row,"modello"),
                         "cod_fornitore": get(row,"cod_fornitore"),
                         "fornitore": get(row,"fornitore"),
-                        "prezzo_forn": get(row,"prezzo_forn"),
-                        _DB_COLS.get("scorta","scorta"): toint(row,"scorta_minima") or toint(row,"scorta"),
                         "ubicazione": get(row,"ubicazione"),
-                        "stato_magazzino": get(row,"stato_magazzino"),
                         "colore": get(row,"colore"),
-                        "anno_da": get(row,"anno_da"),
-                        "anno_a": get(row,"anno_a"),
+                        "anno": get(row,"anno") or get(row,"anno_da"),
+                        "alimentazione": get(row,"alimentazione") or get(row,"carburante"),
+                        "extra3": get(row,"extra3"),
+                        "cod_prod_forn": get(row,"cod_prod_forn"),
+                        "cilindrata": get(row,"cilindrata"),
                     }
-                    campi = {k: v for k, v in campi.items() if v is not None}
+                    valid_cols = set(_DB_COLS.get("all_cols", []))
+                    campi = {k: v for k, v in campi.items()
+                             if v is not None and (not valid_cols or k in valid_cols)}
                     esistenza = toint(row, "esistenza") or toint(row, "quantita") or toint(row, "giacenza")
 
                     existing = conn.execute(
@@ -2844,108 +3281,149 @@ def api_import_stato():
 
 
 # ══ AGGIORNAMENTI ════════════════════════════════════════════════════
-# ── Configurazione repo ──────────────────────────────────────────────
-# Cambia GITHUB_REPO con il nome del repo di PRODUZIONE quando creato
-# es: "00mine/perilcar-prod"
-GITHUB_REPO        = "00mine/perilcar-prod"     # repo produzione privato
-GITHUB_BRANCH      = "main"
-GITHUB_VERSION_URL = "https://raw.githubusercontent.com/00mine/perilcar/main/version.json"
-_update_cache = None          # {versione, changelog, obbligatorio} o None
+VERSIONE_APP   = "3.6.3"        # aggiornato da pubblica_aggiornamento.py
+_PROD_REPO     = "00mine/perilcar-prod"
+_PROD_BRANCH   = "main"
+
+_update_cache      = None
 _update_checked_at = 0.0
 
+
+def _gh_token() -> str:
+    """Legge il Personal Access Token GitHub (sola lettura) da config/settings.json."""
+    return cfg.get("github_token", "")
+
+
 def _controlla_aggiornamenti():
-    """Controlla GitHub per nuova versione. Silenzioso, eseguito in background."""
+    """Controlla il repo di produzione per nuova versione. Silenzioso, thread-safe."""
     global _update_cache, _update_checked_at
     import urllib.request, json as _json
     try:
-        req = urllib.request.Request(GITHUB_VERSION_URL,
-              headers={"User-Agent": "PerilCar-ERP/" + VERSIONE_APP})
-        with urllib.request.urlopen(req, timeout=5) as r:
+        token = _gh_token()
+        api_url = (
+            f"https://api.github.com/repos/{_PROD_REPO}/contents/version.json"
+            f"?ref={_PROD_BRANCH}"
+        )
+        req = urllib.request.Request(api_url)
+        req.add_header("User-Agent",  f"PerilCar-ERP/{VERSIONE_APP}")
+        req.add_header("Accept",      "application/vnd.github.v3.raw")
+        if token:
+            req.add_header("Authorization", f"Bearer {token}")
+        with urllib.request.urlopen(req, timeout=8) as r:
             data = _json.loads(r.read().decode())
         remota = data.get("versione", "0.0.0")
-        locale = VERSIONE_APP
-        # Confronto versioni
         rv = tuple(int(x) for x in remota.split("."))
-        lv = tuple(int(x) for x in locale.split("."))
-        if rv > lv:
-            _update_cache = data
-            log.info(f"Aggiornamento disponibile: v{remota}")
-        else:
-            _update_cache = None
+        lv = tuple(int(x) for x in VERSIONE_APP.split("."))
+        _update_cache = data if rv > lv else None
         _update_checked_at = time.time()
+        if _update_cache:
+            log.info(f"Aggiornamento disponibile: v{remota}")
     except Exception as e:
-        log.debug(f"Check aggiornamenti fallito: {e}")
+        log.debug(f"Check aggiornamenti: {e}")
+
 
 def _avvia_check_aggiornamenti():
-    """Controlla subito e poi ogni 6 ore."""
+    """Avvia il check in background; si ripete ogni 6 ore."""
     def _loop():
         while True:
             _controlla_aggiornamenti()
             time.sleep(6 * 3600)
-    t = threading.Thread(target=_loop, daemon=True)
-    t.start()
+    threading.Thread(target=_loop, daemon=True, name="check-update").start()
 
-# Avvia check al caricamento del modulo
+
 _avvia_check_aggiornamenti()
+
 
 @app.route("/api/check-update")
 @require_login
 def api_check_update():
-    """Ritorna info aggiornamento disponibile o null."""
     if _update_cache:
         return jsonify({
-            "disponibile": True,
-            "versione":    _update_cache.get("versione"),
-            "changelog":   _update_cache.get("changelog", []),
+            "disponibile":  True,
+            "versione":     _update_cache.get("versione"),
+            "changelog":    _update_cache.get("changelog", []),
             "obbligatorio": _update_cache.get("obbligatorio", False),
-            "data":        _update_cache.get("data", ""),
-            "corrente":    VERSIONE_APP,
+            "data":         _update_cache.get("data", ""),
+            "corrente":     VERSIONE_APP,
         })
     return jsonify({"disponibile": False, "corrente": VERSIONE_APP})
+
+
+def _riavvia_server():
+    """Riavvia il processo server dopo 3 sec tramite script batch esterno (funziona sia come .py che .exe)."""
+    import tempfile, subprocess as _sp
+    if getattr(sys, "frozen", False):
+        cmd = f'"{sys.executable}"'
+    else:
+        cmd = f'"{sys.executable}" "{Path(__file__).absolute()}"'
+    bat = Path(tempfile.gettempdir()) / "perilcar_restart.bat"
+    bat.write_text(
+        f"@echo off\ntimeout /t 3 /nobreak >nul\nstart \"PerilCar\" {cmd}\n",
+        encoding="utf-8",
+    )
+    _sp.Popen(
+        ["cmd", "/c", str(bat)],
+        creationflags=_sp.DETACHED_PROCESS | _sp.CREATE_NEW_CONSOLE,
+        close_fds=True,
+    )
+    time.sleep(0.5)
+    os._exit(0)
+
 
 @app.route("/api/installa-aggiornamento", methods=["POST"])
 @require_login
 def api_installa_aggiornamento():
-    """Scarica e applica aggiornamento tramite ZIP da GitHub."""
-    import urllib.request, zipfile, shutil, tempfile
+    """Scarica il ZIP dal repo di produzione e aggiorna i file. Solo admin."""
+    import urllib.request, zipfile, shutil
+
+    u = session.get("user", {})
+    if u.get("ruolo") != "admin":
+        return jsonify({"ok": False, "msg": "Solo gli amministratori possono installare aggiornamenti."}), 403
+
+    token = _gh_token()
+    if not token:
+        return jsonify({
+            "ok":  False,
+            "msg": "Token GitHub non configurato in config/settings.json. "
+                   "Contattare l'amministratore di sistema.",
+        }), 500
+
+    tmp_zip = ROOT / "logs" / "_update.zip"
     try:
-        # Scarica zip del repo produzione
-        zip_url = f"https://github.com/{GITHUB_REPO}/archive/refs/heads/{GITHUB_BRANCH}.zip"
-        log.info(f"Download aggiornamento da: {zip_url}")
+        zip_url = f"https://api.github.com/repos/{_PROD_REPO}/zipball/{_PROD_BRANCH}"
+        ver_nuova = (_update_cache or {}).get("versione", "?")
+        log.info(f"Download aggiornamento v{ver_nuova} da repo prod")
 
-        tmp_zip = ROOT / "logs" / "_update.zip"
-        req = urllib.request.Request(zip_url,
-              headers={"User-Agent": "PerilCar-ERP/" + VERSIONE_APP})
-        with urllib.request.urlopen(req, timeout=60) as r:
+        req = urllib.request.Request(zip_url)
+        req.add_header("User-Agent",    f"PerilCar-ERP/{VERSIONE_APP}")
+        req.add_header("Accept",        "application/vnd.github+json")
+        req.add_header("Authorization", f"Bearer {token}")
+        with urllib.request.urlopen(req, timeout=120) as r:
             with open(tmp_zip, "wb") as f:
-                f.write(r.read())
+                shutil.copyfileobj(r, f)
+        log.info(f"ZIP scaricato: {tmp_zip.stat().st_size:,} byte")
 
-        log.info(f"ZIP scaricato: {tmp_zip.stat().st_size} bytes")
-
-        # Estrai e aggiorna solo i file di codice (non DB, non uploads, non config)
-        SKIP = {"db", "backup", "logs", "web/static/uploads", "config/settings.json"}
-        SKIP_EXT = {".db", ".db-wal", ".db-shm", ".log"}
+        # Cartelle e file da NON toccare durante un aggiornamento
+        SKIP_DIRS  = {"db", "backup", "logs", "config", "web/static/uploads"}
+        SKIP_FILES = {"config/settings.json", ".gitignore"}
+        SKIP_EXT   = {".db", ".db-wal", ".db-shm", ".log", ".bak"}
 
         with zipfile.ZipFile(tmp_zip) as zf:
-            # Il repo zip ha una cartella radice es. "perilcar-main/"
-            names = zf.namelist()
-            prefix = names[0].split("/")[0] + "/"  # es. "perilcar-main/"
-
+            names  = zf.namelist()
+            prefix = names[0].split("/")[0] + "/"
+            aggiornati = 0
             for member in names:
-                if member == prefix: continue
-                # Percorso relativo senza la cartella radice
+                if member == prefix:
+                    continue
                 rel = member[len(prefix):]
-                if not rel: continue
-
-                # Salta file protetti
-                skip = False
-                for s in SKIP:
-                    if rel.startswith(s) or rel == s.rstrip("/"):
-                        skip = True; break
-                if skip: continue
-                ext = "." + rel.rsplit(".", 1)[-1] if "." in rel else ""
-                if ext in SKIP_EXT: continue
-
+                if not rel:
+                    continue
+                if any(rel == d or rel.startswith(d + "/") for d in SKIP_DIRS):
+                    continue
+                if rel in SKIP_FILES:
+                    continue
+                if Path(rel).suffix.lower() in SKIP_EXT:
+                    continue
                 dest = ROOT / rel
                 if member.endswith("/"):
                     dest.mkdir(parents=True, exist_ok=True)
@@ -2953,20 +3431,20 @@ def api_installa_aggiornamento():
                     dest.parent.mkdir(parents=True, exist_ok=True)
                     with zf.open(member) as src_f, open(dest, "wb") as dst_f:
                         dst_f.write(src_f.read())
+                    aggiornati += 1
 
-        tmp_zip.unlink()
-        log.info("Aggiornamento installato via ZIP")
+        tmp_zip.unlink(missing_ok=True)
+        log.info(f"Aggiornamento installato: {aggiornati} file aggiornati")
+        db.log(u.get("id"), u.get("username"), "sistema", "aggiornamento_installato",
+               dati_nuovi=str({"versione": ver_nuova}))
 
-        # Riavvia dopo 2 secondi
-        def _riavvia():
-            time.sleep(2)
-            import os
-            os.execv(sys.executable, [sys.executable] + sys.argv)
-        threading.Thread(target=_riavvia, daemon=True).start()
+        threading.Thread(target=_riavvia_server, daemon=True).start()
         return jsonify({"ok": True, "msg": "Aggiornamento installato. Riavvio in corso..."})
+
     except Exception as e:
-        log.exception(f"Errore aggiornamento: {e}")
-        return jsonify({"ok": False, "msg": str(e)}), 500
+        log.exception(f"Errore installazione aggiornamento: {e}")
+        tmp_zip.unlink(missing_ok=True)
+        return jsonify({"ok": False, "msg": f"Errore: {str(e)}"}), 500
 
 # ══ STATO SISTEMA ════════════════════════════════════════════════════
 VERSIONE_APP = "3.6.3"
@@ -3083,48 +3561,41 @@ def api_fix_view():
             cols = [r[1] for r in conn.execute("PRAGMA table_info(componenti)").fetchall()]
             log.info(f"Colonne componenti reali: {cols}")
             
-            # Determina nome colonne chiave
-            col_cmp  = "cmp"      if "cmp"      in cols else "codice"
-            col_art  = "articolo" if "articolo" in cols else ("nome" if "nome" in cols else "descrizione")
-            col_nota = "nota"     if "nota"     in cols else ("note" if "note" in cols else "''")
-            col_pub  = "pubblicato" if "pubblicato" in cols else "0"
-            col_scor = "scorta"   if "scorta"   in cols else ("scorta_minima" if "scorta_minima" in cols else "0")
-            
-            # Ricrea view con nomi corretti
+            # Ricrea view con schema Danea (18 col)
             conn.execute("DROP VIEW IF EXISTS v_giacenza")
-            conn.execute(f"""
+            conn.execute("""
                 CREATE VIEW v_giacenza AS
                 SELECT
                     c.id              AS componente_id,
-                    c.{col_cmp}       AS cmp,
-                    c.{col_art}       AS articolo,
-                    c.tipologia, c.categoria, c.sottocategoria,
-                    c.cod_udm, c.cod_iva,
-                    c.listino1, c.listino2, c.listino3,
-                    c.{col_nota}      AS nota,
-                    c.cod_barre, c.marca,
-                    COALESCE(c.extra1,'') AS extra1,
-                    COALESCE(c.extra2,'') AS extra2,
-                    COALESCE(c.extra3,'') AS extra3,
-                    COALESCE(c.extra4,'') AS extra4,
-                    c.cod_fornitore, c.fornitore,
-                    c.prezzo_forn, c.{col_scor} AS scorta,
+                    c.codice          AS cmp,
+                    c.descrizione     AS articolo,
+                    c.produttore      AS marca,
+                    c.modello,
+                    c.udm             AS cod_udm,
+                    c.anno            AS anno_da,
+                    c.cod_prod_forn,
+                    c.alimentazione   AS carburante,
+                    c.colore,
+                    c.note            AS nota,
+                    c.cilindrata,
                     c.ubicazione,
-                    COALESCE(c.stato_magazzino,'attivo') AS stato_magazzino,
-                    c.modello, c.colore,
-                    COALESCE(c.cilindrata,'') AS cilindrata,
-                    COALESCE(c.carburante,'') AS carburante,
-                    COALESCE(c.versione,'') AS versione,
-                    c.anno_da, c.anno_a,
-                    c.immagine_path, c.files_path,
+                    c.cod_barre,
+                    c.extra3,
+                    c.cod_fornitore,
+                    c.fornitore,
+                    c.immagine        AS immagine_path,
                     c.eliminato,
-                    COALESCE((
-                        SELECT SUM(CASE WHEN m.tipo='carico' THEN m.quantita
-                                        WHEN m.tipo='scarico' THEN -m.quantita
-                                        ELSE 0 END)
-                        FROM '+_DB_COLS.get("tabella_movimenti","movimenti")+' m WHERE m.componente_id=c.id
-                    ), 0) AS esistenza
-                FROM componenti c WHERE c.eliminato=0
+                    c.aggiornato_il,
+                    COALESCE(SUM(CASE
+                        WHEN m.tipo IN ('carico','inventario') THEN  m.quantita
+                        WHEN m.tipo = 'scarico'               THEN -m.quantita
+                        WHEN m.tipo = 'rettifica'             THEN  m.quantita
+                        ELSE 0
+                    END), 0) AS esistenza
+                FROM componenti c
+                LEFT JOIN movimenti_magazzino m ON m.componente_id = c.id
+                WHERE c.eliminato = 0
+                GROUP BY c.id
             """)
             conn.commit()
             conn.close()

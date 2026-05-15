@@ -58,6 +58,7 @@
     .btn-ghost{background:#fff;color:var(--text2);border:1px solid var(--border)}
     .btn-ghost:hover{background:var(--surface2)}
     .btn-green{background:var(--green);color:#fff}.btn-green:hover{background:var(--green2)}
+    .btn-orange{background:var(--orange);color:#fff}.btn-orange:hover{opacity:.88}
     .btn-danger{background:#fff;color:var(--red);border:1px solid #fca5a5}
     .btn-danger:hover{background:#fee2e2}
     .btn-purple{background:var(--purple);color:#fff}.btn-purple:hover{background:#6d28d9}
@@ -759,6 +760,48 @@
   </div>
 </div>
 
+<!-- MODAL MAPPING IMPORT EXCEL -->
+<div class="overlay hidden" id="modal-mapping">
+  <div class="modal" style="max-width:700px">
+    <div class="modal-hdr">
+      <h3>📋 Rilevamento colonne Excel</h3>
+      <button class="modal-close" onclick="closeModal('modal-mapping')">×</button>
+    </div>
+    <div class="modal-body">
+      <div id="mapping-info" style="font-size:12px;color:var(--text2);margin-bottom:12px;
+           background:#fff7f4;border:1px solid #fcd9ca;border-radius:8px;padding:8px 12px"></div>
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead>
+          <tr style="background:#f9fafb">
+            <th style="text-align:left;padding:7px 10px;border-bottom:2px solid #e5e7eb;
+                font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;width:30%">
+              Colonna Excel</th>
+            <th style="text-align:left;padding:7px 10px;border-bottom:2px solid #e5e7eb;
+                font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase">
+              Interpretata come</th>
+            <th style="text-align:left;padding:7px 10px;border-bottom:2px solid #e5e7eb;
+                font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;width:160px">
+              Tipo</th>
+          </tr>
+        </thead>
+        <tbody id="mapping-tbody"></tbody>
+      </table>
+      <div style="margin-top:12px;font-size:11px;color:var(--text3);
+           display:flex;gap:16px;flex-wrap:wrap;padding-top:10px;border-top:1px solid #f3f4f6">
+        <span>🔑 <b>Chiave</b> = codice univoco</span>
+        <span>✅ <b>Richiesto</b> = obbligatorio</span>
+        <span>📦 <b>Crea movimento</b> = inserisce giacenza iniziale</span>
+        <span>📊 <b>Calcolo</b> = usato per alert scorte</span>
+        <span>💰 <b>Prezzo</b> = valore numerico</span>
+      </div>
+    </div>
+    <div class="modal-ftr">
+      <button class="btn btn-ghost" onclick="closeModal('modal-mapping')">Annulla</button>
+      <button class="btn btn-primary" onclick="confermaImport()">▶ Importa con questo mapping</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL GESTIONE COLONNE -->
 <div class="overlay hidden" id="modal-colonne">
   <div class="modal" style="max-width:520px">
@@ -776,7 +819,29 @@
         <button class="btn btn-green"  style="font-size:11px;margin-left:auto" onclick="colonneApplica()">Applica</button>
       </div>
       <div id="colonne-list"
-           style="max-height:60vh;overflow-y:auto;display:flex;flex-direction:column;gap:2px">
+           style="max-height:50vh;overflow-y:auto;display:flex;flex-direction:column;gap:2px">
+      </div>
+      <!-- Aggiungi nuova colonna -->
+      <div style="margin-top:10px;padding:10px 12px;border:1px dashed var(--border);border-radius:6px;background:var(--surface)">
+        <p style="font-size:11px;font-weight:600;color:var(--text2);margin:0 0 8px">+ Aggiungi colonna</p>
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+          <select id="aggiungi-col-key"
+                  onchange="aggiungiColPrecompila()"
+                  style="flex:1;min-width:120px;padding:5px 8px;font-size:12px;
+                         border:1px solid var(--border);border-radius:4px;background:#fff">
+          </select>
+          <input type="text" id="aggiungi-col-label" placeholder="Etichetta"
+                 style="width:110px;padding:5px 8px;font-size:12px;
+                        border:1px solid var(--border);border-radius:4px;background:#fff">
+          <input type="number" id="aggiungi-col-w" value="90" min="40" max="500"
+                 title="Larghezza px"
+                 style="width:60px;padding:5px 6px;font-size:11px;text-align:center;
+                        font-family:var(--mono);border:1px solid var(--border);
+                        border-radius:4px;background:#fff">
+          <span style="font-size:10px;color:var(--text3)">px</span>
+          <button class="btn btn-orange" style="font-size:12px;padding:5px 14px"
+                  onclick="colonneAggiungi()">Aggiungi</button>
+        </div>
       </div>
     </div>
   </div>
@@ -870,6 +935,16 @@ _sock.on('reload', d => {
   b.style.opacity='1';
   setTimeout(()=>window.location.reload(), 500);
 });
+_sock.on('inventario_chiusa', async function(){
+  _tutti = [];
+  _caricando = false;
+  await caricaDati();
+});
+_sock.on('magazzino_aggiornato', async function(){
+  _tutti = [];
+  _caricando = false;
+  await caricaDati();
+});
 
 // ── COLONNE — ordine identico a Danea ────────────────────────────────
 // [chiave_dati, label, larghezza_px, tipo]
@@ -920,8 +995,18 @@ const TOT_W = COLS.reduce((s,[,,w])=>s+w, 0);
 const COL_TIPO = {};
 COLS.forEach(([key,,,tipo]) => { COL_TIPO[key] = tipo || 'str'; });
 
+// Tutte le colonne aggiungibili (COLS + campi extra di v_giacenza)
+const ALL_AVAILABLE_COLS = [
+  ...COLS.map(([key, label, w, tipo]) => ({key, label, w: w||80, tipo: tipo||'str'})),
+  {key:'componente_id', label:'ID interno',    w:70,  tipo:'num'},
+  {key:'aggiornato_il', label:'Aggiornato il', w:130, tipo:'str'},
+];
+
 // ── STATO ────────────────────────────────────────────────────────────
 let _tutti = [];       // tutti i dati dal server
+var _lanIp = null; var _lanPort = window.location.port||'5000';
+fetch('/api/server-info').then(r=>r.json()).then(d=>{ _lanIp=d.lan_ip; _lanPort=String(d.port); }).catch(()=>{});
+function getMobileUrl(sid){ return `http://${_lanIp||window.location.hostname}:${_lanPort}/inventario-mobile?sessione=${sid}`; }
 let _filt  = [];       // dopo filtri colonna
 let _selId = null;
 let _modo  = null;
@@ -1072,23 +1157,25 @@ async function caricaDati() {
     '<tr><td colspan="99" style="text-align:center;padding:40px;color:var(--text3)">' +
     '⏳ Caricamento dati in corso...</td></tr>';
   try {
-    // Carica primo blocco subito
+    // Carica primo blocco subito — utente vede i dati in <100ms
     const r1 = await apiFetch('/api/magazzino/componenti?limit=500&offset=0');
     const totale = r1.total || 0;
-    _tutti = r1.rows || r1;  // compatibilità con risposta vecchia
+    _tutti = r1.rows || r1;
     applicaFiltri();
     document.getElementById('s-tot').textContent = `${_tutti.length} / ${totale}`;
 
-    // Carica il resto in background se ci sono altri dati
     if(totale > 500) {
-      let offset = 500;
-      while(offset < totale) {
-        const rx = await apiFetch(`/api/magazzino/componenti?limit=500&offset=${offset}`);
-        const nuovi = rx.rows || [];
-        _tutti = _tutti.concat(nuovi);
-        offset += 500;
-        document.getElementById('s-tot').textContent = `${_tutti.length} / ${totale} ⏳`;
+      // Carica tutte le pagine restanti in parallelo (non sequenziale)
+      const offsets = [];
+      for(let o = 500; o < totale; o += 500) offsets.push(o);
+      const promises = offsets.map(o =>
+        apiFetch(`/api/magazzino/componenti?limit=500&offset=${o}`)
+      );
+      const results = await Promise.all(promises);
+      for(const rx of results) {
+        _tutti = _tutti.concat(rx.rows || []);
       }
+      // Promise.all preserva l'ordine → array già sorted per articolo
       applicaFiltri();
       document.getElementById('s-tot').textContent = totale;
     }
@@ -1557,22 +1644,119 @@ async function eliminaSelected() {
 }
 
 // ── IMPORT EXCEL ──────────────────────────────────────────────────────
+let _importFile = null;
+let _importCampiDisp = [];
+
 async function importExcel(inp) {
   if(!inp.files.length) return;
+  _importFile = inp.files[0];
+  inp.value = ''; // reset per poter ricaricare lo stesso file
+
   const bar  = document.getElementById('import-bar');
   const msg  = document.getElementById('import-msg');
   const fill = document.getElementById('import-fill');
-  const file = inp.files[0];
   bar.style.display = 'block';
-  msg.textContent = `⏳ Caricamento ${file.name} (${Math.round(file.size/1024/1024*10)/10} MB)...`;
+  msg.textContent = `⏳ Analisi colonne di ${_importFile.name}...`;
   fill.style.width = '5%';
 
-  // Listener progress via SocketIO
+  // Step 1: analizza colonne senza importare
+  const fd = new FormData();
+  fd.append('file', _importFile);
+  try {
+    const r = await fetch('/api/magazzino/analizza-excel', {method:'POST', body:fd});
+    const data = await r.json();
+    if(!data.ok) {
+      bar.style.display = 'none';
+      toast('❌ ' + data.msg, false);
+      return;
+    }
+    bar.style.display = 'none';
+    fill.style.width = '0%';
+
+    _importCampiDisp = data.campi_disponibili;
+
+    // Mostra info riepilogo
+    const haChiave   = Object.values(data.mapping).some(m=>m.tipo==='chiave');
+    const haRichiesto = Object.values(data.mapping).some(m=>m.tipo==='richiesto');
+    let infoHtml = `<b>${data.headers.length} colonne rilevate</b> &bull; circa <b>${data.totale}</b> righe`;
+    if(!haChiave || !haRichiesto)
+      infoHtml += ' &bull; <span style="color:#dc2626">⚠️ Verifica che Codice e Nome siano mappati</span>';
+    document.getElementById('mapping-info').innerHTML = infoHtml;
+
+    // Costruisce la tabella mapping
+    const tbody = document.getElementById('mapping-tbody');
+    tbody.innerHTML = '';
+
+    const badgeMap = {
+      chiave:    '<span style="color:#e94c00;font-weight:700;font-size:11px">🔑 Chiave</span>',
+      richiesto: '<span style="color:#059669;font-weight:700;font-size:11px">✅ Richiesto</span>',
+      movimento: '<span style="color:#7c3aed;font-weight:700;font-size:11px">📦 Crea movimento</span>',
+      calcolo:   '<span style="color:#d97706;font-weight:700;font-size:11px">📊 Calcolo</span>',
+      prezzo:    '<span style="color:#0369a1;font-size:11px">💰 Prezzo</span>',
+    };
+
+    // Opzioni dropdown per tutti i campi disponibili
+    const optsHtml = _importCampiDisp.map(c =>
+      `<option value="${c.campo ?? ''}">${c.label}</option>`
+    ).join('');
+
+    for(const [header, info] of Object.entries(data.mapping)) {
+      const badge = info.tipo ? (badgeMap[info.tipo] || '') : '';
+      const rowBg = info.tipo === 'chiave'   ? '#fff7f0' :
+                    info.tipo === 'richiesto' ? '#f0fdf4' :
+                    info.tipo === 'movimento' ? '#faf5ff' : '';
+      const tr = document.createElement('tr');
+      tr.style.cssText = `border-bottom:1px solid #f3f4f6;${rowBg?'background:'+rowBg:''}`;
+
+      // Dropdown con valore preselezionato
+      const dropDown = `<select data-header="${header.replace(/"/g,'&quot;')}"
+                          style="width:100%;font-size:12px;padding:4px 6px;border:1px solid #d1d5db;
+                                 border-radius:5px;background:#fff">
+                          ${_importCampiDisp.map(c=>{
+                            const sel = (c.campo ?? '') === (info.campo ?? '') ? 'selected' : '';
+                            return `<option value="${c.campo??''}" ${sel}>${c.label}</option>`;
+                          }).join('')}
+                        </select>`;
+
+      tr.innerHTML = `
+        <td style="padding:7px 10px;font-weight:600;font-size:12px">${header}</td>
+        <td style="padding:5px 8px">${dropDown}</td>
+        <td style="padding:7px 10px">${badge}</td>`;
+      tbody.appendChild(tr);
+    }
+
+    openModal('modal-mapping');
+  } catch(e) {
+    bar.style.display = 'none';
+    toast('Errore analisi Excel: ' + e, false);
+  }
+}
+
+async function confermaImport() {
+  if(!_importFile) return;
+
+  // Raccoglie il mapping dai dropdown
+  const mapping = {};
+  document.querySelectorAll('#mapping-tbody select').forEach(sel => {
+    const header = sel.getAttribute('data-header');
+    const campo  = sel.value || null;
+    mapping[header] = campo;
+  });
+
+  closeModal('modal-mapping');
+
+  const bar  = document.getElementById('import-bar');
+  const msg  = document.getElementById('import-msg');
+  const fill = document.getElementById('import-fill');
+  bar.style.display = 'block';
+  msg.textContent = `⏳ Avvio importazione di ${_importFile.name}...`;
+  fill.style.width = '5%';
+
+  // Listener SocketIO progress
   _sock.off('import_progress');
   _sock.off('import_done');
   _sock.on('import_progress', d => {
-    const pct = Math.min(85, Math.round((d.processed||0) / 300));
-    fill.style.width = pct + '%';
+    fill.style.width = Math.min(85, Math.round((d.processed||0)/300)) + '%';
     msg.textContent = `⏳ ${d.importati||0} nuovi, ${d.aggiornati||0} aggiornati... (riga ${d.processed||0})`;
   });
   _sock.on('import_done', async d => {
@@ -1581,40 +1765,33 @@ async function importExcel(inp) {
     toast(d.msg, d.ok);
     if(d.ok) await caricaDati();
     setTimeout(() => { bar.style.display='none'; fill.style.width='0%'; }, 6000);
-    inp.value = '';
   });
 
-  // Avvia import in background
   const fd = new FormData();
-  fd.append('file', file);
+  fd.append('file', _importFile);
+  fd.append('mapping', JSON.stringify(mapping));
   try {
     fill.style.width = '10%';
-    const r = await fetch('/api/magazzino/import-excel-bg', {method:'POST', body:fd});
+    const r = await fetch('/api/magazzino/import-excel-mappato', {method:'POST', body:fd});
     const res = await r.json();
     if(!res.ok) {
       bar.style.display = 'none';
       toast('❌ ' + res.msg, false);
-      inp.value = '';
       return;
     }
-    msg.textContent = '⏳ Import in corso... potrebbe richiedere alcuni minuti per file grandi.';
+    msg.textContent = '⏳ Import in corso...';
     fill.style.width = '15%';
-    // Polling di sicurezza ogni 5s
+    // Polling sicurezza ogni 5s
     const poller = setInterval(async () => {
       try {
         const s = await (await fetch('/api/magazzino/import-stato')).json();
         if(!s.running) {
           clearInterval(poller);
           if(s.ok === null) return;
-          if(s.ok) {
-            fill.style.width = '100%';
-            msg.textContent = s.msg;
-            toast(s.msg, true);
-            await caricaDati();
-          } else {
-            msg.textContent = s.msg;
-            toast(s.msg, false);
-          }
+          fill.style.width = '100%';
+          msg.textContent = s.msg;
+          toast(s.msg, s.ok);
+          if(s.ok) await caricaDati();
           setTimeout(() => { bar.style.display='none'; fill.style.width='0%'; }, 6000);
         } else {
           fill.style.width = Math.min(85, Math.round((s.processed||0)/300)) + '%';
@@ -1625,7 +1802,6 @@ async function importExcel(inp) {
   } catch(e) {
     bar.style.display = 'none';
     toast('Errore di connessione durante import', false);
-    inp.value = '';
   }
 }
 
@@ -1849,6 +2025,10 @@ function openColonneModal() {
       <input type="number" class="col-w" value="${col.w}" min="40" max="500"
              title="Larghezza px" onchange="colWidth(${idx},this.value)">
       <span style="font-size:10px;color:var(--text3);flex-shrink:0">px</span>
+      <button onclick="event.stopPropagation();colElimina(${idx})" title="Rimuovi colonna"
+              style="border:none;background:none;color:var(--text3);cursor:pointer;
+                     font-size:16px;line-height:1;padding:0 2px;flex-shrink:0"
+              onmouseover="this.style.color='#e44'" onmouseout="this.style.color='var(--text3)'">×</button>
     `;
 
     // Drag & Drop
@@ -1875,6 +2055,23 @@ function openColonneModal() {
     list.appendChild(item);
   });
 
+  // Popola dropdown "Aggiungi colonna"
+  const sel = document.getElementById('aggiungi-col-key');
+  if(sel) {
+    const usedKeys = new Set(state.map(c => c.key));
+    const disponibili = ALL_AVAILABLE_COLS.filter(c => !usedKeys.has(c.key));
+    if(disponibili.length === 0) {
+      sel.innerHTML = '<option value="">— Nessuna colonna disponibile —</option>';
+    } else {
+      sel.innerHTML = '<option value="">— Seleziona campo —</option>' +
+        disponibili.map(c =>
+          `<option value="${c.key}" data-label="${c.label}" data-w="${c.w}" data-tipo="${c.tipo}">${c.label} (${c.key})</option>`
+        ).join('');
+    }
+    document.getElementById('aggiungi-col-label').value = '';
+    document.getElementById('aggiungi-col-w').value = 90;
+  }
+
   openModal('modal-colonne');
 }
 
@@ -1889,6 +2086,33 @@ function colWidth(idx, val) {
 
 function colRename(idx, val) {
   if(val.trim()) _colState[idx].label = val.trim();
+}
+
+function colElimina(idx) {
+  _colState.splice(idx, 1);
+  openColonneModal();
+}
+
+function aggiungiColPrecompila() {
+  const sel = document.getElementById('aggiungi-col-key');
+  const opt = sel.selectedOptions[0];
+  if(opt && opt.value) {
+    document.getElementById('aggiungi-col-label').value = opt.dataset.label || opt.value;
+    document.getElementById('aggiungi-col-w').value = opt.dataset.w || 90;
+  }
+}
+
+function colonneAggiungi() {
+  const sel   = document.getElementById('aggiungi-col-key');
+  const label = document.getElementById('aggiungi-col-label').value.trim();
+  const w     = parseInt(document.getElementById('aggiungi-col-w').value) || 90;
+  const key   = sel.value;
+  if(!key) { sel.focus(); return; }
+  if(_colState && _colState.find(c => c.key === key)) return;
+  const opt  = sel.selectedOptions[0];
+  const tipo = opt?.dataset?.tipo || COL_TIPO[key] || 'str';
+  getColState().push({key, label: label || key, w: Math.max(40, Math.min(500, w)), tipo, visible: true});
+  openColonneModal();
 }
 
 function colonneShowAll() {
@@ -2659,7 +2883,7 @@ async function invAvvia(){
     if(res.ok){
       closeModal('modal-inv');
       toast('✅ Sessione avviata: '+res.totale+' pezzi');
-      window.open('/inventario?sessione='+res.id, '_blank');
+      window.location.href = '/inventario?sessione='+res.id;
     } else {
       btn.disabled=false;
       err.textContent = res.msg||'Errore sconosciuto';
@@ -2679,7 +2903,7 @@ async function invCaricaSessioni(){
   if(!attive.length){ box.innerHTML='<span style="color:var(--text3)">Nessuna sessione attiva</span>'; return; }
   box.innerHTML = attive.map(s=>{
     const pct = Math.round(((s.confermati||0)+(s.mancanti||0))/(s.totale_pezzi||1)*100);
-    const url = `http://${window.location.hostname}:${window.location.port}/inventario-mobile?sessione=${s.id}`;
+    const url = getMobileUrl(s.id);
     return `<div style="background:var(--bg);border-radius:8px;padding:8px 10px;margin-bottom:6px;border:1px solid var(--border)">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
         <b style="font-size:12px">${s.nome}</b>
@@ -2696,7 +2920,7 @@ async function invCaricaSessioni(){
           style="margin-left:auto;font-size:10px;padding:2px 7px;border-radius:5px;border:1px solid var(--border);background:#fff;cursor:pointer">
           📱 URL mobile
         </button>
-        <a href="/inventario?highlight=${s.id}" target="_blank"
+        <a href="/inventario?highlight=${s.id}"
           style="font-size:10px;padding:2px 7px;border-radius:5px;border:1px solid var(--border);background:#fff;cursor:pointer;text-decoration:none;color:inherit">
           🖥 Apri
         </a>
