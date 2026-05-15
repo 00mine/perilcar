@@ -408,7 +408,7 @@ function renderP(){
   const r=_riga;
   // Foto esistenti
   const fu=[];
-  if(r.foto_url) fu.push(r.foto_url);
+  if(r.foto_url) r.foto_url.split('|').forEach(u=>{u=u.trim();if(u&&!fu.includes(u))fu.push(u);});
   if(r.immagine_path) r.immagine_path.split('|').forEach(u=>{if(u&&!fu.includes(u))fu.push(u);});
   if(r.files_path) r.files_path.split('|').forEach(u=>{if(u&&/\.(jpg|jpeg|png|webp|gif)/i.test(u)&&!fu.includes(u))fu.push(u);});
 
@@ -457,10 +457,11 @@ function renderP(){
     extra4:         function(r){return r.extra4?{l:'Extra 4',v:esc(r.extra4)}:null;},
   };
   _campiAttivi.forEach(function(key){
-    if(CAMPO_MAP[key]){
-      var res=CAMPO_MAP[key](r);
-      if(res) infoHtml+='<div class="info-item"><div class="info-lbl">'+res.l+'</div><div class="info-val">'+res.v+'</div></div>';
-    }
+    if(!CAMPO_MAP[key]) return;
+    var res = CAMPO_MAP[key](r);
+    var lbl = res ? res.l : (CAMPI_DISPONIBILI.find(function(c){return c.key===key;})||{}).label||key;
+    var val = res ? res.v : '<span style="color:var(--text3)">—</span>';
+    infoHtml+='<div class="info-item"><div class="info-lbl">'+lbl+'</div><div class="info-val">'+val+'</div></div>';
   });
 
   document.getElementById('scroll-area').innerHTML=faseHtml+
