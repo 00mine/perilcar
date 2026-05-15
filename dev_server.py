@@ -2668,7 +2668,12 @@ def page_inventario():
 @require_login
 def page_inventario_mobile():
     sid = request.args.get("sessione")
-    return render_template("inventario_mobile.html", user=cu(), sessione_id=sid or "")
+    resp = make_response(render_template("inventario_mobile.html", user=cu(), sessione_id=sid or ""))
+    resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
+    resp.headers['Pragma'] = 'no-cache'
+    resp.headers['Expires'] = '0'
+    resp.headers['Clear-Site-Data'] = '"cache", "storage"'
+    return resp
 
 # ── CATEGORIE disponibili ─────────────────────────────────────────────
 @app.route("/api/inventario/categorie")
@@ -3118,9 +3123,9 @@ def api_ping():
 @app.route("/sw.js")
 def service_worker():
     from flask import send_from_directory
-    resp = send_from_directory("web/static", "sw.js")
+    resp = send_from_directory("web/static", "sw-disabled.js")
     resp.headers["Service-Worker-Allowed"] = "/"
-    resp.headers["Cache-Control"] = "no-cache"
+    resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
     return resp
 
 # ══ IMPORT EXCEL BACKGROUND ══════════════════════════════════════════
